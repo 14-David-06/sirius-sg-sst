@@ -7,10 +7,10 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantStyles = {
-  primary: "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500",
-  secondary: "bg-gray-600 text-white hover:bg-gray-700 focus:ring-gray-500",
+  primary: "bg-sirius-azul text-white hover:bg-sirius-azul/90 focus:ring-sirius-cielo",
+  secondary: "bg-sirius-verde text-white hover:bg-sirius-verde/90 focus:ring-sirius-verde",
   outline:
-    "border-2 border-blue-600 text-blue-600 hover:bg-blue-50 focus:ring-blue-500",
+    "border-2 border-sirius-azul text-sirius-azul hover:bg-sirius-sutileza focus:ring-sirius-cielo",
 };
 
 const sizeStyles = {

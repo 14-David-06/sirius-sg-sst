@@ -2,7 +2,19 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #111827;
+  --foreground: #1A1A33;
+
+  /* Sirius Brand Colors */
+  --sirius-azul-barranca: #0154AC;
+  --sirius-verde-alegria: #00B602;
+  --sirius-azul-cielo: #00A3FF;
+  --sirius-imperial: #1A1A33;
+  --sirius-sutileza: #ECF1F4;
+  --sirius-cotiledon: #BCD7EA;
+  --sirius-verde-claro: #BCD983;
+  --sirius-primer-retono: #F2FFDD;
+  --sirius-verde-suave: #CFE4BF;
+  --sirius-verde-fondo: #F3F9F0;
 }
 
 @theme inline {
@@ -10,6 +22,18 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* Sirius brand tokens */
+  --color-sirius-azul: var(--sirius-azul-barranca);
+  --color-sirius-verde: var(--sirius-verde-alegria);
+  --color-sirius-cielo: var(--sirius-azul-cielo);
+  --color-sirius-imperial: var(--sirius-imperial);
+  --color-sirius-sutileza: var(--sirius-sutileza);
+  --color-sirius-cotiledon: var(--sirius-cotiledon);
+  --color-sirius-verde-claro: var(--sirius-verde-claro);
+  --color-sirius-retono: var(--sirius-primer-retono);
+  --color-sirius-verde-suave: var(--sirius-verde-suave);
+  --color-sirius-verde-fondo: var(--sirius-verde-fondo);
 }
 
 body {

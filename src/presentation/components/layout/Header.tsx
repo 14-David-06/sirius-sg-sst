@@ -4,7 +4,7 @@ import { Container } from "@/presentation/components/ui";
 
 export default function Header() {
   return (
-    <header className="fixed inset-x-0 top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-100">
+    <header className="fixed inset-x-0 top-0 z-50 bg-white/90 backdrop-blur-md border-b border-sirius-cotiledon/40">
       <Container>
         <nav className="flex items-center justify-between py-4">
           <div className="flex flex-1">
@@ -23,19 +23,13 @@ export default function Header() {
           <div className="flex items-center gap-x-6">
             <Link
               href="#modulos"
-              className="hidden sm:block text-sm font-semibold text-gray-700 hover:text-blue-600 transition-colors"
+              className="hidden sm:block text-sm font-semibold text-sirius-imperial/70 hover:text-sirius-azul transition-colors"
             >
               Módulos
             </Link>
             <Link
-              href="#funcionalidades"
-              className="hidden sm:block text-sm font-semibold text-gray-700 hover:text-blue-600 transition-colors"
-            >
-              Funcionalidades
-            </Link>
-            <Link
               href="/login"
-              className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+              className="inline-flex items-center justify-center rounded-lg bg-sirius-azul px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-sirius-azul/90 focus:outline-none focus:ring-2 focus:ring-sirius-cielo focus:ring-offset-2 transition-colors"
             >
               Iniciar sesión
             </Link>
