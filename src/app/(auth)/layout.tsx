@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 
 export const metadata: Metadata = {
   title: "Iniciar sesión | Sirius SG-SST",
@@ -12,17 +13,16 @@ export default function AuthLayout({
 }>) {
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden">
-      {/* Video de fondo */}
-      <video
-        autoPlay
-        loop
-        muted
-        playsInline
-        className="absolute inset-0 h-full w-full object-cover"
+      {/* Imagen de fondo */}
+      <Image
+        src="/20032025-DSC_3717.jpg"
+        alt=""
+        fill
+        className="object-cover"
+        priority
+        quality={85}
         style={{ zIndex: 0 }}
-      >
-        <source src="/Background%20Patos.mp4" type="video/mp4" />
-      </video>
+      />
 
       {/* Gradiente para legibilidad */}
       <div
