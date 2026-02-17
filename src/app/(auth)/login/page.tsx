@@ -31,7 +31,7 @@ export default function LoginPage() {
     <button
       type="button"
       onClick={handleBack}
-      className="flex items-center gap-1.5 text-sm text-sirius-imperial/50 hover:text-sirius-imperial transition-colors mb-6 cursor-pointer"
+      className="flex items-center gap-1.5 text-sm text-white/60 hover:text-white transition-colors mb-6 cursor-pointer"
     >
       <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
@@ -72,12 +72,12 @@ export default function LoginPage() {
     placeholder: string
   ) => (
     <div>
-      <label htmlFor={id} className="block text-sm font-medium text-sirius-imperial/70 mb-1.5">
+      <label htmlFor={id} className="block text-sm font-medium text-white/80 mb-1.5">
         {label}
       </label>
       <div className="relative">
         <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-          <svg className="h-5 w-5 text-sirius-imperial/30" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+          <svg className="h-5 w-5 text-white/40" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
           </svg>
         </div>
@@ -89,12 +89,12 @@ export default function LoginPage() {
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className="block w-full rounded-lg border border-sirius-cotiledon py-2.5 pl-10 pr-10 text-sirius-imperial placeholder:text-sirius-imperial/30 focus:border-sirius-cielo focus:ring-2 focus:ring-sirius-cielo/20 focus:outline-none transition-colors text-sm"
+          className="block w-full rounded-lg border border-white/20 bg-white/10 py-2.5 pl-10 pr-10 text-white placeholder:text-white/40 focus:border-sirius-cielo focus:ring-2 focus:ring-sirius-cielo/30 focus:outline-none transition-colors text-sm"
         />
         <button
           type="button"
           onClick={toggleShow}
-          className="absolute inset-y-0 right-0 flex items-center pr-3 text-sirius-imperial/30 hover:text-sirius-imperial/60 cursor-pointer"
+          className="absolute inset-y-0 right-0 flex items-center pr-3 text-white/40 hover:text-white/70 cursor-pointer"
         >
           {show ? (
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
@@ -115,13 +115,13 @@ export default function LoginPage() {
   if (step === "cedula") {
     return (
       <div className="w-full max-w-md px-4">
-        <div className="rounded-2xl bg-white p-8 shadow-xl shadow-sirius-imperial/5 border border-sirius-cotiledon/30">
+        <div className="rounded-2xl bg-white/10 backdrop-blur-xl p-8 shadow-2xl shadow-black/20 border border-white/20">
           {backButton}
           {logoSection}
 
           <div className="text-center mb-8">
-            <h1 className="text-xl font-semibold text-sirius-imperial">Iniciar sesión</h1>
-            <p className="mt-1 text-sm text-sirius-imperial/50">
+            <h1 className="text-xl font-semibold text-white">Iniciar sesión</h1>
+            <p className="mt-1 text-sm text-white/60">
               Ingrese su número de cédula para continuar
             </p>
           </div>
@@ -130,12 +130,12 @@ export default function LoginPage() {
 
           <form onSubmit={handleVerify} className="space-y-5">
             <div>
-              <label htmlFor="numeroDocumento" className="block text-sm font-medium text-sirius-imperial/70 mb-1.5">
+              <label htmlFor="numeroDocumento" className="block text-sm font-medium text-white/80 mb-1.5">
                 Número de cédula
               </label>
               <div className="relative">
                 <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                  <svg className="h-5 w-5 text-sirius-imperial/30" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                  <svg className="h-5 w-5 text-white/40" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 9h3.75M15 12h3.75M15 15h3.75M4.5 19.5h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5zm6-10.125a1.875 1.875 0 11-3.75 0 1.875 1.875 0 013.75 0zm1.294 6.336a6.721 6.721 0 01-3.17.789 6.721 6.721 0 01-3.168-.789 3.376 3.376 0 016.338 0z" />
                   </svg>
                 </div>
@@ -148,7 +148,7 @@ export default function LoginPage() {
                   value={numeroDocumento}
                   onChange={(e) => setNumeroDocumento(e.target.value)}
                   placeholder="Ingrese su cédula"
-                  className="block w-full rounded-lg border border-sirius-cotiledon py-2.5 pl-10 pr-4 text-sirius-imperial placeholder:text-sirius-imperial/30 focus:border-sirius-cielo focus:ring-2 focus:ring-sirius-cielo/20 focus:outline-none transition-colors text-sm"
+                  className="block w-full rounded-lg border border-white/20 bg-white/10 py-2.5 pl-10 pr-4 text-white placeholder:text-white/40 focus:border-sirius-cielo focus:ring-2 focus:ring-sirius-cielo/30 focus:outline-none transition-colors text-sm"
                 />
               </div>
             </div>
@@ -156,14 +156,14 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="flex w-full items-center justify-center rounded-lg bg-sirius-azul px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-sirius-azul/90 focus:outline-none focus:ring-2 focus:ring-sirius-cielo focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              className="flex w-full items-center justify-center rounded-lg bg-sirius-azul px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-sirius-azul/30 hover:bg-sirius-azul/90 focus:outline-none focus:ring-2 focus:ring-sirius-cielo focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
             >
               {isLoading ? spinner : "Continuar"}
             </button>
           </form>
         </div>
 
-        <p className="mt-6 text-center text-xs text-sirius-imperial/40">
+        <p className="mt-6 text-center text-xs text-white/40">
           &copy; {new Date().getFullYear()} Sirius. Uso interno exclusivo.
         </p>
       </div>
@@ -174,18 +174,18 @@ export default function LoginPage() {
   if (step === "password") {
     return (
       <div className="w-full max-w-md px-4">
-        <div className="rounded-2xl bg-white p-8 shadow-xl shadow-sirius-imperial/5 border border-sirius-cotiledon/30">
+        <div className="rounded-2xl bg-white/10 backdrop-blur-xl p-8 shadow-2xl shadow-black/20 border border-white/20">
           {backButton}
           {logoSection}
 
           <div className="text-center mb-8">
-            <h1 className="text-xl font-semibold text-sirius-imperial">
+            <h1 className="text-xl font-semibold text-white">
               Bienvenido/a
             </h1>
-            <p className="mt-1 text-sm font-medium text-sirius-azul">
+            <p className="mt-1 text-sm font-medium text-sirius-cielo">
               {nombreCompleto}
             </p>
-            <p className="mt-1 text-sm text-sirius-imperial/50">
+            <p className="mt-1 text-sm text-white/60">
               Ingrese su contraseña para acceder
             </p>
           </div>
@@ -206,14 +206,14 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="flex w-full items-center justify-center rounded-lg bg-sirius-azul px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-sirius-azul/90 focus:outline-none focus:ring-2 focus:ring-sirius-cielo focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              className="flex w-full items-center justify-center rounded-lg bg-sirius-azul px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-sirius-azul/30 hover:bg-sirius-azul/90 focus:outline-none focus:ring-2 focus:ring-sirius-cielo focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
             >
               {isLoading ? spinner : "Iniciar sesión"}
             </button>
           </form>
         </div>
 
-        <p className="mt-6 text-center text-xs text-sirius-imperial/40">
+        <p className="mt-6 text-center text-xs text-white/40">
           &copy; {new Date().getFullYear()} Sirius. Uso interno exclusivo.
         </p>
       </div>
@@ -223,18 +223,18 @@ export default function LoginPage() {
   // --- Step: Create password (first time) ---
   return (
     <div className="w-full max-w-md px-4">
-      <div className="rounded-2xl bg-white p-8 shadow-xl shadow-sirius-imperial/5 border border-sirius-cotiledon/30">
+      <div className="rounded-2xl bg-white/10 backdrop-blur-xl p-8 shadow-2xl shadow-black/20 border border-white/20">
         {backButton}
         {logoSection}
 
         <div className="text-center mb-8">
-          <h1 className="text-xl font-semibold text-sirius-imperial">
+          <h1 className="text-xl font-semibold text-white">
             Crear contraseña
           </h1>
-          <p className="mt-1 text-sm font-medium text-sirius-azul">
+          <p className="mt-1 text-sm font-medium text-sirius-cielo">
             {nombreCompleto}
           </p>
-          <p className="mt-1 text-sm text-sirius-imperial/50">
+          <p className="mt-1 text-sm text-white/60">
             Es su primer ingreso. Cree una contraseña segura.
           </p>
         </div>
@@ -265,14 +265,14 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={isLoading}
-            className="flex w-full items-center justify-center rounded-lg bg-sirius-azul px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-sirius-azul/90 focus:outline-none focus:ring-2 focus:ring-sirius-cielo focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            className="flex w-full items-center justify-center rounded-lg bg-sirius-azul px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-sirius-azul/30 hover:bg-sirius-azul/90 focus:outline-none focus:ring-2 focus:ring-sirius-cielo focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
           >
             {isLoading ? spinner : "Crear contraseña e ingresar"}
           </button>
         </form>
       </div>
 
-      <p className="mt-6 text-center text-xs text-sirius-imperial/40">
+      <p className="mt-6 text-center text-xs text-white/40">
         &copy; {new Date().getFullYear()} Sirius. Uso interno exclusivo.
       </p>
     </div>

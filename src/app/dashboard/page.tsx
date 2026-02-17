@@ -76,6 +76,66 @@ const modules = [
     hoverColor: "group-hover:text-sirius-verde",
     href: "#",
   },
+  {
+    title: "Entrega de EPPs",
+    description: "Registro y control de entrega de elementos de protección personal.",
+    icon: (
+      <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
+      </svg>
+    ),
+    color: "bg-yellow-50 text-yellow-600",
+    hoverColor: "group-hover:text-yellow-600",
+    href: "#",
+  },
+  {
+    title: "Registro de Asistencias",
+    description: "Control de asistencia a charlas, capacitaciones y actividades SST.",
+    icon: (
+      <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
+      </svg>
+    ),
+    color: "bg-purple-50 text-purple-600",
+    hoverColor: "group-hover:text-purple-600",
+    href: "#",
+  },
+  {
+    title: "Inventario de EPPs",
+    description: "Catálogo y control de stock de elementos de protección personal.",
+    icon: (
+      <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
+      </svg>
+    ),
+    color: "bg-teal-50 text-teal-600",
+    hoverColor: "group-hover:text-teal-600",
+    href: "#",
+  },
+  {
+    title: "Plan Anual SST 2026",
+    description: "Cronograma PHVA de actividades del Sistema de Gestión SST.",
+    icon: (
+      <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5m-9-6h.008v.008H12v-.008ZM12 15h.008v.008H12V15Zm0 2.25h.008v.008H12v-.008ZM9.75 15h.008v.008H9.75V15Zm0 2.25h.008v.008H9.75v-.008ZM7.5 15h.008v.008H7.5V15Zm0 2.25h.008v.008H7.5v-.008Zm6.75-4.5h.008v.008h-.008v-.008Zm0 2.25h.008v.008h-.008V15Zm0 2.25h.008v.008h-.008v-.008Zm2.25-4.5h.008v.008H16.5v-.008Zm0 2.25h.008v.008H16.5V15Z" />
+      </svg>
+    ),
+    color: "bg-indigo-50 text-indigo-600",
+    hoverColor: "group-hover:text-indigo-600",
+    href: "/dashboard/plan-anual",
+  },
+  {
+    title: "PVE Osteomuscular",
+    description: "Programa de Vigilancia Epidemiológica Osteomuscular 2025.",
+    icon: (
+      <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />
+      </svg>
+    ),
+    color: "bg-cyan-50 text-cyan-600",
+    hoverColor: "group-hover:text-cyan-600",
+    href: "/dashboard/pve",
+  },
 ];
 
 export default function DashboardPage() {
@@ -87,20 +147,33 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-sirius-sutileza/40">
+    <div className="min-h-screen relative">
+      {/* Background image */}
+      <div className="fixed inset-0 -z-10">
+        <Image
+          src="/20032025-DSC_3717.jpg"
+          alt=""
+          fill
+          className="object-cover"
+          priority
+          quality={85}
+        />
+        <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+      </div>
+
       {/* Header */}
-      <header className="bg-white border-b border-sirius-cotiledon/30 sticky top-0 z-30">
+      <header className="sticky top-0 z-30 bg-white/10 backdrop-blur-xl border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-3">
-              <Image src="/logo.png" alt="Sirius" width={120} height={32} className="h-8 w-auto" priority />
-              <div className="hidden sm:block h-6 w-px bg-sirius-cotiledon/50" />
-              <p className="hidden sm:block text-sm font-medium text-sirius-imperial/60">SG-SST</p>
+          <div className="flex items-center justify-between py-5">
+            <div className="flex items-center gap-4">
+              <Image src="/logo.png" alt="Sirius" width={240} height={64} className="h-16 w-auto" priority />
+              <div className="hidden sm:block h-8 w-px bg-white/20" />
+              <p className="hidden sm:block text-sm font-semibold text-white/70 tracking-wide uppercase">SG-SST</p>
             </div>
 
             <button
               onClick={handleLogout}
-              className="flex items-center gap-2 text-sm text-sirius-imperial/60 hover:text-red-600 transition-colors cursor-pointer"
+              className="flex items-center gap-2 rounded-full bg-white/10 border border-white/20 px-5 py-2.5 text-sm font-semibold text-white/80 hover:bg-red-500/20 hover:border-red-400/30 hover:text-red-300 transition-all cursor-pointer"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15m-3 0-3-3m0 0 3-3m-3 3H15" />
@@ -112,25 +185,25 @@ export default function DashboardPage() {
       </header>
 
       {/* Main content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
         {/* Welcome */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-sirius-imperial">Bienvenido al SG-SST</h2>
-          <p className="mt-1 text-sirius-imperial/60">
+        <div className="mb-10">
+          <h2 className="text-3xl font-bold text-white" style={{ textShadow: '0 2px 15px rgba(0,0,0,0.4)' }}>Bienvenido al SG-SST</h2>
+          <p className="mt-2 text-white/60 text-lg">
             Selecciona un módulo para comenzar.
           </p>
         </div>
 
-        {/* Stats  */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {/* Stats */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
           {[
-            { label: "Capacitaciones pendientes", value: "—", color: "text-sirius-azul" },
+            { label: "Capacitaciones pendientes", value: "—", color: "text-sirius-cielo" },
             { label: "Inspecciones este mes", value: "—", color: "text-sirius-verde" },
-            { label: "Incidentes abiertos", value: "—", color: "text-orange-600" },
+            { label: "Incidentes abiertos", value: "—", color: "text-orange-400" },
             { label: "Exámenes por vencer", value: "—", color: "text-sirius-cielo" },
           ].map((stat) => (
-            <div key={stat.label} className="bg-white rounded-xl border border-sirius-cotiledon/30 p-5">
-              <p className="text-sm text-sirius-imperial/50">{stat.label}</p>
+            <div key={stat.label} className="bg-white/10 backdrop-blur-xl rounded-xl border border-white/15 p-5">
+              <p className="text-sm text-white/50">{stat.label}</p>
               <p className={`text-3xl font-bold mt-1 ${stat.color}`}>{stat.value}</p>
             </div>
           ))}
@@ -141,17 +214,17 @@ export default function DashboardPage() {
           {modules.map((mod) => (
             <button
               key={mod.title}
-              onClick={() => {}}
-              className="bg-white rounded-xl border border-sirius-cotiledon/30 p-6 text-left hover:shadow-lg hover:shadow-sirius-azul/5 hover:border-sirius-azul/20 transition-all group cursor-pointer"
+              onClick={() => { if (mod.href !== "#") router.push(mod.href); }}
+              className="bg-white/10 backdrop-blur-xl rounded-xl border border-white/15 p-6 text-left hover:bg-white/20 hover:border-white/30 hover:shadow-2xl hover:shadow-black/20 transition-all group cursor-pointer"
             >
               <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${mod.color} mb-4`}>
                 {mod.icon}
               </div>
-              <h3 className={`font-semibold text-sirius-imperial ${mod.hoverColor} transition-colors`}>
+              <h3 className="font-semibold text-white group-hover:text-sirius-cielo transition-colors">
                 {mod.title}
               </h3>
-              <p className="text-sm text-sirius-imperial/50 mt-1">{mod.description}</p>
-              <div className="mt-4 flex items-center text-sm text-sirius-azul font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+              <p className="text-sm text-white/50 mt-1">{mod.description}</p>
+              <div className="mt-4 flex items-center text-sm text-sirius-cielo font-medium opacity-0 group-hover:opacity-100 transition-opacity">
                 Abrir módulo
                 <svg className="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
