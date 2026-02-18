@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { useSession } from "@/presentation/context/SessionContext";
 
 const modules = [
   {
@@ -110,7 +111,7 @@ const modules = [
     ),
     color: "bg-teal-50 text-teal-600",
     hoverColor: "group-hover:text-teal-600",
-    href: "#",
+    href: "/dashboard/inventario-epp",
   },
   {
     title: "Plan Anual SST 2026",
@@ -140,9 +141,10 @@ const modules = [
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { user, logout } = useSession();
 
   const handleLogout = () => {
-    // TODO: Limpiar sesión
+    logout();
     router.push("/login");
   };
 
@@ -188,7 +190,9 @@ export default function DashboardPage() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
         {/* Welcome */}
         <div className="mb-10">
-          <h2 className="text-3xl font-bold text-white" style={{ textShadow: '0 2px 15px rgba(0,0,0,0.4)' }}>Bienvenido al SG-SST</h2>
+          <h2 className="text-3xl font-bold text-white" style={{ textShadow: '0 2px 15px rgba(0,0,0,0.4)' }}>
+            {user ? `Hola, ${user.nombreCompleto.split(" ")[0]}` : "Bienvenido al SG-SST"}
+          </h2>
           <p className="mt-2 text-white/60 text-lg">
             Selecciona un módulo para comenzar.
           </p>

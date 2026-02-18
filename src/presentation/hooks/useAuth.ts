@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "@/presentation/context/SessionContext";
 
 type Step = "cedula" | "password" | "create-password";
 
@@ -33,6 +34,7 @@ interface UseAuthReturn {
 
 export function useAuth(): UseAuthReturn {
   const router = useRouter();
+  const { login: saveSession } = useSession();
   const [step, setStep] = useState<Step>("cedula");
   const [numeroDocumento, setNumeroDocumento] = useState("");
   const [nombreCompleto, setNombreCompleto] = useState("");
@@ -90,7 +92,18 @@ export function useAuth(): UseAuthReturn {
         return;
       }
 
-      // TODO: Guardar sesión/token
+      // Guardar sesión del usuario
+      if (data.user) {
+        saveSession({
+          idEmpleado: data.user.idEmpleado,
+          nombreCompleto: data.user.nombreCompleto,
+          correoElectronico: data.user.correoElectronico,
+          numeroDocumento: data.user.numeroDocumento,
+          tipoPersonal: data.user.tipoPersonal,
+          estadoActividad: data.user.estadoActividad,
+          fotoPerfil: data.user.fotoPerfil,
+        });
+      }
       router.push("/dashboard");
     } catch {
       setError("Error de conexión. Intente nuevamente.");
@@ -130,7 +143,18 @@ export function useAuth(): UseAuthReturn {
         return;
       }
 
-      // TODO: Guardar sesión/token
+      // Guardar sesión del usuario
+      if (data.user) {
+        saveSession({
+          idEmpleado: data.user.idEmpleado,
+          nombreCompleto: data.user.nombreCompleto,
+          correoElectronico: data.user.correoElectronico,
+          numeroDocumento: data.user.numeroDocumento,
+          tipoPersonal: data.user.tipoPersonal,
+          estadoActividad: data.user.estadoActividad,
+          fotoPerfil: data.user.fotoPerfil,
+        });
+      }
       router.push("/dashboard");
     } catch {
       setError("Error de conexión. Intente nuevamente.");
