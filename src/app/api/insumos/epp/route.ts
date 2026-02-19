@@ -5,6 +5,8 @@ import {
   getInsumosHeaders,
 } from "@/infrastructure/config/airtableInsumos";
 
+const { insumoFields } = airtableInsumosConfig;
+
 // Tipos para la respuesta de Airtable
 interface AirtableAttachment {
   id: string;
@@ -64,7 +66,10 @@ async function calcularStockDesdeMovimientos(
 
   try {
     do {
-      const params = new URLSearchParams({ pageSize: "100" });
+      const params = new URLSearchParams({
+        pageSize: "100",
+        returnFieldsByFieldId: "true",
+      });
       if (offset) params.set("offset", offset);
 
       const response = await fetch(`${url}?${params.toString()}`, { headers });
@@ -127,6 +132,7 @@ export async function GET() {
       const params = new URLSearchParams({
         filterByFormula: filterFormula,
         pageSize: "100",
+        returnFieldsByFieldId: "true",
       });
       if (offset) params.set("offset", offset);
 
@@ -148,7 +154,7 @@ export async function GET() {
 
     // Filtrar solo los insumos que pertenecen a la categoría EPP (server-side)
     const eppRecords = allRecords.filter((record) => {
-      const categorias = record.fields["Categoria"] as string[] | undefined;
+      const categorias = record.fields[insumoFields.CATEGORIA] as string[] | undefined;
       return categorias?.includes(EPP_CATEGORY_ID);
     });
 
@@ -158,19 +164,19 @@ export async function GET() {
     // Mapear registros a nuestro tipo normalizado
     const insumos: InsumoEPP[] = eppRecords.map((record) => {
       const f = record.fields;
-      const imagenes = f["Imagen Referencia"] as AirtableAttachment[] | undefined;
-      const refComercial = f["Referencia Comercial"] as
+      const imagenes = f[insumoFields.IMAGEN] as AirtableAttachment[] | undefined;
+      const refComercial = f[insumoFields.REFERENCIA_COMERCIAL] as
         | { state: string; value: string }
         | undefined;
 
       return {
         id: record.id,
-        codigo: (f["Código SIRIUS-INS"] as string) || "",
-        nombre: (f["Nombre"] as string) || "",
-        unidadMedida: (f["Unidad Medida"] as string) || "",
-        stockMinimo: (f["Stock Minimo"] as number) || 0,
+        codigo: (f[insumoFields.CODIGO] as string) || "",
+        nombre: (f[insumoFields.NOMBRE] as string) || "",
+        unidadMedida: (f[insumoFields.UNIDAD_MEDIDA] as string) || "",
+        stockMinimo: (f[insumoFields.STOCK_MINIMO] as number) || 0,
         stockActual: stockMap.get(record.id) || 0,
-        estado: (f["Estado Insumo"] as string) || "Activo",
+        estado: (f[insumoFields.ESTADO] as string) || "Activo",
         imagen: imagenes?.[0]
           ? {
               url: imagenes[0].thumbnails?.large?.url || imagenes[0].url,
@@ -180,8 +186,8 @@ export async function GET() {
             }
           : null,
         referenciaComercial: refComercial?.value || "",
-        responsable: (f["Responsable"] as string) || "",
-        categoriaIds: (f["Categoria"] as string[]) || [],
+        responsable: (f[insumoFields.RESPONSABLE] as string) || "",
+        categoriaIds: (f[insumoFields.CATEGORIA] as string[]) || [],
       };
     });
 

@@ -16,6 +16,7 @@ import {
   RefreshCw,
   PackagePlus,
   Send,
+  ClipboardList,
 } from "lucide-react";
 
 // ── Tipos ────────────────────────────────────────────────
@@ -210,6 +211,25 @@ export default function InventarioEPPPage() {
               <p className="text-xs text-white/40 mt-0.5">Registrar entrega de EPP a empleados</p>
             </div>
             <svg className="w-5 h-5 text-blue-400/50 ml-auto group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Acciones secundarias */}
+        <div className="mb-8">
+          <button
+            onClick={() => router.push("/dashboard/inventario-epp/entregas")}
+            className="w-full flex items-center gap-3 bg-orange-500/10 backdrop-blur-xl rounded-xl border border-orange-400/20 p-4 hover:bg-orange-500/20 hover:border-orange-400/35 transition-all group cursor-pointer"
+          >
+            <div className="w-10 h-10 rounded-xl bg-orange-500/20 border border-orange-400/30 flex items-center justify-center group-hover:scale-105 transition-transform">
+              <ClipboardList className="w-5 h-5 text-orange-400" />
+            </div>
+            <div className="text-left flex-1">
+              <h3 className="font-semibold text-sm text-white group-hover:text-orange-300 transition-colors">Ver todas las entregas</h3>
+              <p className="text-xs text-white/40 mt-0.5">Historial de entregas, estados y firmas digitales</p>
+            </div>
+            <svg className="w-5 h-5 text-orange-400/50 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
             </svg>
           </button>

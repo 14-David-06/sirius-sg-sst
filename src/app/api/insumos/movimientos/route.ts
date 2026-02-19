@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
       [movimientosFields.RESPONSABLE]: body.responsable,
     };
 
-    const response = await fetch(url, {
+    const response = await fetch(`${url}?returnFieldsByFieldId=true`, {
       method: "POST",
       headers,
       body: JSON.stringify({
