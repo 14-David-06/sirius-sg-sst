@@ -533,7 +533,7 @@ export async function GET() {
       { width: 12 }, // B - CANTIDAD
       { width: 22 }, // C - REFERENCIA
       { width: 18 }, // D - FECHA DE ENTREGA
-      { width: 30 }, // E - FIRMA (ancha para imagen)
+      { width: 45 }, // E - FIRMA (ancha para imagen)
     ];
 
     let currentRow = 1;
@@ -731,8 +731,8 @@ export async function GET() {
 
               // Imagen que llena la celda FIRMA (col E = index 4)
               ws.addImage(imageId, {
-                tl: { col: 4.02, row: dataRow - 1 + 0.05 } as unknown as ExcelJS.Anchor,
-                br: { col: 4.98, row: dataRow - 1 + 0.95 } as unknown as ExcelJS.Anchor,
+                tl: { col: 4.01, row: dataRow - 1 + 0.03 } as unknown as ExcelJS.Anchor,
+                br: { col: 4.99, row: dataRow - 1 + 0.97 } as unknown as ExcelJS.Anchor,
                 editAs: "oneCell",
               });
             }
