@@ -100,6 +100,104 @@ export const airtableSGSSTConfig = {
     P_CAIDAS: process.env.AIRTABLE_DETINSP_P_CAIDAS!,
     OTROS: process.env.AIRTABLE_DETINSP_OTROS!,
   },
+
+  // ── Tabla "Equipos Emergencia" (catálogo maestro) ─────
+  equiposTableId: process.env.AIRTABLE_EQUIP_TABLE_ID!,
+  equiposFields: {
+    CODIGO: process.env.AIRTABLE_EQUIP_CODIGO!,
+    NOMBRE: process.env.AIRTABLE_EQUIP_NOMBRE!,
+    CATEGORIA: process.env.AIRTABLE_EQUIP_CATEGORIA!,
+    TIPO_ESPECIFICO: process.env.AIRTABLE_EQUIP_TIPO_ESPECIFICO!,
+    AREA: process.env.AIRTABLE_EQUIP_AREA!,
+    UBICACION: process.env.AIRTABLE_EQUIP_UBICACION!,
+    CAPACIDAD: process.env.AIRTABLE_EQUIP_CAPACIDAD!,
+    FECHA_VENCIMIENTO: process.env.AIRTABLE_EQUIP_FECHA_VENCIMIENTO!,
+    ESTADO: process.env.AIRTABLE_EQUIP_ESTADO!,
+    DESCRIPCION: process.env.AIRTABLE_EQUIP_DESCRIPCION!,
+  },
+
+  // ── Tabla "Inspecciones Equipos Emergencia" (cabecera) ─
+  inspEquiposTableId: process.env.AIRTABLE_INSPEQ_TABLE_ID!,
+  inspEquiposFields: {
+    ID: process.env.AIRTABLE_INSPEQ_ID!,
+    FECHA: process.env.AIRTABLE_INSPEQ_FECHA!,
+    INSPECTOR: process.env.AIRTABLE_INSPEQ_INSPECTOR!,
+    ESTADO: process.env.AIRTABLE_INSPEQ_ESTADO!,
+    OBSERVACIONES: process.env.AIRTABLE_INSPEQ_OBSERVACIONES!,
+    URL_DOCUMENTO: process.env.AIRTABLE_INSPEQ_URL_DOCUMENTO!,
+    FECHA_EXPORTACION: process.env.AIRTABLE_INSPEQ_FECHA_EXPORTACION!,
+  },
+
+  // ── Tabla "Detalle Inspección Equipos" ────────────────
+  detalleEquiposTableId: process.env.AIRTABLE_DETEQ_TABLE_ID!,
+  detalleEquiposFields: {
+    ID: process.env.AIRTABLE_DETEQ_ID!,
+    INSPECCION_LINK: process.env.AIRTABLE_DETEQ_INSPECCION_LINK!,
+    EQUIPO_LINK: process.env.AIRTABLE_DETEQ_EQUIPO_LINK!,
+    CATEGORIA: process.env.AIRTABLE_DETEQ_CATEGORIA!,
+    AREA: process.env.AIRTABLE_DETEQ_AREA!,
+    ESTADO_GENERAL: process.env.AIRTABLE_DETEQ_ESTADO_GENERAL!,
+    SENALIZACION: process.env.AIRTABLE_DETEQ_SENALIZACION!,
+    ACCESIBILIDAD: process.env.AIRTABLE_DETEQ_ACCESIBILIDAD!,
+    // Criterios Extintor
+    PRESION_MANOMETRO: process.env.AIRTABLE_DETEQ_PRESION_MANOMETRO!,
+    MANGUERA: process.env.AIRTABLE_DETEQ_MANGUERA!,
+    PIN_SEGURIDAD: process.env.AIRTABLE_DETEQ_PIN_SEGURIDAD!,
+    SOPORTE_BASE: process.env.AIRTABLE_DETEQ_SOPORTE_BASE!,
+    // Criterios Botiquín / Kit Derrames
+    COMPLETITUD: process.env.AIRTABLE_DETEQ_COMPLETITUD!,
+    ESTADO_CONTENEDOR: process.env.AIRTABLE_DETEQ_ESTADO_CONTENEDOR!,
+    // Criterios Camilla
+    ESTRUCTURA: process.env.AIRTABLE_DETEQ_ESTRUCTURA!,
+    CORREAS: process.env.AIRTABLE_DETEQ_CORREAS!,
+    // Comunes
+    FECHA_VENCIMIENTO: process.env.AIRTABLE_DETEQ_FECHA_VENCIMIENTO!,
+    OBSERVACIONES: process.env.AIRTABLE_DETEQ_OBSERVACIONES!,
+  },
+
+  // ── Tabla "Responsables Inspección Equipos" ───────────
+  respEquiposTableId: process.env.AIRTABLE_RESPEQ_TABLE_ID!,
+  respEquiposFields: {
+    ID_FIRMA: process.env.AIRTABLE_RESPEQ_ID_FIRMA!,
+    INSPECCION_LINK: process.env.AIRTABLE_RESPEQ_INSPECCION_LINK!,
+    TIPO: process.env.AIRTABLE_RESPEQ_TIPO!,
+    NOMBRE: process.env.AIRTABLE_RESPEQ_NOMBRE!,
+    CEDULA: process.env.AIRTABLE_RESPEQ_CEDULA!,
+    CARGO: process.env.AIRTABLE_RESPEQ_CARGO!,
+    FIRMA: process.env.AIRTABLE_RESPEQ_FIRMA!,
+    FECHA_FIRMA: process.env.AIRTABLE_RESPEQ_FECHA_FIRMA!,
+  },
+
+  // ── Tabla "Registro Asistencia" (cabecera) ────────────
+  registroAsistenciaTableId: process.env.AIRTABLE_REGASIS_TABLE_ID!,
+  registroAsistenciaFields: {
+    ID_REGISTRO:          process.env.AIRTABLE_REGASIS_ID_REGISTRO!,
+    NOMBRE_EVENTO:        process.env.AIRTABLE_REGASIS_NOMBRE_EVENTO!,
+    CIUDAD:               process.env.AIRTABLE_REGASIS_CIUDAD!,
+    FECHA:                process.env.AIRTABLE_REGASIS_FECHA!,
+    HORA_INICIO:          process.env.AIRTABLE_REGASIS_HORA_INICIO!,
+    LUGAR:                process.env.AIRTABLE_REGASIS_LUGAR!,
+    DURACION:             process.env.AIRTABLE_REGASIS_DURACION!,
+    AREA:                 process.env.AIRTABLE_REGASIS_AREA!,
+    TIPO:                 process.env.AIRTABLE_REGASIS_TIPO!,
+    TEMAS_TRATADOS:       process.env.AIRTABLE_REGASIS_TEMAS_TRATADOS!,
+    NOMBRE_CONFERENCISTA: process.env.AIRTABLE_REGASIS_NOMBRE_CONFERENCISTA!,
+    FIRMA_CONFERENCISTA:  process.env.AIRTABLE_REGASIS_FIRMA_CONFERENCISTA!,
+    ESTADO:               process.env.AIRTABLE_REGASIS_ESTADO!,
+    DETALLE_LINK:         process.env.AIRTABLE_REGASIS_DETALLE_LINK!,
+  },
+
+  // ── Tabla "Detalle Registro Asistencia" ───────────────
+  detalleRegistroTableId: process.env.AIRTABLE_DETREGASIS_TABLE_ID!,
+  detalleRegistroFields: {
+    ID:            process.env.AIRTABLE_DETREGASIS_ID!,
+    ID_EMPLEADO:   process.env.AIRTABLE_DETREGASIS_ID_EMPLEADO!,
+    NOMBRE:        process.env.AIRTABLE_DETREGASIS_NOMBRE!,
+    CEDULA:        process.env.AIRTABLE_DETREGASIS_CEDULA!,
+    LABOR:         process.env.AIRTABLE_DETREGASIS_LABOR!,
+    FIRMA:         process.env.AIRTABLE_DETREGASIS_FIRMA!,
+    REGISTRO_LINK: process.env.AIRTABLE_DETREGASIS_REGISTRO_LINK!,
+  },
 };
 
 export function getSGSSTUrl(tableId: string): string {
