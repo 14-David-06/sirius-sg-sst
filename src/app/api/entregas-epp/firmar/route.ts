@@ -102,7 +102,8 @@ export async function POST(request: NextRequest) {
     }
 
     // ── 3. Actualizar Entrega EPP ───────────────────────
-    const hoy = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+    // Fecha en timezone Colombia (YYYY-MM-DD)
+    const hoy = new Date().toLocaleDateString("en-CA", { timeZone: "America/Bogota" });
     const entregaPatchUrl = `${getSGSSTUrl(entregasTableId)}?returnFieldsByFieldId=true`;
     const entregaRes = await fetch(entregaPatchUrl, {
       method: "PATCH",

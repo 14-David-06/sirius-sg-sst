@@ -101,12 +101,17 @@ const CONDICION_STYLES: Record<string, { bg: string; text: string; label: string
 };
 
 // ══════════════════════════════════════════════════════════
-// Helpers
+// Helpers - Timezone Colombia
 // ══════════════════════════════════════════════════════════
+const COLOMBIA_TZ = "America/Bogota";
+
 function formatFecha(iso: string | undefined | null): string {
   if (!iso) return "—";
   try {
-    return new Date(iso).toLocaleDateString("es-CO", {
+    // Si es solo fecha YYYY-MM-DD, añadir mediodía para evitar desfase UTC
+    const dateStr = iso.includes("T") ? iso : iso + "T12:00:00";
+    return new Date(dateStr).toLocaleDateString("es-CO", {
+      timeZone: COLOMBIA_TZ,
       day: "2-digit",
       month: "short",
       year: "numeric",
@@ -355,9 +360,12 @@ export default function HistorialInspeccionesPage() {
             <p className="text-2xl font-bold text-purple-400">
               {inspecciones.filter((i) => {
                 if (!i.fecha) return false;
-                const fecha = new Date(i.fecha);
-                const now = new Date();
-                return fecha.getMonth() === now.getMonth() && fecha.getFullYear() === now.getFullYear();
+                // Añadir mediodía para evitar desfase UTC
+                const fechaStr = i.fecha.includes("T") ? i.fecha : i.fecha + "T12:00:00";
+                const fecha = new Date(fechaStr);
+                // Obtener mes/año actual en timezone Colombia
+                const nowColombia = new Date(new Date().toLocaleString("en-US", { timeZone: COLOMBIA_TZ }));
+                return fecha.getMonth() === nowColombia.getMonth() && fecha.getFullYear() === nowColombia.getFullYear();
               }).length}
             </p>
           </div>

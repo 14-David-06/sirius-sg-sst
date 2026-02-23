@@ -67,12 +67,17 @@ interface FirmaDescifrada {
 }
 
 // ══════════════════════════════════════════════════════════
-// Helpers
+// Helpers - Timezone Colombia
 // ══════════════════════════════════════════════════════════
+const COLOMBIA_TZ = "America/Bogota";
+
 function formatFecha(iso: string): string {
   if (!iso) return "—";
   try {
-    return new Date(iso).toLocaleDateString("es-CO", {
+    // Si es solo fecha YYYY-MM-DD, añadir mediodía para evitar desfase UTC
+    const dateStr = iso.includes("T") ? iso : iso + "T12:00:00";
+    return new Date(dateStr).toLocaleDateString("es-CO", {
+      timeZone: COLOMBIA_TZ,
       day: "2-digit",
       month: "short",
       year: "numeric",
@@ -86,6 +91,7 @@ function formatFechaHora(iso: string): string {
   if (!iso) return "—";
   try {
     return new Date(iso).toLocaleString("es-CO", {
+      timeZone: COLOMBIA_TZ,
       day: "2-digit",
       month: "short",
       year: "numeric",

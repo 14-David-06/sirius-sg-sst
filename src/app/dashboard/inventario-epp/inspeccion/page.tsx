@@ -73,7 +73,8 @@ function uid() {
 }
 
 function formatDate(date: Date): string {
-  return date.toISOString().split("T")[0];
+  // Formato YYYY-MM-DD en timezone Colombia
+  return date.toLocaleDateString("en-CA", { timeZone: "America/Bogota" });
 }
 
 // Colores para las condiciones

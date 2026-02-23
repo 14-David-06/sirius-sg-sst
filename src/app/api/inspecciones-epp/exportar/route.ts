@@ -471,6 +471,7 @@ export async function POST(request: NextRequest) {
     ws.mergeCells(row, 1, row, TOTAL_COLS);
     const footerCell = ws.getCell(row, 1);
     footerCell.value = `Generado el ${new Date().toLocaleDateString("es-CO", {
+      timeZone: "America/Bogota",
       day: "2-digit",
       month: "long",
       year: "numeric",
@@ -520,8 +521,10 @@ export async function POST(request: NextRequest) {
 function formatDateES(dateStr: string): string {
   if (!dateStr) return "—";
   try {
+    // Añadir mediodía para evitar desfase UTC, usar timezone Colombia
     const date = new Date(dateStr + "T12:00:00");
     return date.toLocaleDateString("es-CO", {
+      timeZone: "America/Bogota",
       day: "2-digit",
       month: "long",
       year: "numeric",

@@ -408,7 +408,8 @@ export default function EntregaEPPPage() {
     setErrorMsg("");
 
     try {
-      const fechaHoy = new Date().toISOString().split("T")[0];
+      // Fecha en timezone Colombia (YYYY-MM-DD)
+      const fechaHoy = new Date().toLocaleDateString("en-CA", { timeZone: "America/Bogota" });
 
       const payload = {
         beneficiarios: beneficiarios.map((ben) => ({

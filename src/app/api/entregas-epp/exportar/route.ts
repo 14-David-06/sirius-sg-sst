@@ -771,8 +771,11 @@ export async function GET() {
         const fechaCell = ws.getCell(dataRow, 4);
         if (row.fechaEntrega) {
           try {
-            const date = new Date(row.fechaEntrega);
+            // Añadir mediodía para evitar desfase UTC, usar timezone Colombia
+            const dateStr = row.fechaEntrega.includes("T") ? row.fechaEntrega : row.fechaEntrega + "T12:00:00";
+            const date = new Date(dateStr);
             fechaCell.value = date.toLocaleDateString("es-CO", {
+              timeZone: "America/Bogota",
               day: "2-digit",
               month: "short",
               year: "numeric",
