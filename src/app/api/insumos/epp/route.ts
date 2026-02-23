@@ -114,12 +114,9 @@ async function calcularStockDesdeMovimientos(
  */
 export async function GET() {
   try {
-    const { insumoTableId } = airtableInsumosConfig;
+    const { insumoTableId, eppCategoryRecordId } = airtableInsumosConfig;
     const url = getInsumosUrl(insumoTableId);
     const headers = getInsumosHeaders();
-
-    // ID de la categoría EPP en Airtable
-    const EPP_CATEGORY_ID = "recQL5uskRFqTPl1B";
 
     // Solo filtrar por estado activo (el filtro de linked records no funciona con ARRAYJOIN en la API)
     const filterFormula = `{Estado Insumo} = 'Activo'`;
@@ -155,7 +152,7 @@ export async function GET() {
     // Filtrar solo los insumos que pertenecen a la categoría EPP (server-side)
     const eppRecords = allRecords.filter((record) => {
       const categorias = record.fields[insumoFields.CATEGORIA] as string[] | undefined;
-      return categorias?.includes(EPP_CATEGORY_ID);
+      return categorias?.includes(eppCategoryRecordId);
     });
 
     // ── Calcular stock actual desde Movimientos ───────────

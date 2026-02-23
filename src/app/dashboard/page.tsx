@@ -39,7 +39,7 @@ const modules = [
     ),
     color: "bg-sirius-retono text-sirius-verde",
     hoverColor: "group-hover:text-sirius-verde",
-    href: "#",
+    href: "/dashboard/inventario-epp/inspeccion",
   },
   {
     title: "Incidentes y Accidentes",

@@ -65,6 +65,36 @@ export const airtableSGSSTConfig = {
     ENTREGA_ORIGEN: process.env.AIRTABLE_HIST_ENTREGA_ORIGEN!,
     CODIGO_INSUMO: process.env.AIRTABLE_HIST_CODIGO_INSUMO!,
   },
+
+  // ── Tabla "Inspecciones EPP" (cabecera) ───────────────
+  inspeccionesTableId: process.env.AIRTABLE_INSP_TABLE_ID!,
+  inspeccionesFields: {
+    ID: process.env.AIRTABLE_INSP_ID!,
+    FECHA: process.env.AIRTABLE_INSP_FECHA!,
+    INSPECTOR: process.env.AIRTABLE_INSP_INSPECTOR!,
+    ESTADO: process.env.AIRTABLE_INSP_ESTADO!,
+    DETALLE_LINK: process.env.AIRTABLE_INSP_DETALLE_LINK!,
+  },
+
+  // ── Tabla "Detalle Inspección EPP" ────────────────────
+  detalleInspeccionTableId: process.env.AIRTABLE_DETINSP_TABLE_ID!,
+  detalleInspeccionFields: {
+    ID: process.env.AIRTABLE_DETINSP_ID!,
+    ID_EMPLEADO: process.env.AIRTABLE_DETINSP_ID_EMPLEADO!,
+    NOMBRE: process.env.AIRTABLE_DETINSP_NOMBRE!,
+    OBSERVACIONES: process.env.AIRTABLE_DETINSP_OBSERVACIONES!,
+    FIRMA: process.env.AIRTABLE_DETINSP_FIRMA!,
+    INSPECCION_LINK: process.env.AIRTABLE_DETINSP_INSPECCION_LINK!,
+    CASCO: process.env.AIRTABLE_DETINSP_CASCO!,
+    P_AUDITIVA: process.env.AIRTABLE_DETINSP_P_AUDITIVA!,
+    P_VISUAL: process.env.AIRTABLE_DETINSP_P_VISUAL!,
+    P_RESPIRATORIA: process.env.AIRTABLE_DETINSP_P_RESPIRATORIA!,
+    ROPA: process.env.AIRTABLE_DETINSP_ROPA!,
+    GUANTES: process.env.AIRTABLE_DETINSP_GUANTES!,
+    BOTAS: process.env.AIRTABLE_DETINSP_BOTAS!,
+    P_CAIDAS: process.env.AIRTABLE_DETINSP_P_CAIDAS!,
+    OTROS: process.env.AIRTABLE_DETINSP_OTROS!,
+  },
 };
 
 export function getSGSSTUrl(tableId: string): string {

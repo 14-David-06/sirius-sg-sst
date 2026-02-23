@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
+import fs from "fs";
+import path from "path";
 import ExcelJS from "exceljs";
 import {
   airtableSGSSTConfig,
@@ -295,36 +297,45 @@ function convertSignatureToBlackTransparent(base64Data: string): string {
 }
 
 // ══════════════════════════════════════════════════════════
-// Estilos Excel
+// Colores Marca Sirius (Manual de Marca 2023)
 // ══════════════════════════════════════════════════════════
-const ORANGE = "FF6B21";
-const DARK_BG = "1A1A2E";
-const HEADER_BG = "2D2D44";
+const BRAND = {
+  AZUL_BARRANCA: "0154AC",   // Primario — headers, acentos
+  AZUL_CIELO: "00A3FF",      // Secundario — detalles
+  SUTILEZA: "BCD7EA",        // Fondo claro azul
+  COTILEDON: "ECF1F4",       // Fondo muy claro (filas alternas)
+  IMPERIAL: "1A1A33",        // Oscuro — texto fuerte
+  VERDE_ALEGRIA: "00B602",   // Acento verde
+  WHITE: "FFFFFF",
+  LIGHT_GRAY: "F8FAFC",
+  BORDER: "B0C4DE",          // Borde azul suave
+};
+
 const TOTAL_COLS = 5; // EPP, CANTIDAD, REFERENCIA, FECHA, FIRMA
 
 const headerFont: Partial<ExcelJS.Font> = {
   name: "Calibri",
   size: 11,
   bold: true,
-  color: { argb: "FFFFFFFF" },
+  color: { argb: `FF${BRAND.WHITE}` },
 };
 
 const bodyFont: Partial<ExcelJS.Font> = {
   name: "Calibri",
   size: 10,
-  color: { argb: "FF333333" },
+  color: { argb: `FF${BRAND.IMPERIAL}` },
 };
 
-const thinBorder: Partial<ExcelJS.Border> = {
+const brandBorder: Partial<ExcelJS.Border> = {
   style: "thin",
-  color: { argb: "FFCCCCCC" },
+  color: { argb: `FF${BRAND.BORDER}` },
 };
 
 const allBorders: Partial<ExcelJS.Borders> = {
-  top: thinBorder,
-  left: thinBorder,
-  bottom: thinBorder,
-  right: thinBorder,
+  top: brandBorder,
+  left: brandBorder,
+  bottom: brandBorder,
+  right: brandBorder,
 };
 
 // ══════════════════════════════════════════════════════════
@@ -529,118 +540,181 @@ export async function GET() {
 
     // 5 columnas: EPP, CANTIDAD, REFERENCIA, FECHA, FIRMA
     ws.columns = [
-      { width: 32 }, // A - EPP ENTREGADO
-      { width: 12 }, // B - CANTIDAD
-      { width: 22 }, // C - REFERENCIA
+      { width: 34 }, // A - EPP ENTREGADO
+      { width: 14 }, // B - CANTIDAD
+      { width: 24 }, // C - REFERENCIA
       { width: 18 }, // D - FECHA DE ENTREGA
-      { width: 45 }, // E - FIRMA (ancha para imagen)
+      { width: 50 }, // E - FIRMA (muy ancha para imagen profesional)
     ];
 
     let currentRow = 1;
-    const SIGNATURE_ROW_HEIGHT = 80;
+    const SIGNATURE_ROW_HEIGHT = 90;
+
+    // ── Load Sirius logo ────────────────────────────────
+    let logoImageId: number | null = null;
+    try {
+      const logoPath = path.join(process.cwd(), "public", "logo.png");
+      const logoBuffer = fs.readFileSync(logoPath);
+      const logoBase64 = logoBuffer.toString("base64");
+      logoImageId = workbook.addImage({
+        base64: logoBase64,
+        extension: "png",
+      });
+    } catch (err) {
+      console.error("Could not load Sirius logo:", err);
+    }
 
     for (const [, group] of empleadoGroups) {
-      // ─── Company Header ───────────────────────────────
-      ws.mergeCells(currentRow, 1, currentRow, TOTAL_COLS);
-      const companyCell = ws.getCell(currentRow, 1);
+      // ═══════════════════════════════════════════════════
+      // HEADER SECTION — Azul Barranca con logo Sirius
+      // ═══════════════════════════════════════════════════
+
+      // Row 1: Logo + Company name bar (Azul Barranca)
+      ws.mergeCells(currentRow, 1, currentRow + 1, 1); // Logo ocupa 2 filas en col A
+      ws.mergeCells(currentRow, 2, currentRow, TOTAL_COLS);
+
+      // Logo cell background
+      const logoCell = ws.getCell(currentRow, 1);
+      logoCell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: `FF${BRAND.AZUL_BARRANCA}` },
+      };
+      logoCell.border = allBorders;
+      logoCell.alignment = { horizontal: "center", vertical: "middle" };
+
+      // Add logo image inside the merged cell — explicit size for proper rendering
+      if (logoImageId !== null) {
+        ws.addImage(logoImageId, {
+          tl: { col: 0.05, row: currentRow - 1 + 0.05 } as unknown as ExcelJS.Anchor,
+          ext: { width: 160, height: 55 },
+          editAs: "oneCell",
+        });
+      }
+
+      const companyCell = ws.getCell(currentRow, 2);
       companyCell.value = "SIRIUS REGENERATIVE SOLUTIONS S.A.S. ZOMAC";
       companyCell.font = {
         name: "Calibri",
-        size: 14,
+        size: 16,
         bold: true,
-        color: { argb: `FF${ORANGE}` },
+        color: { argb: `FF${BRAND.WHITE}` },
       };
       companyCell.alignment = { horizontal: "center", vertical: "middle" };
       companyCell.fill = {
         type: "pattern",
         pattern: "solid",
-        fgColor: { argb: `FF${DARK_BG}` },
+        fgColor: { argb: `FF${BRAND.AZUL_BARRANCA}` },
       };
       companyCell.border = allBorders;
-      ws.getRow(currentRow).height = 30;
+      // Apply fill to all merged cells in top row
+      for (let c = 3; c <= TOTAL_COLS; c++) {
+        const mc = ws.getCell(currentRow, c);
+        mc.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: `FF${BRAND.AZUL_BARRANCA}` },
+        };
+        mc.border = allBorders;
+      }
+      ws.getRow(currentRow).height = 36;
       currentRow++;
 
-      // NIT + CÓDIGO
-      ws.mergeCells(currentRow, 1, currentRow, 2);
-      const nitCell = ws.getCell(currentRow, 1);
+      // Row 2: NIT + CÓDIGO (Azul Cielo tono suave)
+      ws.mergeCells(currentRow, 2, currentRow, 3);
+      // Logo cell row 2 (already merged with row 1 col A)
+      const logoCellR2 = ws.getCell(currentRow, 1);
+      logoCellR2.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: `FF${BRAND.AZUL_BARRANCA}` },
+      };
+      logoCellR2.border = allBorders;
+
+      const nitCell = ws.getCell(currentRow, 2);
       nitCell.value = "NIT: 901.377.064-8";
-      nitCell.font = { name: "Calibri", size: 10, color: { argb: "FF666666" } };
+      nitCell.font = { name: "Calibri", size: 10, bold: true, color: { argb: `FF${BRAND.AZUL_BARRANCA}` } };
       nitCell.alignment = { horizontal: "center", vertical: "middle" };
       nitCell.fill = {
         type: "pattern",
         pattern: "solid",
-        fgColor: { argb: "FFF5F5F5" },
+        fgColor: { argb: `FF${BRAND.COTILEDON}` },
       };
       nitCell.border = allBorders;
+      // Cell 3 is merged with 2
+      ws.getCell(currentRow, 3).border = allBorders;
 
-      ws.mergeCells(currentRow, 3, currentRow, TOTAL_COLS);
-      const codeCell = ws.getCell(currentRow, 3);
+      ws.mergeCells(currentRow, 4, currentRow, TOTAL_COLS);
+      const codeCell = ws.getCell(currentRow, 4);
       codeCell.value = "CÓDIGO: FT-SST-029";
-      codeCell.font = { name: "Calibri", size: 10, bold: true, color: { argb: "FF666666" } };
+      codeCell.font = { name: "Calibri", size: 10, bold: true, color: { argb: `FF${BRAND.AZUL_BARRANCA}` } };
       codeCell.alignment = { horizontal: "center", vertical: "middle" };
       codeCell.fill = {
         type: "pattern",
         pattern: "solid",
-        fgColor: { argb: "FFF5F5F5" },
+        fgColor: { argb: `FF${BRAND.COTILEDON}` },
       };
       codeCell.border = allBorders;
+      ws.getCell(currentRow, 5).border = allBorders;
       ws.getRow(currentRow).height = 22;
       currentRow++;
 
-      // Title
+      // Row 3: Title bar (Azul Cielo vibrante)
       ws.mergeCells(currentRow, 1, currentRow, TOTAL_COLS);
       const titleCell = ws.getCell(currentRow, 1);
       titleCell.value = "FORMATO DE ENTREGA DE ELEMENTOS DE PROTECCIÓN PERSONAL";
       titleCell.font = {
         name: "Calibri",
-        size: 11,
+        size: 12,
         bold: true,
-        color: { argb: "FFFFFFFF" },
+        color: { argb: `FF${BRAND.WHITE}` },
       };
       titleCell.alignment = { horizontal: "center", vertical: "middle" };
       titleCell.fill = {
         type: "pattern",
         pattern: "solid",
-        fgColor: { argb: `FF${ORANGE}` },
+        fgColor: { argb: `FF${BRAND.AZUL_CIELO}` },
       };
       titleCell.border = allBorders;
-      ws.getRow(currentRow).height = 26;
+      ws.getRow(currentRow).height = 28;
       currentRow++;
 
-      // Employee info
-      ws.mergeCells(currentRow, 1, currentRow, 2);
+      // Row 4: Employee info (Sutileza — azul pastel claro)
+      ws.mergeCells(currentRow, 1, currentRow, 3);
       const nameCell = ws.getCell(currentRow, 1);
-      nameCell.value = `NOMBRE DEL TRABAJADOR: ${group.nombre}`;
-      nameCell.font = { name: "Calibri", size: 10, bold: true, color: { argb: "FF333333" } };
+      nameCell.value = `TRABAJADOR:  ${group.nombre}`;
+      nameCell.font = { name: "Calibri", size: 10, bold: true, color: { argb: `FF${BRAND.IMPERIAL}` } };
       nameCell.alignment = { vertical: "middle" };
       nameCell.fill = {
         type: "pattern",
         pattern: "solid",
-        fgColor: { argb: "FFFAFAFA" },
+        fgColor: { argb: `FF${BRAND.SUTILEZA}` },
       };
       nameCell.border = allBorders;
 
-      ws.mergeCells(currentRow, 3, currentRow, TOTAL_COLS);
-      const docCell = ws.getCell(currentRow, 3);
-      docCell.value = `CC: ${group.documento}`;
-      docCell.font = { name: "Calibri", size: 10, bold: true, color: { argb: "FF333333" } };
+      ws.mergeCells(currentRow, 4, currentRow, TOTAL_COLS);
+      const docCell = ws.getCell(currentRow, 4);
+      docCell.value = `C.C:  ${group.documento}`;
+      docCell.font = { name: "Calibri", size: 10, bold: true, color: { argb: `FF${BRAND.IMPERIAL}` } };
       docCell.alignment = { vertical: "middle" };
       docCell.fill = {
         type: "pattern",
         pattern: "solid",
-        fgColor: { argb: "FFFAFAFA" },
+        fgColor: { argb: `FF${BRAND.SUTILEZA}` },
       };
       docCell.border = allBorders;
-      ws.getRow(currentRow).height = 24;
+      ws.getRow(currentRow).height = 26;
       currentRow++;
 
-      // Column headers (sin TALLA)
+      // ═══════════════════════════════════════════════════
+      // COLUMN HEADERS — Azul Barranca
+      // ═══════════════════════════════════════════════════
       const colHeaders = [
         "EPP ENTREGADO",
         "CANTIDAD",
-        "REFERENCIA",
+        "REFERENCIA COMERCIAL",
         "FECHA DE ENTREGA",
-        "FIRMA",
+        "FIRMA DEL TRABAJADOR",
       ];
       colHeaders.forEach((header, idx) => {
         const cell = ws.getCell(currentRow, idx + 1);
@@ -650,39 +724,47 @@ export async function GET() {
         cell.fill = {
           type: "pattern",
           pattern: "solid",
-          fgColor: { argb: `FF${HEADER_BG}` },
+          fgColor: { argb: `FF${BRAND.AZUL_BARRANCA}` },
         };
         cell.border = allBorders;
       });
-      ws.getRow(currentRow).height = 24;
+      ws.getRow(currentRow).height = 26;
       currentRow++;
 
-      // ─── Data Rows ────────────────────────────────────
+      // ═══════════════════════════════════════════════════
+      // DATA ROWS — alternando Cotiledon / Blanco
+      // ═══════════════════════════════════════════════════
+      let rowIndex = 0;
       for (const row of group.rows) {
         const dataRow = currentRow;
+        const isEven = rowIndex % 2 === 0;
+        const rowBg = isEven ? BRAND.WHITE : BRAND.COTILEDON;
 
-        // Todas las filas con firma tienen altura grande para la imagen
-        ws.getRow(dataRow).height = row.signatureDataUrl ? SIGNATURE_ROW_HEIGHT : 22;
+        // Altura: grande para firma, normal para sin firma
+        ws.getRow(dataRow).height = row.signatureDataUrl ? SIGNATURE_ROW_HEIGHT : 24;
 
         // A: EPP name
         const eppCell = ws.getCell(dataRow, 1);
         eppCell.value = row.eppNombre;
         eppCell.font = bodyFont;
         eppCell.alignment = { vertical: "middle", wrapText: true };
+        eppCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${rowBg}` } };
         eppCell.border = allBorders;
 
         // B: Cantidad
         const cantCell = ws.getCell(dataRow, 2);
         cantCell.value = row.cantidad;
-        cantCell.font = { ...bodyFont, bold: true };
+        cantCell.font = { ...bodyFont, bold: true, color: { argb: `FF${BRAND.AZUL_BARRANCA}` } };
         cantCell.alignment = { horizontal: "center", vertical: "middle" };
+        cantCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${rowBg}` } };
         cantCell.border = allBorders;
 
         // C: Referencia
         const refCell = ws.getCell(dataRow, 3);
         refCell.value = row.referencia;
-        refCell.font = bodyFont;
+        refCell.font = { ...bodyFont, size: 9 };
         refCell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+        refCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${rowBg}` } };
         refCell.border = allBorders;
 
         // D: Fecha
@@ -703,12 +785,14 @@ export async function GET() {
         }
         fechaCell.font = bodyFont;
         fechaCell.alignment = { horizontal: "center", vertical: "middle" };
+        fechaCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${rowBg}` } };
         fechaCell.border = allBorders;
 
         // E: Firma — imagen PNG transparente en TODAS las filas
         const firmaCell = ws.getCell(dataRow, 5);
         firmaCell.border = allBorders;
         firmaCell.alignment = { horizontal: "center", vertical: "middle" };
+        firmaCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${rowBg}` } };
 
         if (row.signatureDataUrl) {
           try {
@@ -729,10 +813,11 @@ export async function GET() {
                 extension: extension as "png" | "jpeg" | "gif",
               });
 
-              // Imagen que llena la celda FIRMA (col E = index 4)
+              // Imagen que llena la celda FIRMA — tamaño explícito para que se vea grande
+              // Col E (width 50) ≈ 375px, row height 90px → imagen grande y centrada
               ws.addImage(imageId, {
-                tl: { col: 4.01, row: dataRow - 1 + 0.03 } as unknown as ExcelJS.Anchor,
-                br: { col: 4.99, row: dataRow - 1 + 0.97 } as unknown as ExcelJS.Anchor,
+                tl: { col: 4.02, row: dataRow - 1 + 0.05 } as unknown as ExcelJS.Anchor,
+                ext: { width: 360, height: 80 },
                 editAs: "oneCell",
               });
             }
@@ -744,28 +829,42 @@ export async function GET() {
           firmaCell.font = {
             name: "Calibri",
             size: 9,
-            color: { argb: "FFAAAAAA" },
+            color: { argb: `FF${BRAND.SUTILEZA}` },
             italic: true,
           };
         }
 
         currentRow++;
+        rowIndex++;
       }
 
-      // ─── Footer row with motivo ───────────────────────
+      // ═══════════════════════════════════════════════════
+      // FOOTER — motivo (Sutileza)
+      // ═══════════════════════════════════════════════════
       ws.mergeCells(currentRow, 1, currentRow, TOTAL_COLS);
       const footerCell = ws.getCell(currentRow, 1);
       const motivos = [...new Set(group.rows.map((r) => r.motivo).filter(Boolean))];
-      footerCell.value = `Motivo: ${motivos.join(", ") || "—"}`;
-      footerCell.font = { name: "Calibri", size: 9, italic: true, color: { argb: "FF888888" } };
+      footerCell.value = `Motivo de entrega: ${motivos.join(", ") || "—"}`;
+      footerCell.font = { name: "Calibri", size: 9, italic: true, color: { argb: `FF${BRAND.AZUL_BARRANCA}` } };
       footerCell.alignment = { vertical: "middle" };
       footerCell.fill = {
         type: "pattern",
         pattern: "solid",
-        fgColor: { argb: "FFF9F9F9" },
+        fgColor: { argb: `FF${BRAND.SUTILEZA}` },
       };
       footerCell.border = allBorders;
-      ws.getRow(currentRow).height = 20;
+      ws.getRow(currentRow).height = 22;
+      currentRow++;
+
+      // Bottom accent line (Verde Alegria — thin accent)
+      ws.mergeCells(currentRow, 1, currentRow, TOTAL_COLS);
+      const accentCell = ws.getCell(currentRow, 1);
+      accentCell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: `FF${BRAND.VERDE_ALEGRIA}` },
+      };
+      ws.getRow(currentRow).height = 4;
       currentRow++;
 
       // Spacer between employee sections

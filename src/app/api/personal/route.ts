@@ -35,7 +35,8 @@ export async function GET() {
     const url = getAirtableUrl(personalTableId);
     const headers = getAirtableHeaders();
 
-    const filterFormula = `{Estado de Actividad} = 'Activo'`;
+    // Excluir: CEO y Contratistas
+    const filterFormula = `AND({Estado de Actividad} = 'Activo', {Tipo Personal} != 'Contratista', {Rol (from Rol)} != 'DIRECTOR EJECUTIVO (CEO) (Chief Executive Officer)')`;
 
     let allRecords: AirtableRecord[] = [];
     let offset: string | undefined;

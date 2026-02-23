@@ -51,6 +51,9 @@ export const airtableInsumosConfig = {
 
   // ── Tabla "Stock Insumos" ─────────────────────────────
   stockTableId: process.env.AIRTABLE_STOCK_INSUMO_TABLE_ID!,
+
+  // ── Record IDs de referencia ──────────────────────────
+  eppCategoryRecordId: process.env.AIRTABLE_EPP_CATEGORY_RECORD_ID!,
 };
 
 export function getInsumosUrl(tableId: string): string {
