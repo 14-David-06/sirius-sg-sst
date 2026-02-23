@@ -52,6 +52,7 @@ interface EntregaEPP {
   observaciones: string;
   fechaConfirmacion: string;
   idEmpleadoCore: string;
+  nombreEmpleado: string;
   estado: string;
   motivo: string;
   detalles: DetalleEntrega[];
@@ -260,6 +261,7 @@ export default function EntregasListPage() {
       !searchQuery ||
       ent.idEntrega.toLowerCase().includes(searchQuery.toLowerCase()) ||
       ent.idEmpleadoCore.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      ent.nombreEmpleado.toLowerCase().includes(searchQuery.toLowerCase()) ||
       ent.responsable.toLowerCase().includes(searchQuery.toLowerCase()) ||
       ent.motivo.toLowerCase().includes(searchQuery.toLowerCase()) ||
       ent.observaciones.toLowerCase().includes(searchQuery.toLowerCase());
@@ -496,7 +498,7 @@ export default function EntregasListPage() {
                       <div className="flex items-center gap-3 text-[11px] text-white/40">
                         <span className="flex items-center gap-1">
                           <User className="w-3 h-3" />
-                          {ent.idEmpleadoCore}
+                          {ent.nombreEmpleado || ent.idEmpleadoCore}
                         </span>
                         <span>{formatFecha(ent.fechaEntrega)}</span>
                         <span className="hidden sm:inline">

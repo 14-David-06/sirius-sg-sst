@@ -118,6 +118,17 @@ export async function POST(request: NextRequest) {
       inspector: payload.inspector,
       cantidadEmpleados: payload.inspecciones.length,
     });
+    
+    // Log del primer empleado para debug
+    if (payload.inspecciones.length > 0) {
+      const firstEmp = payload.inspecciones[0];
+      console.log("Primer empleado (sample):", {
+        idEmpleado: firstEmp.idEmpleado,
+        nombre: firstEmp.nombreCompleto,
+        condiciones: firstEmp.condiciones,
+        tieneFirma: !!firstEmp.firma,
+      });
+    }
 
     // 1. Crear la cabecera de la inspección
     const cabeceraUrl = getSGSSTUrl(airtableSGSSTConfig.inspeccionesTableId);
@@ -154,9 +165,7 @@ export async function POST(request: NextRequest) {
 
     // 2. Crear los detalles de inspección por empleado (en lotes de 10)
     const detalleUrl = getSGSSTUrl(airtableSGSSTConfig.detalleInspeccionTableId);
-    const detalleRecords = payload.inspecciones.map((emp, index) => {
-      const detalleId = `${inspeccionId}-${String(index + 1).padStart(2, "0")}`;
-      
+    const detalleRecords = payload.inspecciones.map((emp) => {
       // Construir los campos de condiciones
       const condicionFields: Record<string, string> = {};
       for (const [key, value] of Object.entries(emp.condiciones)) {
@@ -181,7 +190,7 @@ export async function POST(request: NextRequest) {
 
       return {
         fields: {
-          [detalleInspeccionFields.ID]: detalleId,
+          // ID Detalle es campo calculado, no se incluye
           [detalleInspeccionFields.ID_EMPLEADO]: emp.idEmpleado,
           [detalleInspeccionFields.NOMBRE]: emp.nombreCompleto,
           [detalleInspeccionFields.OBSERVACIONES]: emp.observaciones || "",
@@ -192,10 +201,14 @@ export async function POST(request: NextRequest) {
       };
     });
 
+    console.log("Registros de detalle a crear:", detalleRecords.length);
+
     // Crear en lotes de 10 (límite de Airtable)
     const createdDetalleIds: string[] = [];
     for (let i = 0; i < detalleRecords.length; i += 10) {
       const batch = detalleRecords.slice(i, i + 10);
+      
+      console.log("Enviando batch de detalles:", JSON.stringify(batch[0], null, 2));
       
       const detalleResponse = await fetch(detalleUrl, {
         method: "POST",
@@ -210,6 +223,7 @@ export async function POST(request: NextRequest) {
       } else {
         const detalleData: AirtableResponse = await detalleResponse.json();
         createdDetalleIds.push(...detalleData.records.map((r) => r.id));
+        console.log("Detalles creados en este batch:", detalleData.records.length);
       }
     }
 

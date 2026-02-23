@@ -3,6 +3,7 @@ export const airtableConfig = {
   baseId: process.env.AIRTABLE_BASE_ID!,
   personalTableId: process.env.AIRTABLE_PERSONAL_TABLE_ID!,
   sistemasTableId: process.env.AIRTABLE_SISTEMAS_TABLE_ID!,
+  rolesTableId: process.env.AIRTABLE_ROLES_TABLE_ID!,
   baseUrl: "https://api.airtable.com/v0",
 
   // ── Field IDs - Tabla "Personal" ──────────────────────────
@@ -25,6 +26,11 @@ export const airtableConfig = {
   sistemasFields: {
     NOMBRE_APP: process.env.AIRTABLE_SF_NOMBRE_APP!,
     CODIGO_APP: process.env.AIRTABLE_SF_CODIGO_APP!,
+  },
+
+  // ── Field IDs - Tabla "Roles y Permisos" ──────────────────
+  rolesFields: {
+    NOMBRE_ROL: process.env.AIRTABLE_RF_NOMBRE_ROL!,
   },
 };
 

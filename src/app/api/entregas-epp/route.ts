@@ -10,6 +10,11 @@ import {
   getInsumosUrl,
   getInsumosHeaders,
 } from "@/infrastructure/config/airtableInsumos";
+import {
+  airtableConfig,
+  getAirtableUrl,
+  getAirtableHeaders,
+} from "@/infrastructure/config/airtable";
 
 // ── Tipos ───────────────────────────────────────────────
 interface AirtableRecord {
@@ -362,7 +367,43 @@ export async function GET() {
       }
     }
 
-    // ── 5. Mapear respuesta ─────────────────────────────
+    // ── 5. Resolver nombres de empleados ────────────────
+    // Se trae toda la tabla Personal (mismo patrón que /exportar) porque
+    // ID_EMPLEADO puede ser campo fórmula no filtrable directamente.
+    const nombreMap = new Map<string, string>();
+    try {
+      const { personalTableId, personalFields } = airtableConfig;
+      const personalHeaders = getAirtableHeaders();
+      let pOffset: string | undefined;
+
+      do {
+        const pParams = new URLSearchParams({
+          pageSize: "100",
+          returnFieldsByFieldId: "true",
+        });
+        if (pOffset) pParams.set("offset", pOffset);
+
+        const pRes = await fetch(
+          `${getAirtableUrl(personalTableId)}?${pParams.toString()}`,
+          { headers: personalHeaders }
+        );
+        if (!pRes.ok) {
+          console.error("Error fetching personal para nombres:", pRes.status, await pRes.text());
+          break;
+        }
+        const pData: AirtableListResponse = await pRes.json();
+        for (const r of pData.records) {
+          const empId = r.fields[personalFields.ID_EMPLEADO] as string;
+          const nombre = r.fields[personalFields.NOMBRE_COMPLETO] as string;
+          if (empId && nombre) nombreMap.set(empId, nombre);
+        }
+        pOffset = pData.offset;
+      } while (pOffset);
+    } catch (e) {
+      console.error("Error resolviendo nombres de empleados:", e);
+    }
+
+    // ── 6. Mapear respuesta ─────────────────────────────
     const result = allEntregas.map((ent) => {
       const f = ent.fields;
       const dLinks = (f[entregasFields.DETALLE_LINK] as string[]) || [];
@@ -399,6 +440,8 @@ export async function GET() {
         })
         .filter(Boolean);
 
+      const idEmpleadoCore = (f[entregasFields.ID_EMPLEADO_CORE] as string) || "";
+
       return {
         id: ent.id,
         idEntrega: (f[entregasFields.ID_ENTREGA] as string) || "",
@@ -406,7 +449,8 @@ export async function GET() {
         responsable: (f[entregasFields.RESPONSABLE] as string) || "",
         observaciones: (f[entregasFields.OBSERVACIONES] as string) || "",
         fechaConfirmacion: (f[entregasFields.FECHA_CONFIRMACION] as string) || "",
-        idEmpleadoCore: (f[entregasFields.ID_EMPLEADO_CORE] as string) || "",
+        idEmpleadoCore,
+        nombreEmpleado: nombreMap.get(idEmpleadoCore) || "",
         estado: (f[entregasFields.ESTADO] as string) || "",
         motivo: (f[entregasFields.MOTIVO] as string) || "",
         detalles,

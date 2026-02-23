@@ -108,6 +108,17 @@ function SignatureCanvas({
   const hasStrokes = useRef(false);
   const [isEmpty, setIsEmpty] = useState(true);
 
+  const fillWhite = (canvas: HTMLCanvasElement) => {
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  };
+
+  useEffect(() => {
+    if (canvasRef.current) fillWhite(canvasRef.current);
+  }, []);
+
   const getPos = (e: React.MouseEvent | React.TouchEvent) => {
     const canvas = canvasRef.current!;
     const rect = canvas.getBoundingClientRect();
@@ -156,9 +167,8 @@ function SignatureCanvas({
   };
 
   const clearCanvas = () => {
-    const ctx = canvasRef.current?.getContext("2d");
-    if (!ctx || !canvasRef.current) return;
-    ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+    if (!canvasRef.current) return;
+    fillWhite(canvasRef.current);
     hasStrokes.current = false;
     setIsEmpty(true);
   };
@@ -172,7 +182,7 @@ function SignatureCanvas({
 
   return (
     <div>
-      <div className="relative rounded-xl overflow-hidden border border-white/20 bg-black/30">
+      <div className="relative rounded-xl overflow-hidden border border-gray-300 bg-white">
         <canvas
           ref={canvasRef}
           width={600}
@@ -188,7 +198,7 @@ function SignatureCanvas({
         />
         {isEmpty && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <p className="text-white/20 text-sm flex items-center gap-2">
+            <p className="text-gray-300 text-sm flex items-center gap-2">
               <PenTool className="w-4 h-4" />
               Firme aquí
             </p>

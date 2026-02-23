@@ -74,6 +74,11 @@ export const airtableSGSSTConfig = {
     INSPECTOR: process.env.AIRTABLE_INSP_INSPECTOR!,
     ESTADO: process.env.AIRTABLE_INSP_ESTADO!,
     DETALLE_LINK: process.env.AIRTABLE_INSP_DETALLE_LINK!,
+    // Campos para documentos exportados
+    URL_DOCUMENTO: process.env.AIRTABLE_INSP_URL_DOCUMENTO!,
+    FECHA_EXPORTACION: process.env.AIRTABLE_INSP_FECHA_EXPORTACION!,
+    RESPONSABLE_FIRMANTE: process.env.AIRTABLE_INSP_RESPONSABLE_FIRMANTE!,
+    COPASST_FIRMANTE: process.env.AIRTABLE_INSP_COPASST_FIRMANTE!,
   },
 
   // ── Tabla "Detalle Inspección EPP" ────────────────────

@@ -687,8 +687,8 @@ export async function GET() {
       ws.mergeCells(row, 3, row, 11);
       const titleCell = ws.getCell(row, 3);
       titleCell.value = "INSPECCIÓN CONDICIÓN DE EPP";
-      titleCell.font = { name: "Calibri", size: 16, bold: true, color: { argb: `FF${BRAND.WHITE}` } };
-      titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.AZUL_CIELO}` } };
+    titleCell.font = { name: "Calibri", size: 16, bold: true, color: { argb: `FF${BRAND.IMPERIAL}` } };
+    titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.SUTILEZA}` } };
       titleCell.alignment = { horizontal: "center", vertical: "middle" };
 
       row++;
