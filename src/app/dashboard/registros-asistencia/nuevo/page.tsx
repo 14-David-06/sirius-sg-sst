@@ -19,12 +19,21 @@ import {
   Eraser,
   Check,
   History,
+  BookOpen,
+  ChevronDown,
+  Mic,
+  MicOff,
 } from "lucide-react";
 import { useSession } from "@/presentation/context/SessionContext";
 
 // ══════════════════════════════════════════════════════════
 // Tipos
 // ══════════════════════════════════════════════════════════
+interface Capacitacion {
+  id: string;
+  nombre: string;
+}
+
 interface PersonalItem {
   id: string;
   idEmpleado: string;
@@ -200,15 +209,27 @@ export default function NuevoRegistroPage() {
 
   // Datos del formulario (Paso 1)
   const [nombreEvento, setNombreEvento] = useState("");
-  const [ciudad, setCiudad] = useState("");
+  const [ciudad, setCiudad] = useState("Barranca de Upia");
   const [fecha, setFecha] = useState(formatDate(new Date()));
   const [horaInicio, setHoraInicio] = useState("");
-  const [lugar, setLugar] = useState("");
+  const [lugar, setLugar] = useState("Oficinas de Sirius");
   const [duracion, setDuracion] = useState("");
-  const [area, setArea] = useState("");
-  const [tipo, setTipo] = useState("");
   const [temasTratados, setTemasTratados] = useState("");
   const [nombreConferencista, setNombreConferencista] = useState("");
+
+  // Capacitaciones (selector de actividad)
+  const [capacitaciones, setCapacitaciones] = useState<Capacitacion[]>([]);
+  const [loadingCaps, setLoadingCaps] = useState(false);
+  const [capSearch, setCapSearch] = useState("");
+  const [showCapDropdown, setShowCapDropdown] = useState(false);
+  const [selectedCap, setSelectedCap] = useState<Capacitacion | null>(null);
+  const capDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Grabador de voz (Temas Tratados)
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   // Paso 2: lista de asistentes
   const [asistentes, setAsistentes] = useState<AsistenteRow[]>([]);
@@ -227,44 +248,93 @@ export default function NuevoRegistroPage() {
     }
   }, [user, nombreConferencista]);
 
-  // Cargar personal activo
-  const fetchPersonal = useCallback(async () => {
-    setLoadingPersonal(true);
+  // Cargar capacitaciones al montar
+  const fetchCapacitaciones = useCallback(async () => {
+    setLoadingCaps(true);
     try {
-      const res = await fetch("/api/personal");
+      const res = await fetch("/api/capacitaciones");
       const json = await res.json();
-      if (json.success) {
-        const rows: AsistenteRow[] = json.data.map((persona: PersonalItem) => ({
-          id: uid(),
-          persona,
-          firma: null,
-        }));
-        setAsistentes(rows);
-      }
+      if (json.success) setCapacitaciones(json.data);
     } catch {
-      console.error("Error cargando personal");
+      console.error("Error cargando capacitaciones");
     } finally {
-      setLoadingPersonal(false);
+      setLoadingCaps(false);
     }
   }, []);
+
+  useEffect(() => {
+    fetchCapacitaciones();
+  }, [fetchCapacitaciones]);
+
+  // Cerrar dropdown al click fuera
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (capDropdownRef.current && !capDropdownRef.current.contains(e.target as Node)) {
+        setShowCapDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Grabación de voz → Whisper
+  const toggleRecording = async () => {
+    if (isRecording) {
+      mediaRecorderRef.current?.stop();
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : "audio/webm";
+      const recorder = new MediaRecorder(stream, { mimeType });
+      audioChunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        setIsRecording(false);
+        setIsTranscribing(true);
+        try {
+          const blob = new Blob(audioChunksRef.current, { type: mimeType });
+          const fd = new FormData();
+          fd.append("audio", blob, "grabacion.webm");
+          const res = await fetch("/api/transcribir", { method: "POST", body: fd });
+          const json = await res.json();
+          if (json.success && json.texto) {
+            setTemasTratados((prev) =>
+              prev ? `${prev.trimEnd()} ${json.texto}` : json.texto
+            );
+          }
+        } catch {
+          console.error("Error transcribiendo");
+        } finally {
+          setIsTranscribing(false);
+        }
+      };
+
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+    } catch {
+      setErrorMessage("No se pudo acceder al micrófono. Verifica los permisos.");
+    }
+  };
 
   // Paso 1 → Paso 2: Crear registro en Airtable
   const crearRegistro = async () => {
     if (!nombreEvento.trim()) {
-      setErrorMessage("El nombre del evento es requerido");
-      return;
-    }
-    if (!area) {
-      setErrorMessage("Seleccione un área");
-      return;
-    }
-    if (!tipo) {
-      setErrorMessage("Seleccione un tipo de evento");
+      setErrorMessage("Selecciona una actividad");
       return;
     }
 
     setPageState("saving");
     setErrorMessage(null);
+    setLoadingPersonal(true);
 
     try {
       // Primero cargar el personal para tener los datos listos
@@ -287,8 +357,8 @@ export default function NuevoRegistroPage() {
         horaInicio,
         lugar,
         duracion,
-        area,
-        tipo,
+        area: "",
+        tipo: "",
         temasTratados,
         nombreConferencista,
         asistentes: asistentesPayload,
@@ -321,6 +391,8 @@ export default function NuevoRegistroPage() {
     } catch (err) {
       setPageState("error");
       setErrorMessage(err instanceof Error ? err.message : "Error desconocido");
+    } finally {
+      setLoadingPersonal(false);
     }
   };
 
@@ -502,18 +574,87 @@ export default function NuevoRegistroPage() {
               Datos del Evento
             </h2>
 
-            {/* Nombre del evento */}
+            {/* Selector de Actividad / Capacitación */}
             <div>
               <label className="block text-sm font-medium text-white/70 mb-1">
-                Nombre del Evento <span className="text-red-400">*</span>
+                Actividad <span className="text-red-400">*</span>
               </label>
-              <input
-                type="text"
-                value={nombreEvento}
-                onChange={(e) => setNombreEvento(e.target.value)}
-                placeholder="Ej: Inducción en Seguridad Industrial"
-                className="w-full px-4 py-2.5 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-purple-400/50"
-              />
+              <div className="relative" ref={capDropdownRef}>
+                {/* Botón principal del selector */}
+                <button
+                  type="button"
+                  onClick={() => setShowCapDropdown((v) => !v)}
+                  className={`w-full px-4 py-2.5 rounded-lg border text-left flex items-center justify-between gap-2 transition-all focus:outline-none focus:ring-2 focus:ring-purple-400/50 ${
+                    selectedCap
+                      ? "bg-purple-500/20 border-purple-400/40 text-white"
+                      : "bg-white/10 border-white/20 text-white/40"
+                  }`}
+                >
+                  <span className="flex items-center gap-2 truncate">
+                    <BookOpen className="w-4 h-4 shrink-0 text-purple-300" />
+                    {selectedCap ? selectedCap.nombre : "Seleccionar actividad..."}
+                  </span>
+                  {loadingCaps ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-white/40 shrink-0" />
+                  ) : (
+                    <ChevronDown className={`w-4 h-4 shrink-0 text-white/40 transition-transform ${showCapDropdown ? "rotate-180" : ""}`} />
+                  )}
+                </button>
+
+                {/* Dropdown */}
+                {showCapDropdown && (
+                  <div className="absolute z-20 mt-1 w-full bg-slate-900/95 backdrop-blur-xl border border-white/15 rounded-xl shadow-2xl overflow-hidden">
+                    {/* Buscador interno */}
+                    <div className="p-2 border-b border-white/10">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/40" />
+                        <input
+                          type="text"
+                          autoFocus
+                          value={capSearch}
+                          onChange={(e) => setCapSearch(e.target.value)}
+                          placeholder="Buscar actividad..."
+                          className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-white/10 border border-white/15 text-sm text-white placeholder-white/40 focus:outline-none focus:ring-1 focus:ring-purple-400/50"
+                        />
+                      </div>
+                    </div>
+                    {/* Lista */}
+                    <div className="max-h-60 overflow-y-auto">
+                      {capacitaciones
+                        .filter((c) =>
+                          c.nombre.toLowerCase().includes(capSearch.toLowerCase())
+                        )
+                        .map((cap) => (
+                          <button
+                            key={cap.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedCap(cap);
+                              setNombreEvento(cap.nombre);
+                              setShowCapDropdown(false);
+                              setCapSearch("");
+                            }}
+                            className={`w-full text-left px-4 py-2.5 text-sm hover:bg-purple-500/20 transition-colors flex items-start gap-2 ${
+                              selectedCap?.id === cap.id
+                                ? "bg-purple-500/25 text-purple-200"
+                                : "text-white/80"
+                            }`}
+                          >
+                            <BookOpen className="w-3.5 h-3.5 mt-0.5 shrink-0 text-purple-400/60" />
+                            <span>{cap.nombre}</span>
+                          </button>
+                        ))}
+                      {capacitaciones.filter((c) =>
+                        c.nombre.toLowerCase().includes(capSearch.toLowerCase())
+                      ).length === 0 && (
+                        <p className="px-4 py-3 text-sm text-white/40 text-center">
+                          No se encontraron actividades
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Ciudad, Fecha, Hora */}
@@ -524,8 +665,7 @@ export default function NuevoRegistroPage() {
                   type="text"
                   value={ciudad}
                   onChange={(e) => setCiudad(e.target.value)}
-                  placeholder="Ej: Bogotá"
-                  className="w-full px-4 py-2.5 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-purple-400/50"
+                  className="w-full px-4 py-2.5 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-purple-400/50"
                 />
               </div>
               <div>
@@ -556,8 +696,7 @@ export default function NuevoRegistroPage() {
                   type="text"
                   value={lugar}
                   onChange={(e) => setLugar(e.target.value)}
-                  placeholder="Ej: Sala de reuniones Planta"
-                  className="w-full px-4 py-2.5 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-purple-400/50"
+                  className="w-full px-4 py-2.5 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-purple-400/50"
                 />
               </div>
               <div>
@@ -572,59 +711,49 @@ export default function NuevoRegistroPage() {
               </div>
             </div>
 
-            {/* Área */}
-            <div>
-              <label className="block text-sm font-medium text-white/70 mb-2">
-                Área <span className="text-red-400">*</span>
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {["OPERACIONES", "GERENCIA", "SG-SST", "OTRO"].map((op) => (
-                  <button
-                    key={op}
-                    onClick={() => setArea(op)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all cursor-pointer ${
-                      area === op
-                        ? "bg-purple-500/30 border-purple-400/50 text-purple-200"
-                        : "bg-white/10 border-white/20 text-white/60 hover:bg-white/15"
-                    }`}
-                  >
-                    {op}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Tipo */}
-            <div>
-              <label className="block text-sm font-medium text-white/70 mb-2">
-                Tipo <span className="text-red-400">*</span>
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {["INDUCCION", "CAPACITACION", "CHARLA", "OTRO"].map((op) => (
-                  <button
-                    key={op}
-                    onClick={() => setTipo(op)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all cursor-pointer ${
-                      tipo === op
-                        ? "bg-purple-500/30 border-purple-400/50 text-purple-200"
-                        : "bg-white/10 border-white/20 text-white/60 hover:bg-white/15"
-                    }`}
-                  >
-                    {op}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             {/* Temas Tratados */}
             <div>
-              <label className="block text-sm font-medium text-white/70 mb-1">Temas Tratados</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-sm font-medium text-white/70">Temas Tratados</label>
+                <button
+                  type="button"
+                  onClick={toggleRecording}
+                  disabled={isTranscribing}
+                  title={isRecording ? "Detener grabación" : "Grabar con micrófono"}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium border transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                    isRecording
+                      ? "bg-red-500/25 border-red-400/40 text-red-300 animate-pulse"
+                      : isTranscribing
+                      ? "bg-yellow-500/20 border-yellow-400/30 text-yellow-300"
+                      : "bg-white/10 border-white/20 text-white/60 hover:bg-white/15 hover:text-white"
+                  }`}
+                >
+                  {isTranscribing ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Transcribiendo...
+                    </>
+                  ) : isRecording ? (
+                    <>
+                      <MicOff className="w-3.5 h-3.5" />
+                      Detener
+                    </>
+                  ) : (
+                    <>
+                      <Mic className="w-3.5 h-3.5" />
+                      Dictar
+                    </>
+                  )}
+                </button>
+              </div>
               <textarea
                 value={temasTratados}
                 onChange={(e) => setTemasTratados(e.target.value)}
                 rows={3}
-                placeholder="Describe los temas que se tratarán en el evento..."
-                className="w-full px-4 py-2.5 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-purple-400/50 resize-none"
+                placeholder="Describe los temas que se tratarán en el evento, o usa el micrófono para dictarlos..."
+                className={`w-full px-4 py-2.5 rounded-lg bg-white/10 border text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-purple-400/50 resize-none transition-colors ${
+                  isRecording ? "border-red-400/40 ring-1 ring-red-400/30" : "border-white/20"
+                }`}
               />
             </div>
 
@@ -668,8 +797,8 @@ export default function NuevoRegistroPage() {
                 <p className="text-sm font-bold text-white truncate">{nombreEvento}</p>
               </div>
               <div className="bg-white/10 backdrop-blur-xl rounded-xl border border-white/10 p-4">
-                <p className="text-xs text-white/60">Tipo / Área</p>
-                <p className="text-sm font-bold text-purple-300">{tipo} · {area}</p>
+                <p className="text-xs text-white/60">Fecha</p>
+                <p className="text-sm font-bold text-purple-300">{fecha}</p>
               </div>
               <div className="bg-green-500/15 backdrop-blur-xl rounded-xl border border-green-500/20 p-4">
                 <p className="text-xs text-white/60">Firmados</p>

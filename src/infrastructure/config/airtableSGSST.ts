@@ -168,6 +168,12 @@ export const airtableSGSSTConfig = {
     FECHA_FIRMA: process.env.AIRTABLE_RESPEQ_FECHA_FIRMA!,
   },
 
+  // ── Tabla "Capacitaciones" (actividades SST) ──────────
+  capacitacionesTableId: process.env.AIRTABLE_CAP_TABLE_ID!,
+  capacitacionesFields: {
+    NOMBRE: process.env.AIRTABLE_CAP_NOMBRE!,
+  },
+
   // ── Tabla "Registro Asistencia" (cabecera) ────────────
   registroAsistenciaTableId: process.env.AIRTABLE_REGASIS_TABLE_ID!,
   registroAsistenciaFields: {
