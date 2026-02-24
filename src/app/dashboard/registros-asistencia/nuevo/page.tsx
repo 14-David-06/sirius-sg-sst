@@ -31,7 +31,24 @@ import { useSession } from "@/presentation/context/SessionContext";
 // ══════════════════════════════════════════════════════════
 interface Capacitacion {
   id: string;
+  codigo: string;
   nombre: string;
+  intensidad: string;
+  tipo: string; // "Presencial y Virtual" | "Presencial"
+}
+
+interface ProgramacionItem {
+  id: string;
+  identificador: string;
+  mes: string;
+  trimestre: string;
+  programado: boolean;
+  ejecutado: boolean;
+  fechaEjecucion: string;
+  totalAsistentes: number;
+  capacitacionNombre: string;
+  capacitacionCodigo: string;
+  observaciones: string;
 }
 
 interface PersonalItem {
@@ -216,13 +233,14 @@ export default function NuevoRegistroPage() {
   const [duracion, setDuracion] = useState("");
   const [temasTratados, setTemasTratados] = useState("");
   const [nombreConferencista, setNombreConferencista] = useState("");
+  const [tipoEvento, setTipoEvento] = useState("Capacitación");
 
-  // Capacitaciones (selector de actividad)
-  const [capacitaciones, setCapacitaciones] = useState<Capacitacion[]>([]);
+  // Programación Capacitaciones (selector de actividad)
+  const [programaciones, setProgramaciones] = useState<ProgramacionItem[]>([]);
   const [loadingCaps, setLoadingCaps] = useState(false);
   const [capSearch, setCapSearch] = useState("");
   const [showCapDropdown, setShowCapDropdown] = useState(false);
-  const [selectedCap, setSelectedCap] = useState<Capacitacion | null>(null);
+  const [selectedProg, setSelectedProg] = useState<ProgramacionItem | null>(null);
   const capDropdownRef = useRef<HTMLDivElement>(null);
 
   // Grabador de voz (Temas Tratados)
@@ -248,23 +266,23 @@ export default function NuevoRegistroPage() {
     }
   }, [user, nombreConferencista]);
 
-  // Cargar capacitaciones al montar
-  const fetchCapacitaciones = useCallback(async () => {
+  // Cargar programaciones pendientes al montar
+  const fetchProgramaciones = useCallback(async () => {
     setLoadingCaps(true);
     try {
-      const res = await fetch("/api/capacitaciones");
+      const res = await fetch("/api/programacion-capacitaciones");
       const json = await res.json();
-      if (json.success) setCapacitaciones(json.data);
+      if (json.success) setProgramaciones(json.data);
     } catch {
-      console.error("Error cargando capacitaciones");
+      console.error("Error cargando programaciones");
     } finally {
       setLoadingCaps(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchCapacitaciones();
-  }, [fetchCapacitaciones]);
+    fetchProgramaciones();
+  }, [fetchProgramaciones]);
 
   // Cerrar dropdown al click fuera
   useEffect(() => {
@@ -325,10 +343,10 @@ export default function NuevoRegistroPage() {
     }
   };
 
-  // Paso 1 → Paso 2: Crear registro en Airtable
+  // Paso 1 → Paso 2: Crear registros de asistencia en Airtable
   const crearRegistro = async () => {
-    if (!nombreEvento.trim()) {
-      setErrorMessage("Selecciona una actividad");
+    if (!selectedProg) {
+      setErrorMessage("Selecciona una programación");
       return;
     }
 
@@ -337,13 +355,12 @@ export default function NuevoRegistroPage() {
     setLoadingPersonal(true);
 
     try {
-      // Primero cargar el personal para tener los datos listos
+      // Cargar el personal activo
       const res = await fetch("/api/personal");
       const json = await res.json();
       if (!json.success) throw new Error("Error cargando personal");
 
       const asistentesPayload = json.data.map((p: PersonalItem) => ({
-        empleadoId: p.id,
         idEmpleado: p.idEmpleado,
         nombreCompleto: p.nombreCompleto,
         cedula: p.numeroDocumento,
@@ -351,17 +368,20 @@ export default function NuevoRegistroPage() {
       }));
 
       const payload = {
-        nombreEvento,
-        ciudad,
-        fecha,
-        horaInicio,
-        lugar,
-        duracion,
-        area: "",
-        tipo: "",
-        temasTratados,
-        nombreConferencista,
+        capacitacionCodigo: selectedProg.capacitacionCodigo || selectedProg.identificador,
+        programacionRecordId: selectedProg.id,
+        eventoData: {
+          ciudad,
+          lugar,
+          fecha,
+          horaInicio,
+          duracion,
+          temasTratados,
+          nombreConferencista,
+          tipoEvento,
+        },
         asistentes: asistentesPayload,
+        fechaRegistro: fecha,
       };
 
       const createRes = await fetch("/api/registros-asistencia", {
@@ -574,10 +594,10 @@ export default function NuevoRegistroPage() {
               Datos del Evento
             </h2>
 
-            {/* Selector de Actividad / Capacitación */}
+            {/* Selector de Programación / Capacitación */}
             <div>
               <label className="block text-sm font-medium text-white/70 mb-1">
-                Actividad <span className="text-red-400">*</span>
+                Actividad programada <span className="text-red-400">*</span>
               </label>
               <div className="relative" ref={capDropdownRef}>
                 {/* Botón principal del selector */}
@@ -585,14 +605,16 @@ export default function NuevoRegistroPage() {
                   type="button"
                   onClick={() => setShowCapDropdown((v) => !v)}
                   className={`w-full px-4 py-2.5 rounded-lg border text-left flex items-center justify-between gap-2 transition-all focus:outline-none focus:ring-2 focus:ring-purple-400/50 ${
-                    selectedCap
+                    selectedProg
                       ? "bg-purple-500/20 border-purple-400/40 text-white"
                       : "bg-white/10 border-white/20 text-white/40"
                   }`}
                 >
                   <span className="flex items-center gap-2 truncate">
                     <BookOpen className="w-4 h-4 shrink-0 text-purple-300" />
-                    {selectedCap ? selectedCap.nombre : "Seleccionar actividad..."}
+                    {selectedProg
+                      ? `${selectedProg.identificador} · ${selectedProg.capacitacionNombre || selectedProg.identificador}`
+                      : "Seleccionar programación..."}
                   </span>
                   {loadingCaps ? (
                     <Loader2 className="w-4 h-4 animate-spin text-white/40 shrink-0" />
@@ -613,47 +635,93 @@ export default function NuevoRegistroPage() {
                           autoFocus
                           value={capSearch}
                           onChange={(e) => setCapSearch(e.target.value)}
-                          placeholder="Buscar actividad..."
+                          placeholder="Buscar programación..."
                           className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-white/10 border border-white/15 text-sm text-white placeholder-white/40 focus:outline-none focus:ring-1 focus:ring-purple-400/50"
                         />
                       </div>
                     </div>
-                    {/* Lista */}
+                    {/* Lista: mostrar primero las pendientes (no ejecutadas), luego el resto */}
                     <div className="max-h-60 overflow-y-auto">
-                      {capacitaciones
-                        .filter((c) =>
-                          c.nombre.toLowerCase().includes(capSearch.toLowerCase())
-                        )
-                        .map((cap) => (
+                      {(() => {
+                        const filtered = programaciones.filter((p) =>
+                          (p.identificador + " " + p.capacitacionNombre + " " + p.mes)
+                            .toLowerCase()
+                            .includes(capSearch.toLowerCase())
+                        );
+                        const pending   = filtered.filter((p) => p.programado && !p.ejecutado);
+                        const executed  = filtered.filter((p) => p.ejecutado);
+                        const others    = filtered.filter((p) => !p.programado && !p.ejecutado);
+                        const sorted    = [...pending, ...others, ...executed];
+                        if (sorted.length === 0) {
+                          return (
+                            <p className="px-4 py-3 text-sm text-white/40 text-center">
+                              No se encontraron programaciones
+                            </p>
+                          );
+                        }
+                        return sorted.map((prog) => (
                           <button
-                            key={cap.id}
+                            key={prog.id}
                             type="button"
                             onClick={() => {
-                              setSelectedCap(cap);
-                              setNombreEvento(cap.nombre);
+                              setSelectedProg(prog);
+                              setNombreEvento(prog.capacitacionNombre || prog.identificador);
+                              if (prog.capacitacionNombre) setTemasTratados(prog.capacitacionNombre);
                               setShowCapDropdown(false);
                               setCapSearch("");
                             }}
                             className={`w-full text-left px-4 py-2.5 text-sm hover:bg-purple-500/20 transition-colors flex items-start gap-2 ${
-                              selectedCap?.id === cap.id
+                              selectedProg?.id === prog.id
                                 ? "bg-purple-500/25 text-purple-200"
                                 : "text-white/80"
                             }`}
                           >
-                            <BookOpen className="w-3.5 h-3.5 mt-0.5 shrink-0 text-purple-400/60" />
-                            <span>{cap.nombre}</span>
+                            <BookOpen className="w-3.5 h-3.5 mt-1 shrink-0 text-purple-400/60" />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-xs text-purple-400/70 font-mono">{prog.identificador}</span>
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-white/50 border border-white/10">
+                                  {prog.mes} · {prog.trimestre}
+                                </span>
+                                {prog.ejecutado && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/20 text-green-300 border border-green-400/20">
+                                    Ejecutada
+                                  </span>
+                                )}
+                                {prog.programado && !prog.ejecutado && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-400/20">
+                                    Pendiente
+                                  </span>
+                                )}
+                              </div>
+                              <span className="block truncate text-sm">{prog.capacitacionNombre || prog.identificador}</span>
+                              {prog.capacitacionCodigo && (
+                                <span className="block text-xs text-white/40">{prog.capacitacionCodigo}</span>
+                              )}
+                            </div>
                           </button>
-                        ))}
-                      {capacitaciones.filter((c) =>
-                        c.nombre.toLowerCase().includes(capSearch.toLowerCase())
-                      ).length === 0 && (
-                        <p className="px-4 py-3 text-sm text-white/40 text-center">
-                          No se encontraron actividades
-                        </p>
-                      )}
+                        ));
+                      })()}
                     </div>
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* Tipo de Evento */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-white/70 mb-1">Tipo de Evento</label>
+                <select
+                  value={tipoEvento}
+                  onChange={(e) => setTipoEvento(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-purple-400/50"
+                >
+                  <option value="Capacitación" className="bg-slate-900">Capacitación</option>
+                  <option value="Inducción" className="bg-slate-900">Inducción</option>
+                  <option value="Charla" className="bg-slate-900">Charla</option>
+                  <option value="Otro" className="bg-slate-900">Otro</option>
+                </select>
               </div>
             </div>
 

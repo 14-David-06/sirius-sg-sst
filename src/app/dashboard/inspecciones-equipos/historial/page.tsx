@@ -125,7 +125,6 @@ function getCriteriosVisibles(categoria: string) {
         { key: "soporteBase", label: "Soporte" }
       );
       break;
-    case "Botiquín":
     case "Kit Derrames":
       criterios.push(
         { key: "completitudElementos", label: "Completitud" },

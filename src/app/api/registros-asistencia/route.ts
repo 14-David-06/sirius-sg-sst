@@ -1,49 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
-import crypto from "crypto";
 import {
   airtableSGSSTConfig,
   getSGSSTUrl,
   getSGSSTHeaders,
 } from "@/infrastructure/config/airtableSGSST";
 
-// ══════════════════════════════════════════════════════════
-// AES-256-CBC Encryption
-// ══════════════════════════════════════════════════════════
-const AES_SECRET = process.env.AES_SIGNATURE_SECRET || "";
-
-function encryptAES(plaintext: string): string {
-  const key = crypto.createHash("sha256").update(AES_SECRET).digest();
-  const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
-  let encrypted = cipher.update(plaintext, "utf8", "base64");
-  encrypted += cipher.final("base64");
-  return iv.toString("base64") + ":" + encrypted;
-}
-
-// ══════════════════════════════════════════════════════════
-// Tipos
-// ══════════════════════════════════════════════════════════
 interface AsistentePayload {
-  empleadoId: string;
   idEmpleado: string;
   nombreCompleto: string;
   cedula: string;
   labor: string;
-  firma?: string;
+}
+
+interface EventoData {
+  ciudad: string;
+  lugar: string;
+  fecha: string;
+  horaInicio: string;
+  duracion: string;
+  temasTratados: string;
+  nombreConferencista: string;
+  tipoEvento: string; // "Capacitación" | "Inducción" | "Charla" | "Otro"
 }
 
 interface RegistroPayload {
-  nombreEvento: string;
-  ciudad: string;
-  fecha: string;
-  horaInicio: string;
-  lugar: string;
-  duracion: string;
-  area: string;
-  tipo: string;
-  temasTratados: string;
-  nombreConferencista: string;
+  capacitacionCodigo: string; // Código del catálogo: "CAP-1.1"
+  programacionRecordId?: string; // Record ID de Programación Capacitaciones (opcional pero recomendado)
+  eventoData: EventoData;
   asistentes: AsistentePayload[];
+  fechaRegistro: string;
 }
 
 interface AirtableRecord {
@@ -56,34 +41,17 @@ interface AirtableResponse {
 }
 
 // ══════════════════════════════════════════════════════════
-// Helpers
-// ══════════════════════════════════════════════════════════
-function generateRegistroId(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  const random = Math.random().toString(36).substring(2, 6).toUpperCase();
-  return `REG-ASIS-${year}${month}${day}-${random}`;
-}
-
-// ══════════════════════════════════════════════════════════
 // POST /api/registros-asistencia
-// Crea el registro de asistencia con sus asistentes
+// 1. Crea el Evento Capacitación con los datos del formulario.
+// 2. Crea los registros de Asistencia vinculados a ese nuevo Evento.
 // ══════════════════════════════════════════════════════════
 export async function POST(request: NextRequest) {
   try {
     const payload: RegistroPayload = await request.json();
 
-    if (!payload.nombreEvento) {
+    if (!payload.capacitacionCodigo) {
       return NextResponse.json(
-        { success: false, message: "El nombre del evento es requerido" },
-        { status: 400 }
-      );
-    }
-    if (!payload.fecha) {
-      return NextResponse.json(
-        { success: false, message: "La fecha del evento es requerida" },
+        { success: false, message: "Debe seleccionar una capacitación" },
         { status: 400 }
       );
     }
@@ -94,123 +62,132 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { registroAsistenciaFields, detalleRegistroFields } = airtableSGSSTConfig;
-    const registroId = generateRegistroId();
+    const {
+      eventosCapacitacionTableId,
+      eventosCapacitacionFields: evtF,
+      asistenciaCapacitacionesTableId,
+      asistenciaCapacitacionesFields: asisF,
+      programacionCapacitacionesTableId,
+      programacionCapacitacionesFields: progF,
+    } = airtableSGSSTConfig;
+    const headers = getSGSSTHeaders();
 
-    // 1. Crear la cabecera del registro
-    const cabeceraUrl = getSGSSTUrl(airtableSGSSTConfig.registroAsistenciaTableId);
-    const cabeceraBody = {
-      records: [
-        {
-          fields: {
-            [registroAsistenciaFields.ID_REGISTRO]:    registroId,
-            [registroAsistenciaFields.NOMBRE_EVENTO]:  payload.nombreEvento,
-            [registroAsistenciaFields.CIUDAD]:         payload.ciudad || "",
-            [registroAsistenciaFields.FECHA]:          payload.fecha,
-            [registroAsistenciaFields.HORA_INICIO]:    payload.horaInicio || "",
-            [registroAsistenciaFields.LUGAR]:          payload.lugar || "",
-            [registroAsistenciaFields.DURACION]:       payload.duracion || "",
-            [registroAsistenciaFields.AREA]:           payload.area || "",
-            [registroAsistenciaFields.TIPO]:           payload.tipo || "",
-            [registroAsistenciaFields.TEMAS_TRATADOS]: payload.temasTratados || "",
-            [registroAsistenciaFields.NOMBRE_CONFERENCISTA]: payload.nombreConferencista || "",
-            [registroAsistenciaFields.ESTADO]:         "Borrador",
-          },
-        },
-      ],
+    const fechaRegistro =
+      payload.fechaRegistro ||
+      new Date().toLocaleDateString("en-CA", { timeZone: "America/Bogota" });
+
+    const progRecordId = payload.programacionRecordId ?? null;
+
+    // ── 1. Generar código único para el evento ────────────
+    const year = new Date().getFullYear();
+    const ts  = Date.now().toString().slice(-5);
+    const codigoBase = payload.capacitacionCodigo.replace(/^CAP-?/i, "");
+    const eventoCodigo = `EVT-CAP${codigoBase}-${year}-${ts}`;
+
+    // ── 2. Crear el Evento Capacitación ──────────────────
+    const evtData = payload.eventoData;
+    const eventoFields: Record<string, unknown> = {
+      [evtF.CODIGO]:               eventoCodigo,
+      [evtF.CIUDAD]:               evtData.ciudad || "",
+      [evtF.LUGAR]:                evtData.lugar  || "",
+      [evtF.FECHA]:                evtData.fecha  || fechaRegistro,
+      [evtF.HORA_INICIO]:          evtData.horaInicio || "",
+      [evtF.DURACION]:             evtData.duracion   || "",
+      [evtF.AREA]:                 "SG-SST",
+      [evtF.TIPO]:                 evtData.tipoEvento || "Capacitación",
+      [evtF.TEMAS_TRATADOS]:       evtData.temasTratados || "",
+      [evtF.NOMBRE_CONFERENCISTA]: evtData.nombreConferencista || "",
+      [evtF.ESTADO]:               "En Curso",
     };
+    // Link al registro de Programación si fue proporcionado
+    if (progRecordId) {
+      eventoFields[evtF.PROGRAMACION_LINK] = [progRecordId];
+    }
 
-    const cabeceraResponse = await fetch(cabeceraUrl, {
+    const eventoRes = await fetch(getSGSSTUrl(eventosCapacitacionTableId), {
       method: "POST",
-      headers: getSGSSTHeaders(),
-      body: JSON.stringify(cabeceraBody),
+      headers,
+      body: JSON.stringify({ records: [{ fields: eventoFields }] }),
     });
 
-    if (!cabeceraResponse.ok) {
-      const errorText = await cabeceraResponse.text();
-      console.error("Error creando cabecera de registro:", errorText);
+    if (!eventoRes.ok) {
+      const err = await eventoRes.text();
+      console.error("Error creando evento capacitación:", err);
       return NextResponse.json(
-        { success: false, message: "Error al crear el registro de asistencia" },
+        { success: false, message: "Error al crear el evento de capacitación" },
         { status: 500 }
       );
     }
 
-    const cabeceraData: AirtableResponse = await cabeceraResponse.json();
-    const cabeceraRecordId = cabeceraData.records[0].id;
+    const eventoJson: AirtableResponse = await eventoRes.json();
+    const eventoRecordId = eventoJson.records[0].id;
 
-    // 2. Crear los registros de detalle por asistente (en lotes de 10)
-    const detalleUrl = getSGSSTUrl(airtableSGSSTConfig.detalleRegistroTableId);
-
-    const detalleRecords = payload.asistentes.map((asistente) => {
-      let firmaEncriptada: string | undefined;
-      if (asistente.firma && AES_SECRET) {
-        const firmaPayload = JSON.stringify({
-          signature: asistente.firma,
-          employee: asistente.idEmpleado,
-          name: asistente.nombreCompleto,
-          timestamp: new Date().toISOString(),
-          registroId,
-        });
-        firmaEncriptada = encryptAES(firmaPayload);
-      }
-
-      return {
-        fields: {
-          [detalleRegistroFields.ID_EMPLEADO]:   asistente.idEmpleado,
-          [detalleRegistroFields.NOMBRE]:        asistente.nombreCompleto,
-          [detalleRegistroFields.CEDULA]:        asistente.cedula,
-          [detalleRegistroFields.LABOR]:         asistente.labor,
-          [detalleRegistroFields.REGISTRO_LINK]: [cabeceraRecordId],
-          ...(firmaEncriptada ? { [detalleRegistroFields.FIRMA]: firmaEncriptada } : {}),
-        },
+    // ── 3. Crear registros de Asistencia ──────────────────
+    const asistenciaUrl = getSGSSTUrl(asistenciaCapacitacionesTableId);
+    const records = payload.asistentes.map((a, idx) => {
+      const fields: Record<string, unknown> = {
+        [asisF.ID_ASISTENCIA]: `ASIS-${eventoCodigo}-${String(idx + 1).padStart(3, "0")}`,
+        [asisF.NOMBRES]:          a.nombreCompleto,
+        [asisF.CEDULA]:           a.cedula,
+        [asisF.LABOR]:            a.labor,
+        [asisF.FECHA_REGISTRO]:   fechaRegistro,
+        [asisF.EVENTO_LINK]:      [eventoRecordId],
+        [asisF.ID_EMPLEADO_CORE]: a.idEmpleado,
+        [asisF.FIRMA_CONFIRMADA]: false,
       };
+      if (progRecordId) {
+        fields[asisF.PROGRAMACION_LINK] = [progRecordId];
+      }
+      return { fields };
     });
 
-    const createdDetalleIds: string[] = [];
-    for (let i = 0; i < detalleRecords.length; i += 10) {
-      const batch = detalleRecords.slice(i, i + 10);
-      const detalleResponse = await fetch(detalleUrl, {
+    const createdIds: string[] = [];
+    for (let i = 0; i < records.length; i += 10) {
+      const batch = records.slice(i, i + 10);
+      const res = await fetch(asistenciaUrl, {
         method: "POST",
-        headers: getSGSSTHeaders(),
+        headers,
         body: JSON.stringify({ records: batch }),
       });
 
-      if (!detalleResponse.ok) {
-        const errorText = await detalleResponse.text();
-        console.error("Error creando detalles de registro:", errorText);
-      } else {
-        const detalleData: AirtableResponse = await detalleResponse.json();
-        createdDetalleIds.push(...detalleData.records.map((r) => r.id));
+      if (!res.ok) {
+        const err = await res.text();
+        console.error("Error creando asistencia:", err);
+        return NextResponse.json(
+          { success: false, message: "Error al crear registros de asistencia" },
+          { status: 500 }
+        );
       }
+
+      const data: AirtableResponse = await res.json();
+      createdIds.push(...data.records.map((r) => r.id));
     }
 
-    // 3. Actualizar la cabecera con los enlaces a los detalles
-    if (createdDetalleIds.length > 0) {
-      await fetch(cabeceraUrl, {
+    // ── 4. Actualizar Programación: marcar Ejecutado, fecha, total ──
+    if (progRecordId) {
+      const patchUrl = `${getSGSSTUrl(programacionCapacitacionesTableId)}/${progRecordId}`;
+      await fetch(patchUrl, {
         method: "PATCH",
-        headers: getSGSSTHeaders(),
+        headers,
         body: JSON.stringify({
-          records: [
-            {
-              id: cabeceraRecordId,
-              fields: {
-                [registroAsistenciaFields.DETALLE_LINK]: createdDetalleIds,
-              },
-            },
-          ],
+          fields: {
+            [progF.EJECUTADO]:        true,
+            [progF.FECHA_EJECUCION]:  evtData.fecha || fechaRegistro,
+            [progF.TOTAL_ASISTENTES]: createdIds.length,
+          },
         }),
       });
     }
 
     return NextResponse.json({
       success: true,
-      message: "Registro de asistencia creado correctamente",
+      message: "Registro creado correctamente",
       data: {
-        id: registroId,
-        recordId: cabeceraRecordId,
-        fecha: payload.fecha,
-        asistentes: createdDetalleIds.length,
-        detalleIds: createdDetalleIds,
+        id:         eventoCodigo,
+        recordId:   eventoRecordId,
+        fecha:      fechaRegistro,
+        asistentes: createdIds.length,
+        detalleIds: createdIds,
       },
     });
   } catch (error) {
@@ -224,59 +201,61 @@ export async function POST(request: NextRequest) {
 
 // ══════════════════════════════════════════════════════════
 // GET /api/registros-asistencia
-// Lista todos los registros de asistencia
+// Lista todos los Eventos Capacitación con conteo de asistentes
 // ══════════════════════════════════════════════════════════
 export async function GET() {
   try {
-    const { registroAsistenciaFields } = airtableSGSSTConfig;
-    const url = getSGSSTUrl(airtableSGSSTConfig.registroAsistenciaTableId);
+    const { eventosCapacitacionTableId, eventosCapacitacionFields: f } =
+      airtableSGSSTConfig;
+    const headers = getSGSSTHeaders();
 
     const params = new URLSearchParams({
-      "sort[0][field]":     registroAsistenciaFields.FECHA,
+      "sort[0][field]": f.FECHA,
       "sort[0][direction]": "desc",
-      maxRecords:           "100",
+      maxRecords: "100",
       returnFieldsByFieldId: "true",
     });
 
-    const response = await fetch(`${url}?${params.toString()}`, {
-      method: "GET",
-      headers: getSGSSTHeaders(),
-      cache: "no-store",
-    });
+    const res = await fetch(
+      `${getSGSSTUrl(eventosCapacitacionTableId)}?${params.toString()}`,
+      { headers, cache: "no-store" }
+    );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Error listando registros de asistencia:", errorText);
+    if (!res.ok) {
+      const err = await res.text();
+      console.error("Error listando eventos:", err);
       return NextResponse.json(
-        { success: false, message: "Error al consultar los registros" },
+        { success: false, message: "Error al consultar los eventos" },
         { status: 500 }
       );
     }
 
-    const data: AirtableResponse = await response.json();
+    const data: AirtableResponse = await res.json();
 
-    const registros = data.records.map((record) => ({
-      id: record.id,
-      idRegistro:          record.fields[registroAsistenciaFields.ID_REGISTRO] as string,
-      nombreEvento:        record.fields[registroAsistenciaFields.NOMBRE_EVENTO] as string,
-      ciudad:              record.fields[registroAsistenciaFields.CIUDAD] as string,
-      fecha:               record.fields[registroAsistenciaFields.FECHA] as string,
-      horaInicio:          record.fields[registroAsistenciaFields.HORA_INICIO] as string,
-      lugar:               record.fields[registroAsistenciaFields.LUGAR] as string,
-      duracion:            record.fields[registroAsistenciaFields.DURACION] as string,
-      area:                record.fields[registroAsistenciaFields.AREA] as string,
-      tipo:                record.fields[registroAsistenciaFields.TIPO] as string,
-      temasTratados:       record.fields[registroAsistenciaFields.TEMAS_TRATADOS] as string,
-      nombreConferencista: record.fields[registroAsistenciaFields.NOMBRE_CONFERENCISTA] as string,
-      estado:              record.fields[registroAsistenciaFields.ESTADO] as string,
-      cantidadAsistentes:  (record.fields[registroAsistenciaFields.DETALLE_LINK] as string[] || []).length,
-    }));
+    const registros = data.records.map((r) => {
+      const temas = (r.fields[f.TEMAS_TRATADOS] as string) || "";
+      const primerTema = temas.split("\n")[0].replace(/^[-•]\s*/, "").trim();
+      const asistenciaLinks = (r.fields[f.ASISTENCIA_LINK] as string[]) || [];
 
-    return NextResponse.json({
-      success: true,
-      data: registros,
-      total: registros.length,
+      return {
+        id: r.id,
+        idRegistro: (r.fields[f.CODIGO] as string) || "",
+        nombreEvento: primerTema || (r.fields[f.CODIGO] as string) || "",
+        ciudad: (r.fields[f.CIUDAD] as string) || "",
+        fecha: (r.fields[f.FECHA] as string) || "",
+        horaInicio: (r.fields[f.HORA_INICIO] as string) || "",
+        lugar: (r.fields[f.LUGAR] as string) || "",
+        duracion: (r.fields[f.DURACION] as string) || "",
+        temasTratados: temas,
+        tipo: (r.fields[f.TIPO] as string) || "",
+        area: (r.fields[f.AREA] as string) || "",
+        nombreConferencista: (r.fields[f.NOMBRE_CONFERENCISTA] as string) || "",
+        estado: (r.fields[f.ESTADO] as string) || "",
+        cantidadAsistentes: asistenciaLinks.length,
+      };
     });
+
+    return NextResponse.json({ success: true, data: registros, total: registros.length });
   } catch (error) {
     console.error("Error en GET /api/registros-asistencia:", error);
     return NextResponse.json(

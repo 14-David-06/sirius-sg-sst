@@ -198,11 +198,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { registroAsistenciaFields, detalleRegistroFields } = airtableSGSSTConfig;
+    const {
+      eventosCapacitacionTableId,
+      eventosCapacitacionFields: evtF,
+      asistenciaCapacitacionesTableId,
+      asistenciaCapacitacionesFields: asisF,
+    } = airtableSGSSTConfig;
     const sgHeaders = getSGSSTHeaders();
 
     // 1. Fetch cabecera
-    const cabeceraUrl = `${getSGSSTUrl(airtableSGSSTConfig.registroAsistenciaTableId)}/${registroRecordId}?returnFieldsByFieldId=true`;
+    const cabeceraUrl = `${getSGSSTUrl(eventosCapacitacionTableId)}/${registroRecordId}?returnFieldsByFieldId=true`;
     const cabeceraResponse = await fetch(cabeceraUrl, { headers: sgHeaders, cache: "no-store" });
     if (!cabeceraResponse.ok) {
       return NextResponse.json(
@@ -212,14 +217,16 @@ export async function POST(request: NextRequest) {
     }
     const cabecera: AirtableRecord = await cabeceraResponse.json();
     const cf = cabecera.fields;
+    const temasRaw = (cf[evtF.TEMAS_TRATADOS] as string) || "";
+    const nombreEvento = temasRaw.split("\n")[0].replace(/^[-•]\s*/, "").trim() || "Evento";
 
     // 2. Fetch detalles (asistentes)
-    const detalleIds = (cf[registroAsistenciaFields.DETALLE_LINK] as string[]) || [];
+    const detalleIds = (cf[evtF.ASISTENCIA_LINK] as string[]) || [];
     let asistentes: AirtableRecord[] = [];
 
     if (detalleIds.length > 0) {
       const formula = `OR(${detalleIds.map((id) => `RECORD_ID()='${id}'`).join(",")})`;
-      const detalleUrl = getSGSSTUrl(airtableSGSSTConfig.detalleRegistroTableId);
+      const detalleUrl = getSGSSTUrl(asistenciaCapacitacionesTableId);
       const params = new URLSearchParams({
         filterByFormula: formula,
         pageSize: "100",
@@ -338,7 +345,7 @@ export async function POST(request: NextRequest) {
     // ── FILA 4: NOMBRE DEL EVENTO ──────────────────────
     ws.mergeCells(row, 1, row, TOTAL_COLS);
     const eventoLabelCell = ws.getCell(row, 1);
-    eventoLabelCell.value = `NOMBRE DEL EVENTO:  ${(cf[registroAsistenciaFields.NOMBRE_EVENTO] as string) || ""}`;
+    eventoLabelCell.value = `NOMBRE DEL EVENTO:  ${nombreEvento}`;
     eventoLabelCell.font = { name: "Calibri", size: 10, bold: true, color: { argb: `FF${BRAND.IMPERIAL}` } };
     eventoLabelCell.alignment = { vertical: "middle" };
     eventoLabelCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.SUTILEZA}` } };
@@ -349,14 +356,14 @@ export async function POST(request: NextRequest) {
     // ── FILA 5: CIUDAD | FECHA | HORA DE INICIO ────────
     ws.mergeCells(row, 1, row, 2);
     const ciudadCell = ws.getCell(row, 1);
-    ciudadCell.value = `CIUDAD:  ${(cf[registroAsistenciaFields.CIUDAD] as string) || ""}`;
+    ciudadCell.value = `CIUDAD:  ${(cf[evtF.CIUDAD] as string) || ""}`;
     ciudadCell.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.IMPERIAL}` } };
     ciudadCell.alignment = { vertical: "middle" };
     ciudadCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.WHITE}` } };
     ciudadCell.border = allBorders;
     ws.getCell(row, 2).border = allBorders;
 
-    const fechaRaw = (cf[registroAsistenciaFields.FECHA] as string) || "";
+    const fechaRaw = (cf[evtF.FECHA] as string) || "";
     let fechaFormateada = fechaRaw;
     try {
       if (fechaRaw) {
@@ -376,7 +383,7 @@ export async function POST(request: NextRequest) {
 
     ws.mergeCells(row, 4, row, TOTAL_COLS);
     const horaCell = ws.getCell(row, 4);
-    horaCell.value = `HORA DE INICIO:  ${(cf[registroAsistenciaFields.HORA_INICIO] as string) || ""}`;
+    horaCell.value = `HORA DE INICIO:  ${(cf[evtF.HORA_INICIO] as string) || ""}`;
     horaCell.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.IMPERIAL}` } };
     horaCell.alignment = { vertical: "middle" };
     horaCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.WHITE}` } };
@@ -388,7 +395,7 @@ export async function POST(request: NextRequest) {
     // ── FILA 6: LUGAR | DURACIÓN ────────────────────────
     ws.mergeCells(row, 1, row, 3);
     const lugarCell = ws.getCell(row, 1);
-    lugarCell.value = `LUGAR:  ${(cf[registroAsistenciaFields.LUGAR] as string) || ""}`;
+    lugarCell.value = `LUGAR:  ${(cf[evtF.LUGAR] as string) || ""}`;
     lugarCell.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.IMPERIAL}` } };
     lugarCell.alignment = { vertical: "middle" };
     lugarCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.WHITE}` } };
@@ -398,7 +405,7 @@ export async function POST(request: NextRequest) {
 
     ws.mergeCells(row, 4, row, TOTAL_COLS);
     const duracionCell = ws.getCell(row, 4);
-    duracionCell.value = `DURACIÓN:  ${(cf[registroAsistenciaFields.DURACION] as string) || ""}`;
+    duracionCell.value = `DURACIÓN:  ${(cf[evtF.DURACION] as string) || ""}`;
     duracionCell.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.IMPERIAL}` } };
     duracionCell.alignment = { vertical: "middle" };
     duracionCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.WHITE}` } };
@@ -408,7 +415,7 @@ export async function POST(request: NextRequest) {
     row++;
 
     // ── FILA 7: ÁREA ────────────────────────────────────
-    const areaValor = (cf[registroAsistenciaFields.AREA] as string) || "";
+    const areaValor = (cf[evtF.AREA] as string) || "";
     const areaOpciones = ["OPERACIONES", "GERENCIA", "SG-SST", "OTRO"];
     const areaLabel = ws.getCell(row, 1);
     areaLabel.value = "ÁREA";
@@ -432,7 +439,7 @@ export async function POST(request: NextRequest) {
     row++;
 
     // ── FILA 8: TIPO ────────────────────────────────────
-    const tipoValor = (cf[registroAsistenciaFields.TIPO] as string) || "";
+    const tipoValor = (cf[evtF.TIPO] as string) || "";
     const tipoOpciones = ["INDUCCION", "CAPACITACION", "CHARLA", "OTRO"];
     const tipoLabel = ws.getCell(row, 1);
     tipoLabel.value = "TIPO";
@@ -466,7 +473,7 @@ export async function POST(request: NextRequest) {
 
     ws.mergeCells(row, 1, row + 2, TOTAL_COLS);
     const temasCell = ws.getCell(row, 1);
-    temasCell.value = (cf[registroAsistenciaFields.TEMAS_TRATADOS] as string) || "";
+    temasCell.value = temasRaw;
     temasCell.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.IMPERIAL}` } };
     temasCell.alignment = { vertical: "top", wrapText: true };
     temasCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.WHITE}` } };
@@ -500,7 +507,7 @@ export async function POST(request: NextRequest) {
       // Intentar descifrar firma
       let signatureDataUrl: string | undefined;
       if (asistente) {
-        const firmaEncriptada = asistente.fields[detalleRegistroFields.FIRMA] as string | undefined;
+        const firmaEncriptada = asistente.fields[asisF.FIRMA_CONFIRMADA] as string | undefined;
         if (firmaEncriptada && AES_SECRET) {
           try {
             const decrypted = decryptAES(firmaEncriptada);
@@ -523,7 +530,7 @@ export async function POST(request: NextRequest) {
 
       // NOMBRE
       const nombreCell = ws.getCell(row, 2);
-      nombreCell.value = asistente ? (asistente.fields[detalleRegistroFields.NOMBRE] as string) || "" : "";
+      nombreCell.value = asistente ? (asistente.fields[asisF.NOMBRES] as string) || "" : "";
       nombreCell.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.IMPERIAL}` } };
       nombreCell.alignment = { vertical: "middle", wrapText: true };
       nombreCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${rowBg}` } };
@@ -531,7 +538,7 @@ export async function POST(request: NextRequest) {
 
       // CÉDULA
       const cedulaCell = ws.getCell(row, 3);
-      cedulaCell.value = asistente ? (asistente.fields[detalleRegistroFields.CEDULA] as string) || "" : "";
+      cedulaCell.value = asistente ? (asistente.fields[asisF.CEDULA] as string) || "" : "";
       cedulaCell.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.IMPERIAL}` } };
       cedulaCell.alignment = { horizontal: "center", vertical: "middle" };
       cedulaCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${rowBg}` } };
@@ -539,7 +546,7 @@ export async function POST(request: NextRequest) {
 
       // LABOR
       const laborCell = ws.getCell(row, 4);
-      laborCell.value = asistente ? (asistente.fields[detalleRegistroFields.LABOR] as string) || "" : "";
+      laborCell.value = asistente ? (asistente.fields[asisF.LABOR] as string) || "" : "";
       laborCell.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.IMPERIAL}` } };
       laborCell.alignment = { vertical: "middle", wrapText: true };
       laborCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${rowBg}` } };
@@ -582,7 +589,7 @@ export async function POST(request: NextRequest) {
 
     ws.mergeCells(row, 2, row, 3);
     const confNombreCell = ws.getCell(row, 2);
-    confNombreCell.value = (cf[registroAsistenciaFields.NOMBRE_CONFERENCISTA] as string) || "";
+    confNombreCell.value = (cf[evtF.NOMBRE_CONFERENCISTA] as string) || "";
     confNombreCell.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.IMPERIAL}` } };
     confNombreCell.alignment = { vertical: "middle" };
     confNombreCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.WHITE}` } };
@@ -597,7 +604,7 @@ export async function POST(request: NextRequest) {
     confFirmaLabelCell.border = allBorders;
 
     // Firma del conferencista
-    const firmaConfEncriptada = (cf[registroAsistenciaFields.FIRMA_CONFERENCISTA] as string) || "";
+    const firmaConfEncriptada = "";
     let confSignatureDataUrl: string | undefined;
     if (firmaConfEncriptada && AES_SECRET) {
       try {
@@ -634,12 +641,12 @@ export async function POST(request: NextRequest) {
 
     // 4. Generar buffer y retornar
     const buffer = await workbook.xlsx.writeBuffer();
-    const nombreEvento = ((cf[registroAsistenciaFields.NOMBRE_EVENTO] as string) || "Evento")
+    const nombreEventoFile = nombreEvento
       .replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]/g, "")
       .replace(/\s+/g, "_")
       .substring(0, 40);
     const fechaStr = new Date().toISOString().slice(0, 10);
-    const filename = `Asistencia_${nombreEvento}_${fechaStr}.xlsx`;
+    const filename = `Asistencia_${nombreEventoFile}_${fechaStr}.xlsx`;
 
     return new NextResponse(buffer, {
       status: 200,

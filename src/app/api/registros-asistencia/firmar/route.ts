@@ -1,63 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
-import crypto from "crypto";
 import {
   airtableSGSSTConfig,
   getSGSSTUrl,
   getSGSSTHeaders,
 } from "@/infrastructure/config/airtableSGSST";
 
-// ══════════════════════════════════════════════════════════
-// AES-256-CBC Encryption
-// ══════════════════════════════════════════════════════════
-const AES_SECRET = process.env.AES_SIGNATURE_SECRET || "";
-
-function encryptAES(plaintext: string): string {
-  const key = crypto.createHash("sha256").update(AES_SECRET).digest();
-  const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
-  let encrypted = cipher.update(plaintext, "utf8", "base64");
-  encrypted += cipher.final("base64");
-  return iv.toString("base64") + ":" + encrypted;
-}
-
-// ══════════════════════════════════════════════════════════
-// POST /api/registros-asistencia/firmar
-// Guarda la firma de un asistente o del conferencista
-//
-// Body para asistente:
-//   { tipo: "asistente", registroRecordId, detalleRecordId, firmaDataUrl, nombre, idEmpleado }
-//
-// Body para conferencista:
-//   { tipo: "conferencista", registroRecordId, firmaDataUrl, nombre }
-// ══════════════════════════════════════════════════════════
+/**
+ * POST /api/registros-asistencia/firmar
+ *
+ * Body para asistente:
+ *   { tipo: "asistente", detalleRecordId }
+ *   → marca Firma Confirmada = true en Asistencia Capacitaciones
+ *
+ * Body para conferencista:
+ *   { tipo: "conferencista", registroRecordId }
+ *   → actualiza Estado Evento = "Finalizado" en Eventos Capacitación
+ */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { tipo, registroRecordId, firmaDataUrl, nombre, idEmpleado } = body;
+    const { tipo } = body;
 
-    if (!tipo || !registroRecordId || !firmaDataUrl) {
+    if (!tipo) {
       return NextResponse.json(
-        { success: false, message: "Faltan campos requeridos: tipo, registroRecordId, firmaDataUrl" },
+        { success: false, message: "El campo 'tipo' es requerido" },
         { status: 400 }
       );
     }
 
-    if (!AES_SECRET) {
-      return NextResponse.json(
-        { success: false, message: "La clave de cifrado no está configurada" },
-        { status: 500 }
-      );
-    }
-
-    // Cifrar la firma
-    const firmaPayload = JSON.stringify({
-      signature: firmaDataUrl,
-      employee: idEmpleado || "",
-      name: nombre || "",
-      timestamp: new Date().toISOString(),
-      tipo,
-    });
-    const firmaEncriptada = encryptAES(firmaPayload);
+    const headers = getSGSSTHeaders();
 
     if (tipo === "asistente") {
       const { detalleRecordId } = body;
@@ -68,69 +39,80 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const detalleUrl = getSGSSTUrl(airtableSGSSTConfig.detalleRegistroTableId);
-      const response = await fetch(detalleUrl, {
+      const { asistenciaCapacitacionesTableId, asistenciaCapacitacionesFields: f } =
+        airtableSGSSTConfig;
+      const url = getSGSSTUrl(asistenciaCapacitacionesTableId);
+
+      const res = await fetch(url, {
         method: "PATCH",
-        headers: getSGSSTHeaders(),
+        headers,
         body: JSON.stringify({
           records: [
             {
               id: detalleRecordId,
               fields: {
-                [airtableSGSSTConfig.detalleRegistroFields.FIRMA]: firmaEncriptada,
+                [f.FIRMA_CONFIRMADA]: true,
               },
             },
           ],
         }),
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Error guardando firma de asistente:", errorText);
+      if (!res.ok) {
+        const err = await res.text();
+        console.error("Error confirmando firma de asistente:", err);
         return NextResponse.json(
-          { success: false, message: "Error al guardar la firma" },
+          { success: false, message: "Error al confirmar la firma" },
           { status: 500 }
         );
       }
 
       return NextResponse.json({
         success: true,
-        message: "Firma de asistente guardada correctamente",
+        message: "Asistencia confirmada correctamente",
       });
     }
 
     if (tipo === "conferencista") {
-      const { registroAsistenciaFields } = airtableSGSSTConfig;
-      const cabeceraUrl = getSGSSTUrl(airtableSGSSTConfig.registroAsistenciaTableId);
+      const { registroRecordId } = body;
+      if (!registroRecordId) {
+        return NextResponse.json(
+          { success: false, message: "registroRecordId es requerido para tipo conferencista" },
+          { status: 400 }
+        );
+      }
 
-      const response = await fetch(cabeceraUrl, {
+      const { eventosCapacitacionTableId, eventosCapacitacionFields: f } =
+        airtableSGSSTConfig;
+      const url = getSGSSTUrl(eventosCapacitacionTableId);
+
+      const res = await fetch(url, {
         method: "PATCH",
-        headers: getSGSSTHeaders(),
+        headers,
         body: JSON.stringify({
           records: [
             {
               id: registroRecordId,
               fields: {
-                [registroAsistenciaFields.FIRMA_CONFERENCISTA]: firmaEncriptada,
-                [registroAsistenciaFields.ESTADO]: "Completado",
+                [f.ESTADO]: "Finalizado",
               },
             },
           ],
         }),
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Error guardando firma de conferencista:", errorText);
+      if (!res.ok) {
+        const err = await res.text();
+        console.error("Error finalizando evento:", err);
         return NextResponse.json(
-          { success: false, message: "Error al guardar la firma del conferencista" },
+          { success: false, message: "Error al finalizar el evento" },
           { status: 500 }
         );
       }
 
       return NextResponse.json({
         success: true,
-        message: "Firma de conferencista guardada. Registro completado.",
+        message: "Evento marcado como Finalizado",
       });
     }
 

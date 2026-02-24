@@ -168,41 +168,61 @@ export const airtableSGSSTConfig = {
     FECHA_FIRMA: process.env.AIRTABLE_RESPEQ_FECHA_FIRMA!,
   },
 
-  // ── Tabla "Capacitaciones" (actividades SST) ──────────
+  // ── Tabla "Capacitaciones" (catálogo de temas) ────────
   capacitacionesTableId: process.env.AIRTABLE_CAP_TABLE_ID!,
   capacitacionesFields: {
-    NOMBRE: process.env.AIRTABLE_CAP_NOMBRE!,
+    CODIGO:     process.env.AIRTABLE_CAP_CODIGO!,
+    NOMBRE:     process.env.AIRTABLE_CAP_NOMBRE!,
+    INTENSIDAD: process.env.AIRTABLE_CAP_INTENSIDAD!,
+    TIPO:       process.env.AIRTABLE_CAP_TIPO!,
   },
 
-  // ── Tabla "Registro Asistencia" (cabecera) ────────────
-  registroAsistenciaTableId: process.env.AIRTABLE_REGASIS_TABLE_ID!,
-  registroAsistenciaFields: {
-    ID_REGISTRO:          process.env.AIRTABLE_REGASIS_ID_REGISTRO!,
-    NOMBRE_EVENTO:        process.env.AIRTABLE_REGASIS_NOMBRE_EVENTO!,
-    CIUDAD:               process.env.AIRTABLE_REGASIS_CIUDAD!,
-    FECHA:                process.env.AIRTABLE_REGASIS_FECHA!,
-    HORA_INICIO:          process.env.AIRTABLE_REGASIS_HORA_INICIO!,
-    LUGAR:                process.env.AIRTABLE_REGASIS_LUGAR!,
-    DURACION:             process.env.AIRTABLE_REGASIS_DURACION!,
-    AREA:                 process.env.AIRTABLE_REGASIS_AREA!,
-    TIPO:                 process.env.AIRTABLE_REGASIS_TIPO!,
-    TEMAS_TRATADOS:       process.env.AIRTABLE_REGASIS_TEMAS_TRATADOS!,
-    NOMBRE_CONFERENCISTA: process.env.AIRTABLE_REGASIS_NOMBRE_CONFERENCISTA!,
-    FIRMA_CONFERENCISTA:  process.env.AIRTABLE_REGASIS_FIRMA_CONFERENCISTA!,
-    ESTADO:               process.env.AIRTABLE_REGASIS_ESTADO!,
-    DETALLE_LINK:         process.env.AIRTABLE_REGASIS_DETALLE_LINK!,
+  // ── Tabla "Programación Capacitaciones" ───────────────
+  programacionCapacitacionesTableId: process.env.AIRTABLE_PROG_TABLE_ID!,
+  programacionCapacitacionesFields: {
+    IDENTIFICADOR:     process.env.AIRTABLE_PROG_IDENTIFICADOR!,
+    MES:               process.env.AIRTABLE_PROG_MES!,
+    TRIMESTRE:         process.env.AIRTABLE_PROG_TRIMESTRE!,
+    PROGRAMADO:        process.env.AIRTABLE_PROG_PROGRAMADO!,
+    EJECUTADO:         process.env.AIRTABLE_PROG_EJECUTADO!,
+    FECHA_EJECUCION:   process.env.AIRTABLE_PROG_FECHA_EJECUCION!,
+    TOTAL_ASISTENTES:  process.env.AIRTABLE_PROG_TOTAL_ASISTENTES!,
+    CAPACITACION_LINK:  process.env.AIRTABLE_PROG_CAPACITACION_LINK!,
+    EVENTOS_LINK:       process.env.AIRTABLE_PROG_EVENTOS_LINK!,
+    OBSERVACIONES:      process.env.AIRTABLE_PROG_OBSERVACIONES!,
+    ASISTENCIA_LINK:    process.env.AIRTABLE_PROG_ASISTENCIA_LINK!,
   },
 
-  // ── Tabla "Detalle Registro Asistencia" ───────────────
-  detalleRegistroTableId: process.env.AIRTABLE_DETREGASIS_TABLE_ID!,
-  detalleRegistroFields: {
-    ID:            process.env.AIRTABLE_DETREGASIS_ID!,
-    ID_EMPLEADO:   process.env.AIRTABLE_DETREGASIS_ID_EMPLEADO!,
-    NOMBRE:        process.env.AIRTABLE_DETREGASIS_NOMBRE!,
-    CEDULA:        process.env.AIRTABLE_DETREGASIS_CEDULA!,
-    LABOR:         process.env.AIRTABLE_DETREGASIS_LABOR!,
-    FIRMA:         process.env.AIRTABLE_DETREGASIS_FIRMA!,
-    REGISTRO_LINK: process.env.AIRTABLE_DETREGASIS_REGISTRO_LINK!,
+  // ── Tabla "Eventos Capacitación" (cabecera de eventos) ─
+  eventosCapacitacionTableId: process.env.AIRTABLE_EVT_TABLE_ID!,
+  eventosCapacitacionFields: {
+    CODIGO:               process.env.AIRTABLE_EVT_CODIGO!,
+    CIUDAD:               process.env.AIRTABLE_EVT_CIUDAD!,
+    LUGAR:                process.env.AIRTABLE_EVT_LUGAR!,
+    FECHA:                process.env.AIRTABLE_EVT_FECHA!,
+    HORA_INICIO:          process.env.AIRTABLE_EVT_HORA_INICIO!,
+    DURACION:             process.env.AIRTABLE_EVT_DURACION!,
+    AREA:                 process.env.AIRTABLE_EVT_AREA!,
+    TIPO:                 process.env.AIRTABLE_EVT_TIPO!,
+    TEMAS_TRATADOS:       process.env.AIRTABLE_EVT_TEMAS_TRATADOS!,
+    NOMBRE_CONFERENCISTA: process.env.AIRTABLE_EVT_NOMBRE_CONFERENCISTA!,
+    ESTADO:               process.env.AIRTABLE_EVT_ESTADO!,
+    ASISTENCIA_LINK:      process.env.AIRTABLE_EVT_ASISTENCIA_LINK!,
+    PROGRAMACION_LINK:    process.env.AIRTABLE_EVT_PROGRAMACION_LINK!,
+  },
+
+  // ── Tabla "Asistencia Capacitaciones" (detalle) ───────
+  asistenciaCapacitacionesTableId: process.env.AIRTABLE_ASIS_TABLE_ID!,
+  asistenciaCapacitacionesFields: {
+    ID_ASISTENCIA:    process.env.AIRTABLE_ASIS_ID_ASISTENCIA!,
+    NOMBRES:          process.env.AIRTABLE_ASIS_NOMBRES!,
+    CEDULA:           process.env.AIRTABLE_ASIS_CEDULA!,
+    LABOR:            process.env.AIRTABLE_ASIS_LABOR!,
+    FIRMA_CONFIRMADA: process.env.AIRTABLE_ASIS_FIRMA_CONFIRMADA!,
+    FECHA_REGISTRO:   process.env.AIRTABLE_ASIS_FECHA_REGISTRO!,
+    EVENTO_LINK:        process.env.AIRTABLE_ASIS_EVENTO_LINK!,
+    ID_EMPLEADO_CORE:   process.env.AIRTABLE_ASIS_ID_EMPLEADO_CORE!,
+    PROGRAMACION_LINK:  process.env.AIRTABLE_ASIS_PROGRAMACION_LINK!,
   },
 };
 

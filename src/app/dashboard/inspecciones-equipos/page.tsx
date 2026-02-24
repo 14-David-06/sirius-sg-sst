@@ -97,7 +97,7 @@ type PageState = "idle" | "saving" | "success" | "error";
 // ══════════════════════════════════════════════════════════
 // Constantes
 // ══════════════════════════════════════════════════════════
-const CATEGORIAS = ["Extintor", "Botiquín", "Camilla", "Kit Derrames"] as const;
+const CATEGORIAS = ["Extintor", "Camilla", "Kit Derrames"] as const;
 
 const CATEGORIA_CONFIG: Record<string, { color: string; bgColor: string; borderColor: string; icon: string }> = {
   Extintor:        { color: "text-red-400",    bgColor: "bg-red-500/20",    borderColor: "border-red-500/30",    icon: "🧯" },
@@ -154,7 +154,6 @@ function getCriteriosForCategoria(categoria: string) {
         criterios.push({ ...c, group: "extintor" })
       );
       break;
-    case "Botiquín":
     case "Kit Derrames":
       CRITERIOS_BOTIQUIN_LABELS.forEach((c) =>
         criterios.push({ ...c, group: "botiquin" })

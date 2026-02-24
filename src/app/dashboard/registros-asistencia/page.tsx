@@ -73,7 +73,8 @@ export default function RegistrosAsistenciaPage() {
             <h2 className="text-xl font-bold text-white mb-2">Historial</h2>
             <p className="text-white/60 text-sm leading-relaxed">
               Consulta todos los registros de asistencia anteriores. Visualiza el estado,
-              número de asistentes y exporta cualquier registro a Excel.
+              número de asistentes y exporta cualquier registro a Excel. Incluye un
+              calendario con la programación de capacitaciones del año.
             </p>
             <div className="mt-6 flex items-center text-sm text-sirius-cielo font-medium opacity-0 group-hover:opacity-100 transition-opacity">
               Ver historial
