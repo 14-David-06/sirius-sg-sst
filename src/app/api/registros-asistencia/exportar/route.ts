@@ -160,16 +160,15 @@ function convertSignatureToBlackTransparent(base64Data: string): string {
 }
 
 // ══════════════════════════════════════════════════════════
-// Colores Marca Sirius
+// Paleta Profesional (escala de grises, texto negro)
 // ══════════════════════════════════════════════════════════
 const BRAND = {
-  AZUL_BARRANCA: "0154AC",
-  AZUL_CIELO:    "00A3FF",
-  SUTILEZA:      "BCD7EA",
-  COTILEDON:     "ECF1F4",
-  IMPERIAL:      "1A1A33",
+  HEADER_DARK:   "404040",  // encabezado oscuro (fondo)
+  HEADER_MID:    "C8C8C8",  // encabezado medio (secciones)
+  LABEL_BG:      "EFEFEF",  // fondo de etiquetas
   WHITE:         "FFFFFF",
-  BORDER:        "B0C4DE",
+  BLACK:         "000000",
+  BORDER:        "808080",
 };
 
 const allBorders: Partial<ExcelJS.Borders> = {
@@ -281,7 +280,7 @@ export async function POST(request: NextRequest) {
     // ── FILA 1: Logo + Nombre empresa ──────────────────
     ws.mergeCells(row, 1, row + 1, 1);
     const logoCell = ws.getCell(row, 1);
-    logoCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.AZUL_BARRANCA}` } };
+    logoCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.LABEL_BG}` } };
     logoCell.border = allBorders;
     logoCell.alignment = { horizontal: "center", vertical: "middle" };
     if (logoImageId !== null) {
@@ -295,12 +294,12 @@ export async function POST(request: NextRequest) {
     ws.mergeCells(row, 2, row, TOTAL_COLS);
     const companyCell = ws.getCell(row, 2);
     companyCell.value = "SIRIUS REGENERATIVE SOLUTIONS S.A.S. ZOMAC";
-    companyCell.font = { name: "Calibri", size: 14, bold: true, color: { argb: `FF${BRAND.WHITE}` } };
+    companyCell.font = { name: "Calibri", size: 14, bold: true, color: { argb: `FF${BRAND.BLACK}` } };
     companyCell.alignment = { horizontal: "center", vertical: "middle" };
-    companyCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.AZUL_BARRANCA}` } };
+    companyCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.LABEL_BG}` } };
     companyCell.border = allBorders;
     for (let c = 3; c <= TOTAL_COLS; c++) {
-      ws.getCell(row, c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.AZUL_BARRANCA}` } };
+      ws.getCell(row, c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.LABEL_BG}` } };
       ws.getCell(row, c).border = allBorders;
     }
     ws.getRow(row).height = 32;
@@ -309,23 +308,23 @@ export async function POST(request: NextRequest) {
     // ── FILA 2: NIT + CÓDIGO ───────────────────────────
     ws.mergeCells(row, 2, row, 3);
     const logoCellR2 = ws.getCell(row, 1);
-    logoCellR2.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.AZUL_BARRANCA}` } };
+    logoCellR2.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.LABEL_BG}` } };
     logoCellR2.border = allBorders;
 
     const nitCell = ws.getCell(row, 2);
     nitCell.value = "NIT: 901.377.064-8";
-    nitCell.font = { name: "Calibri", size: 10, bold: true, color: { argb: `FF${BRAND.AZUL_BARRANCA}` } };
+    nitCell.font = { name: "Calibri", size: 10, bold: true, color: { argb: `FF${BRAND.BLACK}` } };
     nitCell.alignment = { horizontal: "center", vertical: "middle" };
-    nitCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.COTILEDON}` } };
+    nitCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.LABEL_BG}` } };
     nitCell.border = allBorders;
     ws.getCell(row, 3).border = allBorders;
 
     ws.mergeCells(row, 4, row, TOTAL_COLS);
     const codeCell = ws.getCell(row, 4);
     codeCell.value = "CÓDIGO: FT-SST-021    VERSIÓN: 001    FECHA: 02-10-2023";
-    codeCell.font = { name: "Calibri", size: 9, bold: true, color: { argb: `FF${BRAND.AZUL_BARRANCA}` } };
+    codeCell.font = { name: "Calibri", size: 9, bold: true, color: { argb: `FF${BRAND.BLACK}` } };
     codeCell.alignment = { horizontal: "center", vertical: "middle" };
-    codeCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.COTILEDON}` } };
+    codeCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.LABEL_BG}` } };
     codeCell.border = allBorders;
     ws.getCell(row, 5).border = allBorders;
     ws.getRow(row).height = 20;
@@ -335,9 +334,9 @@ export async function POST(request: NextRequest) {
     ws.mergeCells(row, 1, row, TOTAL_COLS);
     const titleCell = ws.getCell(row, 1);
     titleCell.value = "FORMATO REGISTRO DE ASISTENCIA";
-    titleCell.font = { name: "Calibri", size: 13, bold: true, color: { argb: `FF${BRAND.WHITE}` } };
+    titleCell.font = { name: "Calibri", size: 13, bold: true, color: { argb: `FF${BRAND.BLACK}` } };
     titleCell.alignment = { horizontal: "center", vertical: "middle" };
-    titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.AZUL_CIELO}` } };
+    titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.HEADER_MID}` } };
     titleCell.border = allBorders;
     ws.getRow(row).height = 26;
     row++;
@@ -346,9 +345,9 @@ export async function POST(request: NextRequest) {
     ws.mergeCells(row, 1, row, TOTAL_COLS);
     const eventoLabelCell = ws.getCell(row, 1);
     eventoLabelCell.value = `NOMBRE DEL EVENTO:  ${nombreEvento}`;
-    eventoLabelCell.font = { name: "Calibri", size: 10, bold: true, color: { argb: `FF${BRAND.IMPERIAL}` } };
+    eventoLabelCell.font = { name: "Calibri", size: 10, bold: true, color: { argb: `FF${BRAND.BLACK}` } };
     eventoLabelCell.alignment = { vertical: "middle" };
-    eventoLabelCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.SUTILEZA}` } };
+    eventoLabelCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.LABEL_BG}` } };
     eventoLabelCell.border = allBorders;
     ws.getRow(row).height = 22;
     row++;
@@ -357,7 +356,7 @@ export async function POST(request: NextRequest) {
     ws.mergeCells(row, 1, row, 2);
     const ciudadCell = ws.getCell(row, 1);
     ciudadCell.value = `CIUDAD:  ${(cf[evtF.CIUDAD] as string) || ""}`;
-    ciudadCell.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.IMPERIAL}` } };
+    ciudadCell.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.BLACK}` } };
     ciudadCell.alignment = { vertical: "middle" };
     ciudadCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.WHITE}` } };
     ciudadCell.border = allBorders;
@@ -376,7 +375,7 @@ export async function POST(request: NextRequest) {
 
     const fechaCell2 = ws.getCell(row, 3);
     fechaCell2.value = `FECHA:  ${fechaFormateada}`;
-    fechaCell2.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.IMPERIAL}` } };
+    fechaCell2.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.BLACK}` } };
     fechaCell2.alignment = { vertical: "middle" };
     fechaCell2.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.WHITE}` } };
     fechaCell2.border = allBorders;
@@ -384,7 +383,7 @@ export async function POST(request: NextRequest) {
     ws.mergeCells(row, 4, row, TOTAL_COLS);
     const horaCell = ws.getCell(row, 4);
     horaCell.value = `HORA DE INICIO:  ${(cf[evtF.HORA_INICIO] as string) || ""}`;
-    horaCell.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.IMPERIAL}` } };
+    horaCell.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.BLACK}` } };
     horaCell.alignment = { vertical: "middle" };
     horaCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.WHITE}` } };
     horaCell.border = allBorders;
@@ -396,7 +395,7 @@ export async function POST(request: NextRequest) {
     ws.mergeCells(row, 1, row, 3);
     const lugarCell = ws.getCell(row, 1);
     lugarCell.value = `LUGAR:  ${(cf[evtF.LUGAR] as string) || ""}`;
-    lugarCell.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.IMPERIAL}` } };
+    lugarCell.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.BLACK}` } };
     lugarCell.alignment = { vertical: "middle" };
     lugarCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.WHITE}` } };
     lugarCell.border = allBorders;
@@ -406,7 +405,7 @@ export async function POST(request: NextRequest) {
     ws.mergeCells(row, 4, row, TOTAL_COLS);
     const duracionCell = ws.getCell(row, 4);
     duracionCell.value = `DURACIÓN:  ${(cf[evtF.DURACION] as string) || ""}`;
-    duracionCell.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.IMPERIAL}` } };
+    duracionCell.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.BLACK}` } };
     duracionCell.alignment = { vertical: "middle" };
     duracionCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.WHITE}` } };
     duracionCell.border = allBorders;
@@ -419,9 +418,9 @@ export async function POST(request: NextRequest) {
     const areaOpciones = ["OPERACIONES", "GERENCIA", "SG-SST", "OTRO"];
     const areaLabel = ws.getCell(row, 1);
     areaLabel.value = "ÁREA";
-    areaLabel.font = { name: "Calibri", size: 10, bold: true, color: { argb: `FF${BRAND.AZUL_BARRANCA}` } };
+    areaLabel.font = { name: "Calibri", size: 10, bold: true, color: { argb: `FF${BRAND.BLACK}` } };
     areaLabel.alignment = { horizontal: "center", vertical: "middle" };
-    areaLabel.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.SUTILEZA}` } };
+    areaLabel.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.LABEL_BG}` } };
     areaLabel.border = allBorders;
 
     // Mostrar cada opción con su checkbox (X si seleccionada)
@@ -430,7 +429,7 @@ export async function POST(request: NextRequest) {
       const cell = ws.getCell(row, areaCols[idx]);
       const isSelected = areaValor.toUpperCase() === opcion;
       cell.value = `${isSelected ? "☑" : "☐"}  ${opcion}`;
-      cell.font = { name: "Calibri", size: 10, color: { argb: isSelected ? `FF${BRAND.AZUL_BARRANCA}` : `FF${BRAND.IMPERIAL}` }, bold: isSelected };
+      cell.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.BLACK}` }, bold: isSelected };
       cell.alignment = { horizontal: "left", vertical: "middle" };
       cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.WHITE}` } };
       cell.border = allBorders;
@@ -440,19 +439,19 @@ export async function POST(request: NextRequest) {
 
     // ── FILA 8: TIPO ────────────────────────────────────
     const tipoValor = (cf[evtF.TIPO] as string) || "";
-    const tipoOpciones = ["INDUCCION", "CAPACITACION", "CHARLA", "OTRO"];
+    const tipoOpciones = ["INDUCCION", "CAPACITACION", "CHARLA", "CAPACITACION/CHARLA"];
     const tipoLabel = ws.getCell(row, 1);
     tipoLabel.value = "TIPO";
-    tipoLabel.font = { name: "Calibri", size: 10, bold: true, color: { argb: `FF${BRAND.AZUL_BARRANCA}` } };
+    tipoLabel.font = { name: "Calibri", size: 10, bold: true, color: { argb: `FF${BRAND.BLACK}` } };
     tipoLabel.alignment = { horizontal: "center", vertical: "middle" };
-    tipoLabel.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.SUTILEZA}` } };
+    tipoLabel.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.LABEL_BG}` } };
     tipoLabel.border = allBorders;
 
     tipoOpciones.forEach((opcion, idx) => {
       const cell = ws.getCell(row, areaCols[idx]);
       const isSelected = tipoValor.toUpperCase() === opcion;
       cell.value = `${isSelected ? "☑" : "☐"}  ${opcion}`;
-      cell.font = { name: "Calibri", size: 10, color: { argb: isSelected ? `FF${BRAND.AZUL_BARRANCA}` : `FF${BRAND.IMPERIAL}` }, bold: isSelected };
+      cell.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.BLACK}` }, bold: isSelected };
       cell.alignment = { horizontal: "left", vertical: "middle" };
       cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.WHITE}` } };
       cell.border = allBorders;
@@ -464,9 +463,9 @@ export async function POST(request: NextRequest) {
     ws.mergeCells(row, 1, row, TOTAL_COLS);
     const temasHeaderCell = ws.getCell(row, 1);
     temasHeaderCell.value = "TEMAS TRATADOS";
-    temasHeaderCell.font = { name: "Calibri", size: 10, bold: true, color: { argb: `FF${BRAND.WHITE}` } };
+    temasHeaderCell.font = { name: "Calibri", size: 10, bold: true, color: { argb: `FF${BRAND.BLACK}` } };
     temasHeaderCell.alignment = { horizontal: "center", vertical: "middle" };
-    temasHeaderCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.AZUL_BARRANCA}` } };
+    temasHeaderCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.HEADER_MID}` } };
     temasHeaderCell.border = allBorders;
     ws.getRow(row).height = 20;
     row++;
@@ -474,7 +473,7 @@ export async function POST(request: NextRequest) {
     ws.mergeCells(row, 1, row + 2, TOTAL_COLS);
     const temasCell = ws.getCell(row, 1);
     temasCell.value = temasRaw;
-    temasCell.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.IMPERIAL}` } };
+    temasCell.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.BLACK}` } };
     temasCell.alignment = { vertical: "top", wrapText: true };
     temasCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.WHITE}` } };
     temasCell.border = allBorders;
@@ -489,9 +488,9 @@ export async function POST(request: NextRequest) {
     colHeaders.forEach((header, idx) => {
       const cell = ws.getCell(row, idx + 1);
       cell.value = header;
-      cell.font = { name: "Calibri", size: 10, bold: true, color: { argb: `FF${BRAND.WHITE}` } };
+      cell.font = { name: "Calibri", size: 10, bold: true, color: { argb: `FF${BRAND.BLACK}` } };
       cell.alignment = { horizontal: "center", vertical: "middle" };
-      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.AZUL_BARRANCA}` } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.HEADER_MID}` } };
       cell.border = allBorders;
     });
     ws.getRow(row).height = 22;
@@ -502,12 +501,12 @@ export async function POST(request: NextRequest) {
     for (let i = 0; i < rowCount; i++) {
       const asistente = asistentes[i];
       const isEven = i % 2 === 0;
-      const rowBg = isEven ? BRAND.WHITE : BRAND.COTILEDON;
+      const rowBg = isEven ? BRAND.WHITE : "F7F7F7";
 
       // Intentar descifrar firma
       let signatureDataUrl: string | undefined;
       if (asistente) {
-        const firmaEncriptada = asistente.fields[asisF.FIRMA_CONFIRMADA] as string | undefined;
+        const firmaEncriptada = asistente.fields[asisF.FIRMA] as string | undefined;
         if (firmaEncriptada && AES_SECRET) {
           try {
             const decrypted = decryptAES(firmaEncriptada);
@@ -523,7 +522,7 @@ export async function POST(request: NextRequest) {
       // ITEM
       const itemCell = ws.getCell(row, 1);
       itemCell.value = i + 1;
-      itemCell.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.IMPERIAL}` } };
+      itemCell.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.BLACK}` } };
       itemCell.alignment = { horizontal: "center", vertical: "middle" };
       itemCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${rowBg}` } };
       itemCell.border = allBorders;
@@ -531,7 +530,7 @@ export async function POST(request: NextRequest) {
       // NOMBRE
       const nombreCell = ws.getCell(row, 2);
       nombreCell.value = asistente ? (asistente.fields[asisF.NOMBRES] as string) || "" : "";
-      nombreCell.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.IMPERIAL}` } };
+      nombreCell.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.BLACK}` } };
       nombreCell.alignment = { vertical: "middle", wrapText: true };
       nombreCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${rowBg}` } };
       nombreCell.border = allBorders;
@@ -539,7 +538,7 @@ export async function POST(request: NextRequest) {
       // CÉDULA
       const cedulaCell = ws.getCell(row, 3);
       cedulaCell.value = asistente ? (asistente.fields[asisF.CEDULA] as string) || "" : "";
-      cedulaCell.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.IMPERIAL}` } };
+      cedulaCell.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.BLACK}` } };
       cedulaCell.alignment = { horizontal: "center", vertical: "middle" };
       cedulaCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${rowBg}` } };
       cedulaCell.border = allBorders;
@@ -547,7 +546,7 @@ export async function POST(request: NextRequest) {
       // LABOR
       const laborCell = ws.getCell(row, 4);
       laborCell.value = asistente ? (asistente.fields[asisF.LABOR] as string) || "" : "";
-      laborCell.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.IMPERIAL}` } };
+      laborCell.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.BLACK}` } };
       laborCell.alignment = { vertical: "middle", wrapText: true };
       laborCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${rowBg}` } };
       laborCell.border = allBorders;
@@ -582,15 +581,15 @@ export async function POST(request: NextRequest) {
     ws.getRow(row).height = 20;
     const confLabelCell = ws.getCell(row, 1);
     confLabelCell.value = "NOMBRE DEL CONFERENCISTA:";
-    confLabelCell.font = { name: "Calibri", size: 10, bold: true, color: { argb: `FF${BRAND.AZUL_BARRANCA}` } };
+    confLabelCell.font = { name: "Calibri", size: 10, bold: true, color: { argb: `FF${BRAND.BLACK}` } };
     confLabelCell.alignment = { vertical: "middle" };
-    confLabelCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.SUTILEZA}` } };
+    confLabelCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.LABEL_BG}` } };
     confLabelCell.border = allBorders;
 
     ws.mergeCells(row, 2, row, 3);
     const confNombreCell = ws.getCell(row, 2);
     confNombreCell.value = (cf[evtF.NOMBRE_CONFERENCISTA] as string) || "";
-    confNombreCell.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.IMPERIAL}` } };
+    confNombreCell.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.BLACK}` } };
     confNombreCell.alignment = { vertical: "middle" };
     confNombreCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.WHITE}` } };
     confNombreCell.border = allBorders;
@@ -598,13 +597,13 @@ export async function POST(request: NextRequest) {
 
     const confFirmaLabelCell = ws.getCell(row, 4);
     confFirmaLabelCell.value = "FIRMA DEL CONFERENCISTA:";
-    confFirmaLabelCell.font = { name: "Calibri", size: 10, bold: true, color: { argb: `FF${BRAND.AZUL_BARRANCA}` } };
+    confFirmaLabelCell.font = { name: "Calibri", size: 10, bold: true, color: { argb: `FF${BRAND.BLACK}` } };
     confFirmaLabelCell.alignment = { vertical: "middle" };
-    confFirmaLabelCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.SUTILEZA}` } };
+    confFirmaLabelCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.LABEL_BG}` } };
     confFirmaLabelCell.border = allBorders;
 
     // Firma del conferencista
-    const firmaConfEncriptada = "";
+    const firmaConfEncriptada = (cf[evtF.FIRMA_CONFERENCISTA] as string) || "";
     let confSignatureDataUrl: string | undefined;
     if (firmaConfEncriptada && AES_SECRET) {
       try {

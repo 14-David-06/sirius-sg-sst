@@ -20,12 +20,13 @@ interface EventoData {
   duracion: string;
   temasTratados: string;
   nombreConferencista: string;
-  tipoEvento: string; // "Capacitación" | "Inducción" | "Charla" | "Otro"
+  tipoEvento: string; // "Capacitación" | "Inducción" | "Charla" | "CAPACITACION/CHARLA"
 }
 
 interface RegistroPayload {
-  capacitacionCodigo: string; // Código del catálogo: "CAP-1.1"
-  programacionRecordId?: string; // Record ID de Programación Capacitaciones (opcional pero recomendado)
+  capacitacionCodigo: string;          // Código del catálogo: "CAP-1.1"
+  programacionRecordIds?: string[];    // Record IDs de Programación Capacitaciones (multi-selección)
+  programacionRecordId?: string;       // (legacy, single — fallback)
   eventoData: EventoData;
   asistentes: AsistentePayload[];
   fechaRegistro: string;
@@ -76,7 +77,10 @@ export async function POST(request: NextRequest) {
       payload.fechaRegistro ||
       new Date().toLocaleDateString("en-CA", { timeZone: "America/Bogota" });
 
-    const progRecordId = payload.programacionRecordId ?? null;
+    // Soportar multi-selección y fallback a single ID (legacy)
+    const progRecordIds: string[] =
+      payload.programacionRecordIds ??
+      (payload.programacionRecordId ? [payload.programacionRecordId] : []);
 
     // ── 1. Generar código único para el evento ────────────
     const year = new Date().getFullYear();
@@ -91,18 +95,16 @@ export async function POST(request: NextRequest) {
       [evtF.CIUDAD]:               evtData.ciudad || "",
       [evtF.LUGAR]:                evtData.lugar  || "",
       [evtF.FECHA]:                evtData.fecha  || fechaRegistro,
-      [evtF.HORA_INICIO]:          evtData.horaInicio || "",
-      [evtF.DURACION]:             evtData.duracion   || "",
       [evtF.AREA]:                 "SG-SST",
       [evtF.TIPO]:                 evtData.tipoEvento || "Capacitación",
       [evtF.TEMAS_TRATADOS]:       evtData.temasTratados || "",
       [evtF.NOMBRE_CONFERENCISTA]: evtData.nombreConferencista || "",
       [evtF.ESTADO]:               "En Curso",
     };
-    // Link al registro de Programación si fue proporcionado
-    if (progRecordId) {
-      eventoFields[evtF.PROGRAMACION_LINK] = [progRecordId];
-    }
+    // Solo incluir campos de tiempo/duración si tienen valor (Airtable rechaza strings vacíos en campos time)
+    if (evtData.horaInicio) eventoFields[evtF.HORA_INICIO] = evtData.horaInicio;
+    if (evtData.duracion)   eventoFields[evtF.DURACION]   = evtData.duracion;
+    if (progRecordIds.length > 0) eventoFields[evtF.PROGRAMACION_LINK] = progRecordIds;
 
     const eventoRes = await fetch(getSGSSTUrl(eventosCapacitacionTableId), {
       method: "POST",
@@ -135,8 +137,8 @@ export async function POST(request: NextRequest) {
         [asisF.ID_EMPLEADO_CORE]: a.idEmpleado,
         [asisF.FIRMA_CONFIRMADA]: false,
       };
-      if (progRecordId) {
-        fields[asisF.PROGRAMACION_LINK] = [progRecordId];
+      if (progRecordIds.length > 0) {
+        fields[asisF.PROGRAMACION_LINK] = progRecordIds;
       }
       return { fields };
     });
@@ -163,9 +165,9 @@ export async function POST(request: NextRequest) {
       createdIds.push(...data.records.map((r) => r.id));
     }
 
-    // ── 4. Actualizar Programación: marcar Ejecutado, fecha, total ──
-    if (progRecordId) {
-      const patchUrl = `${getSGSSTUrl(programacionCapacitacionesTableId)}/${progRecordId}`;
+    // ── 4. Actualizar Programaciones: marcar Ejecutado, fecha, total ──
+    for (const progId of progRecordIds) {
+      const patchUrl = `${getSGSSTUrl(programacionCapacitacionesTableId)}/${progId}`;
       await fetch(patchUrl, {
         method: "PATCH",
         headers,

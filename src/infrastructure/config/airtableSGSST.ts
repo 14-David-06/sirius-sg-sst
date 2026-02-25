@@ -209,6 +209,7 @@ export const airtableSGSSTConfig = {
     ESTADO:               process.env.AIRTABLE_EVT_ESTADO!,
     ASISTENCIA_LINK:      process.env.AIRTABLE_EVT_ASISTENCIA_LINK!,
     PROGRAMACION_LINK:    process.env.AIRTABLE_EVT_PROGRAMACION_LINK!,
+    FIRMA_CONFERENCISTA:  process.env.AIRTABLE_EVT_FIRMA_CONFERENCISTA!,
   },
 
   // ── Tabla "Asistencia Capacitaciones" (detalle) ───────
@@ -223,6 +224,7 @@ export const airtableSGSSTConfig = {
     EVENTO_LINK:        process.env.AIRTABLE_ASIS_EVENTO_LINK!,
     ID_EMPLEADO_CORE:   process.env.AIRTABLE_ASIS_ID_EMPLEADO_CORE!,
     PROGRAMACION_LINK:  process.env.AIRTABLE_ASIS_PROGRAMACION_LINK!,
+    FIRMA:              process.env.AIRTABLE_ASIS_FIRMA!,
   },
 };
 

@@ -23,6 +23,11 @@ import {
   ChevronDown,
   Mic,
   MicOff,
+  Link,
+  Copy,
+  ExternalLink,
+  Share2,
+  ChevronUp,
 } from "lucide-react";
 import { useSession } from "@/presentation/context/SessionContext";
 
@@ -235,12 +240,12 @@ export default function NuevoRegistroPage() {
   const [nombreConferencista, setNombreConferencista] = useState("");
   const [tipoEvento, setTipoEvento] = useState("Capacitación");
 
-  // Programación Capacitaciones (selector de actividad)
+  // Programación Capacitaciones (multi-selector de actividades)
   const [programaciones, setProgramaciones] = useState<ProgramacionItem[]>([]);
   const [loadingCaps, setLoadingCaps] = useState(false);
   const [capSearch, setCapSearch] = useState("");
   const [showCapDropdown, setShowCapDropdown] = useState(false);
-  const [selectedProg, setSelectedProg] = useState<ProgramacionItem | null>(null);
+  const [selectedProgs, setSelectedProgs] = useState<ProgramacionItem[]>([]);
   const capDropdownRef = useRef<HTMLDivElement>(null);
 
   // Grabador de voz (Temas Tratados)
@@ -258,6 +263,17 @@ export default function NuevoRegistroPage() {
   const [firmandoId, setFirmandoId] = useState<string | null>(null);
   const [firmandoConferencista, setFirmandoConferencista] = useState(false);
   const [conferencistaFirmado, setConferencistaFirmado] = useState(false);
+
+  // Links de firma remota
+  const [signingLinks, setSigningLinks] = useState<{ detalleRecordId: string; nombre: string; url: string }[] | null>(null);
+  const [generatingLinks, setGeneratingLinks] = useState(false);
+  const [showLinksPanel, setShowLinksPanel] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Persistencia de sesión + polling
+  const STORAGE_KEY = "sirius-sgsst-registro-en-curso";
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [lastSync, setLastSync] = useState<Date | null>(null);
 
   // Precargar nombre del conferencista con el usuario actual
   useEffect(() => {
@@ -283,6 +299,119 @@ export default function NuevoRegistroPage() {
   useEffect(() => {
     fetchProgramaciones();
   }, [fetchProgramaciones]);
+
+  // ── Reconstruir estado desde Airtable (usado en restore + poll) ──
+  const fetchRegistroState = useCallback(async (recId: string, silent = false) => {
+    try {
+      const res = await fetch(`/api/registros-asistencia/${recId}`);
+      const json = await res.json();
+      if (!json.success) return;
+      const d = json.data;
+
+      // Reconstruir filas de asistentes preservando firmas locales ya conocidas
+      setAsistentes((prev) => {
+        const remoteMap = new Map<string, { firmaConfirmada: boolean; nombre: string; cedula: string; labor: string; idEmpleado: string }>(
+          (d.asistentes as { id: string; nombre: string; cedula: string; labor: string; idEmpleado: string; firmaConfirmada: boolean }[]).map(
+            (a) => [a.id, a]
+          )
+        );
+
+        if (prev.length === 0 || !silent) {
+          // Primera carga: construir lista completa
+          return (d.asistentes as { id: string; nombre: string; cedula: string; labor: string; idEmpleado: string; firmaConfirmada: boolean }[]).map((a) => ({
+            id: uid(),
+            persona: {
+              id: a.id,
+              idEmpleado: a.idEmpleado || "",
+              nombreCompleto: a.nombre || "",
+              numeroDocumento: a.cedula || "",
+              tipoPersonal: a.labor || "",
+              estado: "",
+              fotoPerfil: null,
+            },
+            firma: a.firmaConfirmada ? "remote" : null,
+            detalleRecordId: a.id,
+          }));
+        }
+
+        // Actualización silenciosa: sólo marcar los que firmaron en remoto
+        return prev.map((local) => {
+          if (local.firma) return local;
+          const remote = local.detalleRecordId ? remoteMap.get(local.detalleRecordId) : undefined;
+          if (remote?.firmaConfirmada) return { ...local, firma: "remote" };
+          return local;
+        });
+      });
+
+      if (d.estado === "Finalizado") {
+        setConferencistaFirmado(true);
+        setPageState("success");
+      }
+      if (!silent) setStep("asistentes");
+      setLastSync(new Date());
+    } catch { /* silencioso */ }
+  }, []);
+
+  // ── Polling: actualizar firmas remotas cada 10 segundos ──
+  const pollSignatures = useCallback((recId: string) => {
+    fetchRegistroState(recId, true);
+  }, [fetchRegistroState]);
+
+  useEffect(() => {
+    if (step !== "asistentes" || !registroRecordId || conferencistaFirmado) {
+      if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+      return;
+    }
+    pollingRef.current = setInterval(() => pollSignatures(registroRecordId), 10_000);
+    return () => {
+      if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+    };
+  }, [step, registroRecordId, conferencistaFirmado, pollSignatures]);
+
+  // ── Restaurar desde sessionStorage al montar (DEBE ir antes del efecto de guardado) ──
+  useEffect(() => {
+    const saved = sessionStorage.getItem(STORAGE_KEY);
+    if (!saved) return;
+    try {
+      const data = JSON.parse(saved) as {
+        registroRecordId: string;
+        registroIdLabel: string;
+        nombreEvento: string;
+        nombreConferencista: string;
+        fecha: string;
+        signingLinks: { detalleRecordId: string; nombre: string; url: string }[] | null;
+      };
+      if (!data.registroRecordId) return;
+      setRegistroRecordId(data.registroRecordId);
+      setRegistroIdLabel(data.registroIdLabel || "");
+      setNombreEvento(data.nombreEvento || "");
+      setNombreConferencista(data.nombreConferencista || "");
+      setFecha(data.fecha || formatDate(new Date()));
+      if (data.signingLinks) { setSigningLinks(data.signingLinks); setShowLinksPanel(true); }
+      fetchRegistroState(data.registroRecordId, false);
+    } catch {
+      sessionStorage.removeItem(STORAGE_KEY);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Guardar en sessionStorage cuando cambia el estado del registro ──
+  // Nota: NO se limpia aquí cuando step="form" para no borrar datos antes de restaurarlos.
+  // La limpieza explícita ocurre en el botón "Volver" y en firmarConferencista.
+  useEffect(() => {
+    if (step === "asistentes" && registroRecordId) {
+      const saved = JSON.stringify({
+        registroRecordId,
+        registroIdLabel,
+        nombreEvento,
+        nombreConferencista,
+        fecha,
+        signingLinks,
+      });
+      sessionStorage.setItem(STORAGE_KEY, saved);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, registroRecordId, registroIdLabel, nombreEvento, nombreConferencista, fecha, signingLinks]);
 
   // Cerrar dropdown al click fuera
   useEffect(() => {
@@ -324,9 +453,8 @@ export default function NuevoRegistroPage() {
           const res = await fetch("/api/transcribir", { method: "POST", body: fd });
           const json = await res.json();
           if (json.success && json.texto) {
-            setTemasTratados((prev) =>
-              prev ? `${prev.trimEnd()} ${json.texto}` : json.texto
-            );
+            const texto = (json.texto as string).trim();
+            if (texto) setTemasTratados((prev) => prev ? `${prev.trimEnd()}\n${texto}` : texto);
           }
         } catch {
           console.error("Error transcribiendo");
@@ -345,8 +473,8 @@ export default function NuevoRegistroPage() {
 
   // Paso 1 → Paso 2: Crear registros de asistencia en Airtable
   const crearRegistro = async () => {
-    if (!selectedProg) {
-      setErrorMessage("Selecciona una programación");
+    if (selectedProgs.length === 0) {
+      setErrorMessage("Selecciona al menos una actividad programada");
       return;
     }
 
@@ -368,8 +496,8 @@ export default function NuevoRegistroPage() {
       }));
 
       const payload = {
-        capacitacionCodigo: selectedProg.capacitacionCodigo || selectedProg.identificador,
-        programacionRecordId: selectedProg.id,
+        capacitacionCodigo: selectedProgs[0].capacitacionCodigo || selectedProgs[0].identificador,
+        programacionRecordIds: selectedProgs.map((p) => p.id),
         eventoData: {
           ciudad,
           lugar,
@@ -414,6 +542,50 @@ export default function NuevoRegistroPage() {
     } finally {
       setLoadingPersonal(false);
     }
+  };
+
+  // Generar links de firma remota
+  const generateSigningLinks = async () => {
+    if (!registroRecordId || asistentes.length === 0) return;
+    setGeneratingLinks(true);
+    try {
+      const origin = window.location.origin;
+      const payload = {
+        baseUrl: origin,
+        asistentes: asistentes
+          .filter((a) => !a.firma && a.detalleRecordId)
+          .map((a) => ({
+            detalleRecordId: a.detalleRecordId!,
+            eventoRecordId: registroRecordId,
+            nombre: a.persona.nombreCompleto,
+            cedula: a.persona.numeroDocumento,
+          })),
+      };
+      const res = await fetch("/api/registros-asistencia/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setSigningLinks(json.tokens);
+        setShowLinksPanel(true);
+      } else {
+        setErrorMessage(json.message || "Error generando enlaces");
+      }
+    } catch {
+      setErrorMessage("Error generando los enlaces de firma");
+    } finally {
+      setGeneratingLinks(false);
+    }
+  };
+
+  const copyLink = async (url: string, detalleRecordId: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedId(detalleRecordId);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch { /* fallback */ }
   };
 
   // Firmar asistente
@@ -467,6 +639,7 @@ export default function NuevoRegistroPage() {
       if (json.success) {
         setConferencistaFirmado(true);
         setPageState("success");
+        sessionStorage.removeItem(STORAGE_KEY);
       } else {
         setErrorMessage(json.message || "Error guardando firma del conferencista");
       }
@@ -527,7 +700,14 @@ export default function NuevoRegistroPage() {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-4">
               <button
-                onClick={() => step === "asistentes" ? setStep("form") : router.push("/dashboard/registros-asistencia")}
+                onClick={() => {
+                if (step === "asistentes") {
+                  sessionStorage.removeItem(STORAGE_KEY);
+                  setStep("form");
+                } else {
+                  router.push("/dashboard/registros-asistencia");
+                }
+              }}
                 className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-all"
               >
                 <ChevronLeft size={20} />
@@ -554,6 +734,14 @@ export default function NuevoRegistroPage() {
                 >
                   <History size={18} />
                   <span className="hidden sm:inline">Historial</span>
+                </button>
+                <button
+                  onClick={generateSigningLinks}
+                  disabled={generatingLinks}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-white border border-blue-400/30 transition-all disabled:opacity-50"
+                >
+                  {generatingLinks ? <Loader2 size={18} className="animate-spin" /> : <Share2 size={18} />}
+                  <span className="hidden sm:inline">Links Remotos</span>
                 </button>
                 <button
                   onClick={exportarExcel}
@@ -605,16 +793,16 @@ export default function NuevoRegistroPage() {
                   type="button"
                   onClick={() => setShowCapDropdown((v) => !v)}
                   className={`w-full px-4 py-2.5 rounded-lg border text-left flex items-center justify-between gap-2 transition-all focus:outline-none focus:ring-2 focus:ring-purple-400/50 ${
-                    selectedProg
+                    selectedProgs.length > 0
                       ? "bg-purple-500/20 border-purple-400/40 text-white"
                       : "bg-white/10 border-white/20 text-white/40"
                   }`}
                 >
                   <span className="flex items-center gap-2 truncate">
                     <BookOpen className="w-4 h-4 shrink-0 text-purple-300" />
-                    {selectedProg
-                      ? `${selectedProg.identificador} · ${selectedProg.capacitacionNombre || selectedProg.identificador}`
-                      : "Seleccionar programación..."}
+                    {selectedProgs.length > 0
+                      ? `${selectedProgs.length} actividad${selectedProgs.length > 1 ? "es" : ""} seleccionada${selectedProgs.length > 1 ? "s" : ""}`
+                      : "Seleccionar actividad(es)..."}
                   </span>
                   {loadingCaps ? (
                     <Loader2 className="w-4 h-4 animate-spin text-white/40 shrink-0" />
@@ -622,6 +810,25 @@ export default function NuevoRegistroPage() {
                     <ChevronDown className={`w-4 h-4 shrink-0 text-white/40 transition-transform ${showCapDropdown ? "rotate-180" : ""}`} />
                   )}
                 </button>
+                {/* Chips de actividades seleccionadas */}
+                {selectedProgs.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {selectedProgs.map((p) => (
+                      <span key={p.id} className="flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full bg-purple-500/20 border border-purple-400/30 text-xs">
+                        <span className="font-mono text-purple-300">{p.identificador}</span>
+                        <span className="text-white/50">·</span>
+                        <span className="text-white/80 truncate max-w-[180px]">{p.capacitacionNombre || p.identificador}</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedProgs((prev) => prev.filter((s) => s.id !== p.id))}
+                          className="shrink-0 p-0.5 rounded-full hover:bg-purple-400/30 text-purple-300 transition-colors"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
 
                 {/* Dropdown */}
                 {showCapDropdown && (
@@ -664,19 +871,25 @@ export default function NuevoRegistroPage() {
                             key={prog.id}
                             type="button"
                             onClick={() => {
-                              setSelectedProg(prog);
-                              setNombreEvento(prog.capacitacionNombre || prog.identificador);
-                              if (prog.capacitacionNombre) setTemasTratados(prog.capacitacionNombre);
-                              setShowCapDropdown(false);
-                              setCapSearch("");
+                              setSelectedProgs((prev) => {
+                                const exists = prev.some((s) => s.id === prog.id);
+                                if (exists) return prev.filter((s) => s.id !== prog.id);
+                                const updated = [...prev, prog];
+                                if (updated.length === 1) setNombreEvento(prog.capacitacionNombre || prog.identificador);
+                                return updated;
+                              });
                             }}
                             className={`w-full text-left px-4 py-2.5 text-sm hover:bg-purple-500/20 transition-colors flex items-start gap-2 ${
-                              selectedProg?.id === prog.id
+                              selectedProgs.some((s) => s.id === prog.id)
                                 ? "bg-purple-500/25 text-purple-200"
                                 : "text-white/80"
                             }`}
                           >
-                            <BookOpen className="w-3.5 h-3.5 mt-1 shrink-0 text-purple-400/60" />
+                            <div className={`w-4 h-4 mt-0.5 shrink-0 rounded border flex items-center justify-center transition-colors ${
+                              selectedProgs.some((s) => s.id === prog.id) ? "bg-purple-500 border-purple-400" : "border-white/30"
+                            }`}>
+                              {selectedProgs.some((s) => s.id === prog.id) && <Check className="w-3 h-3 text-white" />}
+                            </div>
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <span className="text-xs text-purple-400/70 font-mono">{prog.identificador}</span>
@@ -720,7 +933,7 @@ export default function NuevoRegistroPage() {
                   <option value="Capacitación" className="bg-slate-900">Capacitación</option>
                   <option value="Inducción" className="bg-slate-900">Inducción</option>
                   <option value="Charla" className="bg-slate-900">Charla</option>
-                  <option value="Otro" className="bg-slate-900">Otro</option>
+                  <option value="Capacitaciones/Charlas" className="bg-slate-900">Capacitaciones/Charlas</option>
                 </select>
               </div>
             </div>
@@ -781,7 +994,7 @@ export default function NuevoRegistroPage() {
 
             {/* Temas Tratados */}
             <div>
-              <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center justify-between mb-2">
                 <label className="text-sm font-medium text-white/70">Temas Tratados</label>
                 <button
                   type="button"
@@ -814,6 +1027,7 @@ export default function NuevoRegistroPage() {
                   )}
                 </button>
               </div>
+
               <textarea
                 value={temasTratados}
                 onChange={(e) => setTemasTratados(e.target.value)}
@@ -880,12 +1094,73 @@ export default function NuevoRegistroPage() {
               </div>
             </div>
 
+            {/* Panel de Links Remotos */}
+            {signingLinks && signingLinks.length > 0 && (
+              <div className="bg-blue-500/10 backdrop-blur-xl rounded-2xl border border-blue-400/25 overflow-hidden">
+                <button
+                  onClick={() => setShowLinksPanel((v) => !v)}
+                  className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-blue-500/15 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-blue-500/20">
+                      <Link className="w-4 h-4 text-blue-300" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-white">Enlaces de Firma Remota</p>
+                      <p className="text-xs text-white/60">{signingLinks.length} asistentes pendientes · Válidos por 72 horas</p>
+                    </div>
+                  </div>
+                  {showLinksPanel ? <ChevronUp className="w-4 h-4 text-white/50" /> : <ChevronDown className="w-4 h-4 text-white/50" />}
+                </button>
+                {showLinksPanel && (
+                  <div className="border-t border-blue-400/15 divide-y divide-white/5">
+                    {signingLinks.map((item) => (
+                      <div key={item.detalleRecordId} className="px-5 py-3 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-white truncate">{item.nombre}</p>
+                          <p className="text-xs text-white/40 truncate">{item.url}</p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            onClick={() => copyLink(item.url, item.detalleRecordId)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs text-white border border-white/15 transition-all cursor-pointer"
+                          >
+                            {copiedId === item.detalleRecordId ? (
+                              <><CheckCircle className="w-3 h-3 text-green-400" /> Copiado</>
+                            ) : (
+                              <><Copy className="w-3 h-3" /> Copiar</>
+                            )}
+                          </button>
+                          <a
+                            href={item.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 text-white/60 hover:text-white transition-all"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Barra de búsqueda */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                <Users className="w-5 h-5 text-purple-300" />
-                Lista de Asistentes ({asistentesFiltrados.length})
-              </h2>
+              <div className="flex flex-col gap-1">
+                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                  <Users className="w-5 h-5 text-purple-300" />
+                  Lista de Asistentes ({asistentesFiltrados.length})
+                </h2>
+                {lastSync && (
+                  <span className="flex items-center gap-1.5 text-[11px] text-white/40">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                    Última sincronización: {new Date(lastSync).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                  </span>
+                )}
+              </div>
               <div className="relative w-full sm:w-72">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
                 <input
@@ -948,18 +1223,36 @@ export default function NuevoRegistroPage() {
                           <td className="px-3 py-3 text-sm text-white/70">{asistente.persona.tipoPersonal}</td>
                           <td className="px-3 py-3 text-center">
                             {asistente.firma ? (
-                              <div className="flex items-center justify-center gap-1">
+                              <div className="flex items-center justify-center gap-1 flex-wrap">
                                 <CheckCircle className="w-4 h-4 text-green-400" />
                                 <span className="text-xs text-green-400 font-medium">Firmado</span>
+                                {asistente.firma === "remote" && (
+                                  <span className="bg-blue-500/20 text-blue-300 text-[10px] px-1.5 py-0.5 rounded border border-blue-400/25">Remoto</span>
+                                )}
                               </div>
                             ) : (
-                              <button
-                                onClick={() => setFirmandoId(asistente.id)}
-                                className="flex items-center justify-center gap-1 px-3 py-1.5 rounded bg-purple-500/20 border border-purple-400/30 text-purple-300 text-xs font-medium hover:bg-purple-500/30 transition-all cursor-pointer"
-                              >
-                                <PenTool className="w-3 h-3" />
-                                Firmar
-                              </button>
+                              <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                                <button
+                                  onClick={() => setFirmandoId(asistente.id)}
+                                  className="flex items-center justify-center gap-1 px-3 py-1.5 rounded bg-purple-500/20 border border-purple-400/30 text-purple-300 text-xs font-medium hover:bg-purple-500/30 transition-all cursor-pointer"
+                                >
+                                  <PenTool className="w-3 h-3" />
+                                  Firmar
+                                </button>
+                                {signingLinks && (() => {
+                                  const link = signingLinks.find((l) => l.detalleRecordId === asistente.detalleRecordId);
+                                  if (!link) return null;
+                                  return (
+                                    <button
+                                      onClick={() => copyLink(link.url, link.detalleRecordId)}
+                                      title="Copiar enlace remoto"
+                                      className="flex items-center justify-center gap-1 px-2 py-1.5 rounded bg-blue-500/15 border border-blue-400/25 text-blue-300 text-xs hover:bg-blue-500/25 transition-all cursor-pointer"
+                                    >
+                                      {copiedId === link.detalleRecordId ? <CheckCircle className="w-3 h-3 text-green-400" /> : <Link className="w-3 h-3" />}
+                                    </button>
+                                  );
+                                })()}
+                              </div>
                             )}
                           </td>
                         </tr>

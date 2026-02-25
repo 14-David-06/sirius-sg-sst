@@ -75,7 +75,13 @@ export async function GET() {
       };
     });
 
-    return NextResponse.json({ success: true, data });
+    const capacitaciones = capRecords.map((r) => ({
+      id: r.id,
+      nombre: (r.fields[cf.NOMBRE] as string) || "",
+      codigo: (r.fields[cf.CODIGO] as string) || "",
+    }));
+
+    return NextResponse.json({ success: true, data, capacitaciones });
   } catch (err) {
     console.error("[programacion-capacitaciones GET]", err);
     return NextResponse.json(

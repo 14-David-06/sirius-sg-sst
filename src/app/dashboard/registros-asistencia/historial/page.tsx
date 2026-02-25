@@ -17,6 +17,17 @@ import {
   List,
   Users,
   BookOpen,
+  Eye,
+  X,
+  Copy,
+  Link,
+  Share2,
+  ExternalLink,
+  MapPin,
+  UserCheck,
+  UserX,
+  Calendar,
+  RefreshCw,
 } from "lucide-react";
 
 interface RegistroResumen {
@@ -46,6 +57,35 @@ interface Programacion {
   observaciones: string;
 }
 
+interface AsistenteDetalle {
+  id: string;
+  nombre: string;
+  cedula: string;
+  labor: string;
+  firmaConfirmada: boolean;
+}
+
+interface RegistroDetalle {
+  id: string;
+  idRegistro: string;
+  nombreEvento: string;
+  ciudad: string;
+  fecha: string;
+  lugar: string;
+  tipo: string;
+  area: string;
+  temasTratados: string;
+  nombreConferencista: string;
+  estado: string;
+  asistentes: AsistenteDetalle[];
+}
+
+interface SigningLinkItem {
+  detalleRecordId: string;
+  nombre: string;
+  url: string;
+}
+
 const DIAS_SEMANA = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 const MESES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -62,6 +102,13 @@ export default function HistorialRegistrosPage() {
   const [error, setError] = useState<string | null>(null);
   const [exportandoId, setExportandoId] = useState<string | null>(null);
 
+  // ── Panel de detalle ──────────────────────────────────────
+  const [detalle, setDetalle] = useState<RegistroDetalle | null>(null);
+  const [loadingDetalle, setLoadingDetalle] = useState(false);
+  const [signingLinks, setSigningLinks] = useState<SigningLinkItem[]>([]);
+  const [generatingLinks, setGeneratingLinks] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
   // ── Calendario state ──────────────────────────────────────
   const [programacion, setProgramacion] = useState<Programacion[]>([]);
   const [loadingCal, setLoadingCal] = useState(false);
@@ -69,6 +116,58 @@ export default function HistorialRegistrosPage() {
   const [currentYear, setCurrentYear] = useState(() => new Date().getFullYear());
   const [currentMonth, setCurrentMonth] = useState(() => new Date().getMonth()); // 0-indexed
   const [selectedDate, setSelectedDate] = useState<string | null>(null); // "YYYY-MM-DD"
+
+  // ── Fetch detalle ─────────────────────────────────────────
+  const fetchDetalle = useCallback(async (id: string) => {
+    setLoadingDetalle(true);
+    setSigningLinks([]);
+    try {
+      const res = await fetch(`/api/registros-asistencia/${id}`);
+      const json = await res.json();
+      if (json.success) setDetalle(json.data as RegistroDetalle);
+      else setError(json.message || "Error cargando detalle");
+    } catch {
+      setError("Error de conexión");
+    } finally {
+      setLoadingDetalle(false);
+    }
+  }, []);
+
+  const generateSigningLinks = useCallback(async () => {
+    if (!detalle) return;
+    const unsigned = detalle.asistentes.filter((a) => !a.firmaConfirmada);
+    if (unsigned.length === 0) return;
+    setGeneratingLinks(true);
+    try {
+      const res = await fetch("/api/registros-asistencia/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          baseUrl: window.location.origin,
+          asistentes: unsigned.map((a) => ({
+            detalleRecordId: a.id,
+            eventoRecordId: detalle.id,
+            nombre: a.nombre,
+            cedula: a.cedula,
+          })),
+        }),
+      });
+      const json = await res.json();
+      if (json.success) setSigningLinks(json.tokens as SigningLinkItem[]);
+    } catch {
+      setError("Error generando los enlaces");
+    } finally {
+      setGeneratingLinks(false);
+    }
+  }, [detalle]);
+
+  const copySigningLink = useCallback(async (url: string, id: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch { /* ignore */ }
+  }, []);
 
   // ── Fetch: lista ──────────────────────────────────────────
   const fetchRegistros = useCallback(async () => {
@@ -178,7 +277,7 @@ export default function HistorialRegistrosPage() {
     "Inducción":    "bg-blue-500/20 text-blue-300 border-blue-400/30",
     "Capacitación": "bg-purple-500/20 text-purple-300 border-purple-400/30",
     "Charla":       "bg-green-500/20 text-green-300 border-green-400/30",
-    "Otro":         "bg-gray-500/20 text-gray-300 border-gray-400/30",
+    "Capacitaciones/Charlas":         "bg-gray-500/20 text-gray-300 border-gray-400/30",
   };
 
   const exportarExcel = async (registroId: string, nombreEvento: string) => {
@@ -317,14 +416,15 @@ export default function HistorialRegistrosPage() {
                         <th className="text-left text-xs font-semibold text-white/80 px-4 py-3 w-28">Área</th>
                         <th className="text-center text-xs font-semibold text-white/80 px-4 py-3 w-24">Asistentes</th>
                         <th className="text-center text-xs font-semibold text-white/80 px-4 py-3 w-28">Estado</th>
-                        <th className="text-center text-xs font-semibold text-white/80 px-4 py-3 w-24">Exportar</th>
+                        <th className="text-center text-xs font-semibold text-white/80 px-4 py-3 w-32">Acciones</th>
                       </tr>
                     </thead>
                     <tbody>
                       {registros.map((reg, idx) => (
                         <tr
                           key={reg.id}
-                          className={`border-b border-white/5 hover:bg-white/5 transition-colors ${idx % 2 === 1 ? "bg-white/[0.02]" : ""}`}
+                          className={`border-b border-white/5 hover:bg-white/5 transition-colors cursor-pointer ${idx % 2 === 1 ? "bg-white/[0.02]" : ""}`}
+                          onClick={() => { setDetalle(null); fetchDetalle(reg.id); }}
                         >
                           <td className="px-4 py-3">
                             <p className="text-sm font-medium text-white">{reg.nombreEvento || "—"}</p>
@@ -357,18 +457,27 @@ export default function HistorialRegistrosPage() {
                             )}
                           </td>
                           <td className="px-4 py-3 text-center">
-                            <button
-                              onClick={() => exportarExcel(reg.id, reg.nombreEvento)}
-                              disabled={exportandoId === reg.id}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-sirius-verde/20 border border-sirius-verde/30 text-white text-xs font-medium hover:bg-sirius-verde/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
-                            >
-                              {exportandoId === reg.id ? (
-                                <Loader2 className="w-3 h-3 animate-spin" />
-                              ) : (
-                                <FileDown className="w-3 h-3" />
-                              )}
-                              Excel
-                            </button>
+                            <div className="flex items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                onClick={() => { setDetalle(null); fetchDetalle(reg.id); }}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-purple-500/20 border border-purple-400/30 text-white text-xs font-medium hover:bg-purple-500/30 transition-all cursor-pointer"
+                              >
+                                <Eye className="w-3 h-3" />
+                                Ver
+                              </button>
+                              <button
+                                onClick={() => exportarExcel(reg.id, reg.nombreEvento)}
+                                disabled={exportandoId === reg.id}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-sirius-verde/20 border border-sirius-verde/30 text-white text-xs font-medium hover:bg-sirius-verde/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
+                              >
+                                {exportandoId === reg.id ? (
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <FileDown className="w-3 h-3" />
+                                )}
+                                Excel
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -584,6 +693,195 @@ export default function HistorialRegistrosPage() {
           </>
         )}
       </main>
+
+      {/* ── PANEL DE DETALLE ─────────────────────────────── */}
+      {(detalle || loadingDetalle) && (
+        <>
+          {/* Overlay */}
+          <div
+            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+            onClick={() => { setDetalle(null); setSigningLinks([]); }}
+          />
+          {/* Drawer */}
+          <aside className="fixed top-0 right-0 z-50 h-full w-full sm:w-[520px] bg-slate-950/95 backdrop-blur-xl border-l border-white/10 flex flex-col shadow-2xl overflow-hidden">
+            {/* Drawer header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-purple-500/20">
+                  <ClipboardList className="w-5 h-5 text-purple-300" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-white">
+                    {detalle ? (detalle.idRegistro || "Detalle") : "Cargando..."}
+                  </h2>
+                  <p className="text-xs text-white/50">{detalle?.tipo || ""}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setDetalle(null); setSigningLinks([]); }}
+                className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {loadingDetalle ? (
+              <div className="flex-1 flex items-center justify-center">
+                <Loader2 className="w-8 h-8 text-purple-300 animate-spin" />
+              </div>
+            ) : detalle ? (
+              <div className="flex-1 overflow-y-auto">
+                {/* Info del evento */}
+                <div className="px-6 py-4 space-y-2 border-b border-white/10">
+                  <h3 className="text-base font-semibold text-white leading-snug">{detalle.nombreEvento || "—"}</h3>
+                  <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-white/60">
+                    {detalle.fecha && (
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3" />
+                        {new Date(detalle.fecha + "T12:00:00").toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" })}
+                      </span>
+                    )}
+                    {detalle.ciudad && (
+                      <span className="flex items-center gap-1">
+                        <MapPin className="w-3 h-3" />
+                        {detalle.ciudad}{detalle.lugar ? ` · ${detalle.lugar}` : ""}
+                      </span>
+                    )}
+                    {detalle.nombreConferencista && (
+                      <span className="flex items-center gap-1">
+                        <Users className="w-3 h-3" />
+                        {detalle.nombreConferencista}
+                      </span>
+                    )}
+                  </div>
+                  {detalle.temasTratados && (
+                    <p className="text-xs text-white/50 leading-relaxed line-clamp-3">{detalle.temasTratados}</p>
+                  )}
+                  <div className="flex items-center gap-2 pt-1">
+                    {detalle.estado === "Finalizado" ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-green-500/20 text-green-300 border border-green-400/30">
+                        <CheckCircle className="w-3 h-3" />Finalizado
+                      </span>
+                    ) : detalle.estado === "En Curso" ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-blue-500/20 text-blue-300 border border-blue-400/30">
+                        <Clock className="w-3 h-3" />En Curso
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-yellow-500/20 text-yellow-300 border border-yellow-400/30">
+                        <Clock className="w-3 h-3" />Borrador
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Estadísticas de firma */}
+                {detalle.asistentes.length > 0 && (() => {
+                  const firmados = detalle.asistentes.filter((a) => a.firmaConfirmada).length;
+                  const total = detalle.asistentes.length;
+                  const pct = Math.round((firmados / total) * 100);
+                  return (
+                    <div className="px-6 py-4 border-b border-white/10">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-white/70">Firmas</span>
+                          <span className="text-sm font-bold text-white">{firmados}/{total}</span>
+                          <span className="text-xs text-white/40">{pct}%</span>
+                        </div>
+                        <button
+                          onClick={() => fetchDetalle(detalle.id)}
+                          className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white/60 hover:text-white text-xs transition-all"
+                        >
+                          <RefreshCw className="w-3 h-3" />Actualizar
+                        </button>
+                      </div>
+                      <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-purple-500 to-green-400 transition-all duration-500"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Acción: generar links para los que no han firmado */}
+                {detalle.asistentes.some((a) => !a.firmaConfirmada) && (
+                  <div className="px-6 py-3 border-b border-white/10 flex items-center justify-between gap-3">
+                    <p className="text-xs text-white/60">
+                      {detalle.asistentes.filter((a) => !a.firmaConfirmada).length} pendientes de firma
+                    </p>
+                    <button
+                      onClick={generateSigningLinks}
+                      disabled={generatingLinks}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/30 text-blue-200 text-xs font-medium transition-all disabled:opacity-50 cursor-pointer"
+                    >
+                      {generatingLinks ? <Loader2 className="w-3 h-3 animate-spin" /> : <Share2 className="w-3 h-3" />}
+                      {signingLinks.length > 0 ? "Regenerar links" : "Generar links"}
+                    </button>
+                  </div>
+                )}
+
+                {/* Lista de asistentes */}
+                <div className="divide-y divide-white/5">
+                  {detalle.asistentes.map((a) => {
+                    const link = signingLinks.find((l) => l.detalleRecordId === a.id);
+                    return (
+                      <div key={a.id} className={`px-6 py-3 flex items-center gap-3 ${a.firmaConfirmada ? "bg-green-500/5" : ""}`}>
+                        <div className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center ${
+                          a.firmaConfirmada ? "bg-green-500/20" : "bg-white/10"
+                        }`}>
+                          {a.firmaConfirmada
+                            ? <UserCheck className="w-4 h-4 text-green-400" />
+                            : <UserX className="w-4 h-4 text-white/40" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-white truncate">{a.nombre || "—"}</p>
+                          <p className="text-xs text-white/40">{a.cedula}{a.labor ? ` · ${a.labor}` : ""}</p>
+                        </div>
+                        {a.firmaConfirmada ? (
+                          <span className="shrink-0 text-xs text-green-400 font-medium">Firmado</span>
+                        ) : link ? (
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              onClick={() => copySigningLink(link.url, a.id)}
+                              className="flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-500/20 border border-blue-400/30 text-blue-300 text-xs hover:bg-blue-500/30 transition-all"
+                            >
+                              {copiedId === a.id ? <CheckCircle className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                              {copiedId === a.id ? "Copiado" : "Copiar"}
+                            </button>
+                            <a
+                              href={link.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-1 rounded-lg bg-white/10 hover:bg-white/20 text-white/50 hover:text-white transition-all"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </div>
+                        ) : (
+                          <span className="shrink-0 text-xs text-white/30">Pendiente</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Footer: exportar */}
+                <div className="px-6 py-4 border-t border-white/10">
+                  <button
+                    onClick={() => exportarExcel(detalle.id, detalle.nombreEvento)}
+                    disabled={exportandoId === detalle.id}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-sirius-verde/20 border border-sirius-verde/30 text-white font-medium hover:bg-sirius-verde/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  >
+                    {exportandoId === detalle.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+                    Exportar Excel
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </aside>
+        </>
+      )}
     </div>
   );
 }
