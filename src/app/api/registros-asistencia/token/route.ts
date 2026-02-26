@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
         detalleRecordId: a.detalleRecordId,
         nombre: a.nombre,
         token,
-        url: `${origin}/firmar/capacitacion?t=${token}`,
+        url: `${origin}/evaluar/capacitacion?t=${token}`,
       };
     });
 

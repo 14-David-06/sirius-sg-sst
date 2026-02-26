@@ -143,7 +143,6 @@ const modules = [
 export default function DashboardPage() {
   const router = useRouter();
   const { user, logout } = useSession();
-
   const handleLogout = () => {
     logout();
     router.push("/login");
@@ -220,7 +219,7 @@ export default function DashboardPage() {
             <button
               key={mod.title}
               onClick={() => { if (mod.href !== "#") router.push(mod.href); }}
-              className="bg-white/10 backdrop-blur-xl rounded-xl border border-white/15 p-6 text-left hover:bg-white/20 hover:border-white/30 hover:shadow-2xl hover:shadow-black/20 transition-all group cursor-pointer"
+              className="relative bg-white/10 backdrop-blur-xl rounded-xl border border-white/15 p-6 text-left hover:bg-white/20 hover:border-white/30 hover:shadow-2xl hover:shadow-black/20 transition-all group cursor-pointer"
             >
               <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${mod.color} mb-4`}>
                 {mod.icon}

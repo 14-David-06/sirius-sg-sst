@@ -54,13 +54,17 @@ export async function GET(request: NextRequest) {
   const evtData = await evtRes.json();
   const ef = evtData.fields;
 
-  // Fetch asistencia para verificar si ya firmó
+  // Fetch asistencia para verificar si ya firmó + obtener idEmpleadoCore
   const asisUrl = `${getSGSSTUrl(asistenciaCapacitacionesTableId)}/${payload.r}?returnFieldsByFieldId=true`;
   const asisRes = await fetch(asisUrl, { headers: getSGSSTHeaders(), cache: "no-store" });
   let yaFirmo = false;
+  let idEmpleadoCore: string | null = null;
+  let progIds: string[] = [];
   if (asisRes.ok) {
     const asisData = await asisRes.json();
     yaFirmo = !!(asisData.fields[asisF.FIRMA_CONFIRMADA] || asisData.fields[asisF.FIRMA]);
+    idEmpleadoCore = (asisData.fields[asisF.ID_EMPLEADO_CORE] as string) || null;
+    progIds = (asisData.fields[asisF.PROGRAMACION_LINK] as string[]) || [];
   }
 
   const temas = (ef[evtF.TEMAS_TRATADOS] as string) || "";
@@ -73,6 +77,8 @@ export async function GET(request: NextRequest) {
       cedula: payload.c,
       detalleRecordId: payload.r,
       yaFirmo,
+      idEmpleadoCore,
+      progIds,
       evento: {
         titulo: nombreEvento,
         fecha: ef[evtF.FECHA] as string,
@@ -171,9 +177,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 5. Fetch asistencia record para obtener idEmpleadoCore y progIds
+    let idEmpleadoCore: string | null = null;
+    let progIds: string[] = [];
+    try {
+      const asisUrl = `${getSGSSTUrl(asistenciaCapacitacionesTableId)}/${payload.r}?returnFieldsByFieldId=true&fields[]=${f.ID_EMPLEADO_CORE}&fields[]=${f.PROGRAMACION_LINK}`;
+      const asisRes2 = await fetch(asisUrl, { headers: getSGSSTHeaders(), cache: "no-store" });
+      if (asisRes2.ok) {
+        const asisData2 = await asisRes2.json();
+        idEmpleadoCore = (asisData2.fields[f.ID_EMPLEADO_CORE] as string) || null;
+        progIds = (asisData2.fields[f.PROGRAMACION_LINK] as string[]) || [];
+      }
+    } catch { /* non-critical */ }
+
     return NextResponse.json({
       success: true,
       message: "¡Firma registrada exitosamente!",
+      idEmpleadoCore,
+      progIds,
     });
   } catch (error) {
     console.error("Error en POST /api/registros-asistencia/firmar-publico:", error);

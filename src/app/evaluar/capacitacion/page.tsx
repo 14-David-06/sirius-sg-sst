@@ -13,12 +13,13 @@ import {
   MapPin,
   User,
   ShieldCheck,
+  GraduationCap,
 } from "lucide-react";
 import Image from "next/image";
 import EvaluacionFlow from "@/components/evaluaciones/EvaluacionFlow";
 
 // ══════════════════════════════════════════════════════════
-// Canvas de Firma
+// Canvas de Firma (same as firmar page)
 // ══════════════════════════════════════════════════════════
 function SignatureCanvas({
   onConfirm,
@@ -110,7 +111,6 @@ function SignatureCanvas({
           </div>
         )}
       </div>
-
       <div className="flex gap-3">
         <button
           onClick={clearCanvas}
@@ -136,7 +136,7 @@ function SignatureCanvas({
 }
 
 // ══════════════════════════════════════════════════════════
-// Información del evento
+// Interfaces
 // ══════════════════════════════════════════════════════════
 interface EventoInfo {
   titulo: string;
@@ -156,34 +156,30 @@ interface PageData {
   evento: EventoInfo;
 }
 
-// ── Componente interno que usa useSearchParams ──
-function FirmarContent() {
+// ══════════════════════════════════════════════════════════
+// Inner component
+// ══════════════════════════════════════════════════════════
+function EvaluarContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get("t");
-
-  // Redirect to /evaluar/capacitacion — all new tokens point there already,
-  // but this catches old/cached links to /firmar/capacitacion.
-  useEffect(() => {
-    if (token) {
-      window.location.replace(`/evaluar/capacitacion?t=${encodeURIComponent(token)}`);
-    }
-  }, [token]);
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<PageData | null>(null);
   const [firmado, setFirmado] = useState(false);
-  const [showEval, setShowEval] = useState(false);
+
+  // evalDone=true means evaluation phase finished (or skipped) → proceed to signature
+  const [evalDone, setEvalDone] = useState(false);
 
   const validateToken = useCallback(async () => {
     if (!token) {
-      setError("No se encontró el enlace de firma. Solicita un nuevo enlace al organizador.");
+      setError("No se encontró el enlace. Solicita un nuevo enlace al organizador.");
       setLoading(false);
       return;
     }
     try {
-      const res = await fetch(`/api/registros-asistencia/firmar-publico?t=${encodeURIComponent(token)}`);
+      const res = await fetch(`/api/registros-asistencia/firmar-publico?t=${encodeURIComponent(token)}`, { cache: "no-store" });
       const json = await res.json();
       if (!json.success) {
         setError(json.message || "Enlace inválido o expirado.");
@@ -191,7 +187,7 @@ function FirmarContent() {
         setData(json.data);
         if (json.data.yaFirmo) {
           setFirmado(true);
-          if (json.data.idEmpleadoCore) setShowEval(true);
+          setEvalDone(true);
         }
       }
     } catch {
@@ -202,6 +198,19 @@ function FirmarContent() {
   }, [token]);
 
   useEffect(() => { validateToken(); }, [validateToken]);
+
+  // Debug: log data received from API
+  useEffect(() => {
+    if (data) {
+      console.log("[EvaluarPage] data received:", {
+        idEmpleadoCore: data.idEmpleadoCore,
+        progIds: data.progIds,
+        hasEval: !!data.idEmpleadoCore,
+        evalDone,
+        firmado,
+      });
+    }
+  }, [data, evalDone, firmado]);
 
   const handleFirma = async (firmaDataUrl: string) => {
     if (!token) return;
@@ -214,12 +223,7 @@ function FirmarContent() {
       });
       const json = await res.json();
       if (json.success) {
-        // Update idEmpleadoCore / progIds in data if returned
-        if (json.idEmpleadoCore && data) {
-          setData({ ...data, idEmpleadoCore: json.idEmpleadoCore, progIds: json.progIds || [] });
-        }
         setFirmado(true);
-        if (json.idEmpleadoCore) setShowEval(true);
       } else {
         setError(json.message || "Error al guardar la firma.");
       }
@@ -249,8 +253,8 @@ function FirmarContent() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-[#0154AC]/10 flex items-center justify-center">
-            <Loader2 className="w-7 h-7 text-[#0154AC] animate-spin" />
+          <div className="w-14 h-14 rounded-2xl bg-violet-500/10 flex items-center justify-center">
+            <Loader2 className="w-7 h-7 text-violet-600 animate-spin" />
           </div>
           <p className="text-slate-500 text-sm">Verificando enlace…</p>
         </div>
@@ -278,66 +282,17 @@ function FirmarContent() {
 
   if (!data) return null;
 
-  // ── Ya firmó ──
+  // ── Todo terminado (firmado) ──
   if (firmado) {
-    const evalContent = showEval && data?.idEmpleadoCore ? (
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
-        <EvaluacionFlow
-          idEmpleadoCore={data.idEmpleadoCore}
-          nombres={data.nombre}
-          cedula={data.cedula}
-          progCapId={data.progIds?.[0]}
-          onFinished={() => setShowEval(false)}
-        />
-      </div>
-    ) : null;
-
-    if (showEval && evalContent) {
-      // Full-page scrollable layout with eval
-      return (
-        <div className="min-h-screen bg-slate-50 p-4 pb-10">
-          <div className="max-w-lg mx-auto pt-6 space-y-5">
-            {/* Logo */}
-            <div className="flex items-center justify-center">
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-100 px-5 py-3 flex items-center gap-3">
-                <Image src="/logo.png" alt="Sirius SG-SST" width={100} height={36} className="object-contain" />
-              </div>
-            </div>
-
-            {/* Compact success card */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center shrink-0">
-                  <CheckCircle className="w-5 h-5 text-green-500" />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-slate-800">¡Firma registrada!</p>
-                  <p className="text-xs text-slate-500">{data.nombre} · C.C. {data.cedula}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Evaluation flow */}
-            {evalContent}
-
-            <p className="text-center text-xs text-slate-400 pb-4">
-              Sirius Regenerative Solutions S.A.S. ZOMAC · SG-SST
-            </p>
-          </div>
-        </div>
-      );
-    }
-
-    // Standard centered success card (no eval or eval dismissed)
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
         <div className="max-w-sm w-full bg-white rounded-2xl shadow-xl p-8 text-center">
           <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
             <CheckCircle className="w-8 h-8 text-green-500" />
           </div>
-          <h2 className="text-xl font-bold text-slate-900 mb-2">¡Firma registrada!</h2>
+          <h2 className="text-xl font-bold text-slate-900 mb-2">¡Todo listo!</h2>
           <p className="text-slate-500 text-sm leading-relaxed mb-4">
-            Tu asistencia al evento ha sido confirmada exitosamente.
+            Tu evaluación y firma de asistencia han sido registradas exitosamente.
           </p>
           <div className="bg-slate-50 rounded-xl p-4 text-left">
             <p className="text-xs text-slate-400 mb-1 uppercase tracking-wide font-semibold">Asistente</p>
@@ -351,26 +306,117 @@ function FirmarContent() {
           </div>
           <div className="flex items-center justify-center gap-2 mt-5 text-xs text-slate-400">
             <ShieldCheck className="w-4 h-4 text-green-400" />
-            Firma cifrada y almacenada de forma segura
+            Evaluación y firma cifradas y almacenadas de forma segura
           </div>
         </div>
       </div>
     );
   }
 
-  // ── Formulario de firma ──
+  // ── Fase 1: Evaluación ──
+  const hasEval = !!data.idEmpleadoCore;
+  if (hasEval && !evalDone) {
+    return (
+      <div className="min-h-screen bg-slate-50 p-4 pb-10">
+        <div className="max-w-lg mx-auto pt-6 space-y-5">
+
+          {/* Logo */}
+          <div className="flex items-center justify-center">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 px-5 py-3 flex items-center gap-3">
+              <Image src="/logo.png" alt="Sirius SG-SST" width={100} height={36} className="object-contain" />
+            </div>
+          </div>
+
+          {/* Evento header */}
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+            <div className="bg-violet-600 px-5 py-4">
+              <div className="flex items-center gap-2 mb-1">
+                <GraduationCap className="w-4 h-4 text-violet-200" />
+                <p className="text-xs text-violet-200 uppercase tracking-widest font-semibold">
+                  Evaluación de Capacitación
+                </p>
+              </div>
+              <h1 className="text-base font-bold text-white leading-snug">
+                {data.evento.titulo}
+              </h1>
+            </div>
+            <div className="p-4 grid grid-cols-2 gap-3">
+              <div className="flex items-start gap-2">
+                <CalendarDays className="w-4 h-4 text-violet-500 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-xs text-slate-400">Fecha</p>
+                  <p className="text-sm font-medium text-slate-800">{formatFecha(data.evento.fecha)}</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-2">
+                <MapPin className="w-4 h-4 text-violet-500 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-xs text-slate-400">Lugar</p>
+                  <p className="text-sm font-medium text-slate-800">
+                    {data.evento.lugar || data.evento.ciudad || "—"}
+                  </p>
+                </div>
+              </div>
+              {data.evento.conferencista && (
+                <div className="flex items-start gap-2 col-span-2">
+                  <User className="w-4 h-4 text-violet-500 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-slate-400">Conferencista</p>
+                    <p className="text-sm font-medium text-slate-800">{data.evento.conferencista}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Evaluación */}
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
+            <EvaluacionFlow
+              idEmpleadoCore={data.idEmpleadoCore!}
+              nombres={data.nombre}
+              cedula={data.cedula}
+              progCapId={data.progIds?.[0]}
+              onFinished={() => setEvalDone(true)}
+              allowSkip={false}
+            />
+          </div>
+
+          <p className="text-center text-xs text-slate-400 pb-4">
+            Sirius Regenerative Solutions S.A.S. ZOMAC · SG-SST
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Fase 2: Firma de asistencia ──
   return (
     <div className="min-h-screen bg-slate-50 p-4 pb-10">
       <div className="max-w-lg mx-auto pt-6 space-y-5">
 
-        {/* Header */}
+        {/* Logo */}
         <div className="flex items-center justify-center">
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 px-5 py-3 flex items-center gap-3">
             <Image src="/logo.png" alt="Sirius SG-SST" width={100} height={36} className="object-contain" />
           </div>
         </div>
 
-        {/* Card del evento */}
+        {/* Evaluación completada — banner */}
+        {evalDone && hasEval && (
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center shrink-0">
+                <CheckCircle className="w-5 h-5 text-violet-500" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-800">¡Evaluación completada!</p>
+                <p className="text-xs text-slate-500">Ahora firma tu asistencia al evento para terminar.</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Evento */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
           <div className="bg-[#0154AC] px-5 py-4">
             <p className="text-xs text-blue-200 uppercase tracking-widest font-semibold mb-1">
@@ -409,9 +455,8 @@ function FirmarContent() {
           </div>
         </div>
 
-        {/* Card del asistente + firma */}
+        {/* Firma */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 space-y-4">
-          {/* Asistente */}
           <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
             <div className="w-10 h-10 rounded-full bg-[#0154AC]/10 flex items-center justify-center text-[#0154AC] font-bold text-base">
               {data.nombre.charAt(0).toUpperCase()}
@@ -421,8 +466,6 @@ function FirmarContent() {
               <p className="text-xs text-slate-500">C.C. {data.cedula}</p>
             </div>
           </div>
-
-          {/* Canvas */}
           <div>
             <p className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
               <PenTool className="w-4 h-4 text-[#0154AC]" />
@@ -430,16 +473,12 @@ function FirmarContent() {
             </p>
             <SignatureCanvas onConfirm={handleFirma} loading={submitting} />
           </div>
-
-          {/* Error inline */}
           {error && (
             <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-xl">
               <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
               <p className="text-sm text-red-600">{error}</p>
             </div>
           )}
-
-          {/* Seguridad */}
           <div className="flex items-center gap-2 pt-1 text-xs text-slate-400">
             <ShieldCheck className="w-4 h-4 text-green-400 shrink-0" />
             Tu firma se cifra con AES-256 antes de almacenarse · Solo válida para este evento
@@ -455,16 +494,16 @@ function FirmarContent() {
 }
 
 // ══════════════════════════════════════════════════════════
-// Página principal (wrapped en Suspense por useSearchParams)
+// Page export (wrapped in Suspense for useSearchParams)
 // ══════════════════════════════════════════════════════════
-export default function FirmarCapacitacionPage() {
+export default function EvaluarCapacitacionPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <Loader2 className="w-7 h-7 text-[#0154AC] animate-spin" />
+        <Loader2 className="w-7 h-7 text-violet-600 animate-spin" />
       </div>
     }>
-      <FirmarContent />
+      <EvaluarContent />
     </Suspense>
   );
 }

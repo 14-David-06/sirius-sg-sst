@@ -202,8 +202,16 @@ export async function POST(request: NextRequest) {
       eventosCapacitacionFields: evtF,
       asistenciaCapacitacionesTableId,
       asistenciaCapacitacionesFields: asisF,
+      programacionCapacitacionesTableId,
+      programacionCapacitacionesFields: progF,
+      capacitacionesTableId,
+      capacitacionesFields: capF,
     } = airtableSGSSTConfig;
     const sgHeaders = getSGSSTHeaders();
+
+    // Helper: strip diacritics for accent-insensitive comparison
+    const stripAccents = (s: string) =>
+      s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
 
     // 1. Fetch cabecera
     const cabeceraUrl = `${getSGSSTUrl(eventosCapacitacionTableId)}/${registroRecordId}?returnFieldsByFieldId=true`;
@@ -217,7 +225,77 @@ export async function POST(request: NextRequest) {
     const cabecera: AirtableRecord = await cabeceraResponse.json();
     const cf = cabecera.fields;
     const temasRaw = (cf[evtF.TEMAS_TRATADOS] as string) || "";
-    const nombreEvento = temasRaw.split("\n")[0].replace(/^[-•]\s*/, "").trim() || "Evento";
+
+    // 1b. Fetch capacitación names via Programación → Capacitaciones
+    const progIds = (cf[evtF.PROGRAMACION_LINK] as string[]) || [];
+    let nombreEvento = "Evento";
+
+    if (progIds.length > 0) {
+      // Fetch programación records
+      const progFormula = `OR(${progIds.map((id) => `RECORD_ID()='${id}'`).join(",")})`;
+      const progParams = new URLSearchParams({
+        filterByFormula: progFormula,
+        pageSize: "20",
+        returnFieldsByFieldId: "true",
+      });
+      const progRes = await fetch(
+        `${getSGSSTUrl(programacionCapacitacionesTableId)}?${progParams.toString()}`,
+        { headers: sgHeaders, cache: "no-store" },
+      );
+
+      if (progRes.ok) {
+        const progData: AirtableListResponse = await progRes.json();
+
+        // Collect unique capacitación IDs
+        const capIdSet = new Set<string>();
+        const progCapMap = new Map<string, { identificador: string; capIds: string[] }>();
+        for (const rec of progData.records) {
+          const ident = (rec.fields[progF.IDENTIFICADOR] as string) || "";
+          const caps = (rec.fields[progF.CAPACITACION_LINK] as string[]) || [];
+          progCapMap.set(rec.id, { identificador: ident, capIds: caps });
+          caps.forEach((cid) => capIdSet.add(cid));
+        }
+
+        // Fetch capacitación names
+        const capNames = new Map<string, string>();
+        if (capIdSet.size > 0) {
+          const capFormula = `OR(${[...capIdSet].map((id) => `RECORD_ID()='${id}'`).join(",")})`;
+          const capParams = new URLSearchParams({
+            filterByFormula: capFormula,
+            pageSize: "50",
+            returnFieldsByFieldId: "true",
+          });
+          capParams.append("fields[]", capF.NOMBRE);
+          const capRes = await fetch(
+            `${getSGSSTUrl(capacitacionesTableId)}?${capParams.toString()}`,
+            { headers: sgHeaders, cache: "no-store" },
+          );
+          if (capRes.ok) {
+            const capData: AirtableListResponse = await capRes.json();
+            for (const rec of capData.records) {
+              capNames.set(rec.id, (rec.fields[capF.NOMBRE] as string) || "");
+            }
+          }
+        }
+
+        // Build event name: "PROG-ID · Nombre" for each programación
+        const lines: string[] = [];
+        for (const pid of progIds) {
+          const info = progCapMap.get(pid);
+          if (!info) continue;
+          const capName = info.capIds.map((cid) => capNames.get(cid) || "").filter(Boolean).join(", ");
+          lines.push(`${info.identificador} · ${capName || "Sin nombre"}`);
+        }
+        if (lines.length > 0) {
+          nombreEvento = lines.join("\n");
+        }
+      }
+    }
+
+    // Fallback if no programación data
+    if (nombreEvento === "Evento") {
+      nombreEvento = temasRaw.split("\n")[0].replace(/^[-•]\s*/, "").trim() || "Evento";
+    }
 
     // 2. Fetch detalles (asistentes)
     const detalleIds = (cf[evtF.ASISTENCIA_LINK] as string[]) || [];
@@ -346,10 +424,12 @@ export async function POST(request: NextRequest) {
     const eventoLabelCell = ws.getCell(row, 1);
     eventoLabelCell.value = `NOMBRE DEL EVENTO:  ${nombreEvento}`;
     eventoLabelCell.font = { name: "Calibri", size: 10, bold: true, color: { argb: `FF${BRAND.BLACK}` } };
-    eventoLabelCell.alignment = { vertical: "middle" };
+    eventoLabelCell.alignment = { vertical: "middle", wrapText: true };
     eventoLabelCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.LABEL_BG}` } };
     eventoLabelCell.border = allBorders;
-    ws.getRow(row).height = 22;
+    // Dynamic height: ~15px per line, minimum 22
+    const eventLines = (nombreEvento || "").split("\n").length;
+    ws.getRow(row).height = Math.max(22, eventLines * 15);
     row++;
 
     // ── FILA 5: CIUDAD | FECHA | HORA DE INICIO ────────
@@ -427,7 +507,7 @@ export async function POST(request: NextRequest) {
     const areaCols = [2, 3, 4, 5];
     areaOpciones.forEach((opcion, idx) => {
       const cell = ws.getCell(row, areaCols[idx]);
-      const isSelected = areaValor.toUpperCase() === opcion;
+      const isSelected = stripAccents(areaValor) === opcion;
       cell.value = `${isSelected ? "☑" : "☐"}  ${opcion}`;
       cell.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.BLACK}` }, bold: isSelected };
       cell.alignment = { horizontal: "left", vertical: "middle" };
@@ -449,7 +529,7 @@ export async function POST(request: NextRequest) {
 
     tipoOpciones.forEach((opcion, idx) => {
       const cell = ws.getCell(row, areaCols[idx]);
-      const isSelected = tipoValor.toUpperCase() === opcion;
+      const isSelected = stripAccents(tipoValor) === opcion;
       cell.value = `${isSelected ? "☑" : "☐"}  ${opcion}`;
       cell.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.BLACK}` }, bold: isSelected };
       cell.alignment = { horizontal: "left", vertical: "middle" };

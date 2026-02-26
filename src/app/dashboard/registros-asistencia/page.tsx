@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { ClipboardList, PlusCircle, History, ChevronLeft } from "lucide-react";
+import { ClipboardList, PlusCircle, History, ChevronLeft, GraduationCap } from "lucide-react";
 
 export default function RegistrosAsistenciaPage() {
   const router = useRouter();
@@ -40,7 +40,7 @@ export default function RegistrosAsistenciaPage() {
 
       {/* Main content */}
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {/* Nuevo Registro */}
           <button
             onClick={() => router.push("/dashboard/registros-asistencia/nuevo")}
@@ -78,6 +78,27 @@ export default function RegistrosAsistenciaPage() {
             </p>
             <div className="mt-6 flex items-center text-sm text-sirius-cielo font-medium opacity-0 group-hover:opacity-100 transition-opacity">
               Ver historial
+              <svg className="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+              </svg>
+            </div>
+          </button>
+
+          {/* Iniciar Evaluaciones */}
+          <button
+            onClick={() => router.push("/dashboard/registros-asistencia/evaluaciones")}
+            className="group bg-white/10 backdrop-blur-xl rounded-2xl border border-white/15 p-8 text-left hover:bg-white/20 hover:border-white/30 hover:shadow-2xl hover:shadow-black/20 transition-all cursor-pointer"
+          >
+            <div className="w-14 h-14 rounded-xl bg-violet-500/20 flex items-center justify-center mb-5">
+              <GraduationCap className="w-8 h-8 text-violet-300" />
+            </div>
+            <h2 className="text-xl font-bold text-white mb-2">Iniciar Evaluaciones</h2>
+            <p className="text-white/60 text-sm leading-relaxed">
+              Genera enlaces individuales para que cada participante presente su evaluación y
+              luego firme la asistencia al evento.
+            </p>
+            <div className="mt-6 flex items-center text-sm text-violet-300 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+              Gestionar evaluaciones
               <svg className="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
               </svg>

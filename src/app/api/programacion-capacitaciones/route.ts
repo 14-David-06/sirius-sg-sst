@@ -46,32 +46,36 @@ export async function GET() {
       fetchAllPages(capacitacionesTableId),
     ]);
 
-    // Build lookup: capacitacion record ID → { nombre, codigo }
-    const capMap = new Map<string, { nombre: string; codigo: string }>(
+    // Build lookup: capacitacion record ID → { nombre, codigo, categoria }
+    const capMap = new Map<string, { nombre: string; codigo: string; categoria: string }>(
       capRecords.map((r) => [
         r.id,
         {
-          nombre: (r.fields[cf.NOMBRE] as string) || "",
-          codigo: (r.fields[cf.CODIGO] as string) || "",
+          nombre:    (r.fields[cf.NOMBRE]    as string) || "",
+          codigo:    (r.fields[cf.CODIGO]    as string) || "",
+          categoria: (r.fields[cf.CATEGORIA] as string) || "",
         },
       ])
     );
 
     const data = progRecords.map((r) => {
       const capIds = (r.fields[pf.CAPACITACION_LINK] as string[]) ?? [];
-      const capInfo = capIds.length > 0 ? (capMap.get(capIds[0]) ?? { nombre: "", codigo: "" }) : { nombre: "", codigo: "" };
+      const capInfo = capIds.length > 0
+        ? (capMap.get(capIds[0]) ?? { nombre: "", codigo: "", categoria: "" })
+        : { nombre: "", codigo: "", categoria: "" };
       return {
         id: r.id,
-        identificador:       (r.fields[pf.IDENTIFICADOR] as string) ?? "",
-        mes:                 (r.fields[pf.MES] as string) ?? "",
-        trimestre:           (r.fields[pf.TRIMESTRE] as string) ?? "",
-        programado:          !!(r.fields[pf.PROGRAMADO]),
-        ejecutado:           !!(r.fields[pf.EJECUTADO]),
-        fechaEjecucion:      (r.fields[pf.FECHA_EJECUCION] as string) ?? "",
-        totalAsistentes:     (r.fields[pf.TOTAL_ASISTENTES] as number) ?? 0,
-        capacitacionNombre:  capInfo.nombre,
-        capacitacionCodigo:  capInfo.codigo,
-        observaciones:       (r.fields[pf.OBSERVACIONES] as string) ?? "",
+        identificador:         (r.fields[pf.IDENTIFICADOR] as string) ?? "",
+        mes:                   (r.fields[pf.MES] as string) ?? "",
+        trimestre:             (r.fields[pf.TRIMESTRE] as string) ?? "",
+        programado:            !!(r.fields[pf.PROGRAMADO]),
+        ejecutado:             !!(r.fields[pf.EJECUTADO]),
+        fechaEjecucion:        (r.fields[pf.FECHA_EJECUCION] as string) ?? "",
+        totalAsistentes:       (r.fields[pf.TOTAL_ASISTENTES] as number) ?? 0,
+        capacitacionNombre:    capInfo.nombre,
+        capacitacionCodigo:    capInfo.codigo,
+        capacitacionCategoria: capInfo.categoria,
+        observaciones:         (r.fields[pf.OBSERVACIONES] as string) ?? "",
       };
     });
 

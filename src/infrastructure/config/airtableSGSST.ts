@@ -175,6 +175,7 @@ export const airtableSGSSTConfig = {
     NOMBRE:     process.env.AIRTABLE_CAP_NOMBRE!,
     INTENSIDAD: process.env.AIRTABLE_CAP_INTENSIDAD!,
     TIPO:       process.env.AIRTABLE_CAP_TIPO!,
+    CATEGORIA:  process.env.AIRTABLE_CAP_CATEGORIA!,
   },
 
   // ── Tabla "Programación Capacitaciones" ───────────────
@@ -225,6 +226,101 @@ export const airtableSGSSTConfig = {
     ID_EMPLEADO_CORE:   process.env.AIRTABLE_ASIS_ID_EMPLEADO_CORE!,
     PROGRAMACION_LINK:  process.env.AIRTABLE_ASIS_PROGRAMACION_LINK!,
     FIRMA:              process.env.AIRTABLE_ASIS_FIRMA!,
+  },
+
+  // ── Tabla "Banco de Preguntas" ────────────────────────
+  bancoPreguntasTableId: process.env.AIRTABLE_PRG_BANCO_TABLE_ID!,
+  bancoPreguntasFields: {
+    CODIGO:             process.env.AIRTABLE_PRG_BANCO_CODIGO!,
+    TEXTO:              process.env.AIRTABLE_PRG_BANCO_TEXTO!,
+    TIPO:               process.env.AIRTABLE_PRG_BANCO_TIPO!,
+    OPCIONES_JSON:      process.env.AIRTABLE_PRG_BANCO_OPCIONES_JSON!,
+    RESPUESTA_CORRECTA: process.env.AIRTABLE_PRG_BANCO_RESPUESTA_CORRECTA!,
+    CATEGORIA:          process.env.AIRTABLE_PRG_BANCO_CATEGORIA!,
+    DIFICULTAD:         process.env.AIRTABLE_PRG_BANCO_DIFICULTAD!,
+    ESTADO:             process.env.AIRTABLE_PRG_BANCO_ESTADO!,
+    PUNTAJE_BASE:       process.env.AIRTABLE_PRG_BANCO_PUNTAJE_BASE!,
+    EXPLICACION:        process.env.AIRTABLE_PRG_BANCO_EXPLICACION!,
+  },
+
+  // ── Tabla "Plantillas Evaluación" ─────────────────────
+  plantillasEvalTableId: process.env.AIRTABLE_PLNT_TABLE_ID!,
+  plantillasEvalFields: {
+    CODIGO:           process.env.AIRTABLE_PLNT_CODIGO!,
+    NOMBRE:           process.env.AIRTABLE_PLNT_NOMBRE!,
+    DESCRIPCION:      process.env.AIRTABLE_PLNT_DESCRIPCION!,
+    TIPO:             process.env.AIRTABLE_PLNT_TIPO!,
+    PUNTAJE_MINIMO:   process.env.AIRTABLE_PLNT_PUNTAJE_MINIMO!,
+    TIEMPO_LIMITE:    process.env.AIRTABLE_PLNT_TIEMPO_LIMITE!,
+    INTENTOS:         process.env.AIRTABLE_PLNT_INTENTOS!,
+    ALEATORIZAR:      process.env.AIRTABLE_PLNT_ALEATORIZAR!,
+    MOSTRAR_RETRO:    process.env.AIRTABLE_PLNT_MOSTRAR_RETRO!,
+    ESTADO:           process.env.AIRTABLE_PLNT_ESTADO!,
+    VIGENCIA:         process.env.AIRTABLE_PLNT_VIGENCIA!,
+    PREGUNTAS_LINK:   process.env.AIRTABLE_PLNT_PREGUNTAS_LINK!,
+    POBLACION:        process.env.AIRTABLE_PLNT_POBLACION!,
+    CATEGORIAS:       process.env.AIRTABLE_PLNT_CATEGORIAS!,
+  },
+
+  // ── Tabla "Preguntas por Plantilla" ───────────────────
+  pregXPlantTableId: process.env.AIRTABLE_PXPL_TABLE_ID!,
+  pregXPlantFields: {
+    CODIGO:      process.env.AIRTABLE_PXPL_CODIGO!,
+    PLANTILLA:   process.env.AIRTABLE_PXPL_PLANTILLA!,
+    PREGUNTA:    process.env.AIRTABLE_PXPL_PREGUNTA!,
+    ORDEN:       process.env.AIRTABLE_PXPL_ORDEN!,
+    PUNTAJE:     process.env.AIRTABLE_PXPL_PUNTAJE!,
+    OBLIGATORIA: process.env.AIRTABLE_PXPL_OBLIGATORIA!,
+  },
+
+  // ── Tabla "Evaluaciones Aplicadas" ────────────────────
+  evalAplicadasTableId: process.env.AIRTABLE_EVALAP_TABLE_ID!,
+  evalAplicadasFields: {
+    ID:           process.env.AIRTABLE_EVALAP_ID!,
+    PLANTILLA:    process.env.AIRTABLE_EVALAP_PLANTILLA!,
+    PROG_MENSUAL: process.env.AIRTABLE_EVALAP_PROG_MENSUAL!,
+    FECHA:        process.env.AIRTABLE_EVALAP_FECHA!,
+    ID_EMPLEADO:  process.env.AIRTABLE_EVALAP_ID_EMPLEADO!,
+    NOMBRES:      process.env.AIRTABLE_EVALAP_NOMBRES!,
+    CEDULA:       process.env.AIRTABLE_EVALAP_CEDULA!,
+    CARGO:        process.env.AIRTABLE_EVALAP_CARGO!,
+    PUNTAJE_OBT:  process.env.AIRTABLE_EVALAP_PUNTAJE_OBT!,
+    PUNTAJE_MAX:  process.env.AIRTABLE_EVALAP_PUNTAJE_MAX!,
+    PORCENTAJE:   process.env.AIRTABLE_EVALAP_PORCENTAJE!,
+    ESTADO:       process.env.AIRTABLE_EVALAP_ESTADO!,
+    INTENTO:      process.env.AIRTABLE_EVALAP_INTENTO!,
+    TIEMPO:       process.env.AIRTABLE_EVALAP_TIEMPO!,
+    EVALUADOR:    process.env.AIRTABLE_EVALAP_EVALUADOR!,
+    OBSERVACIONES: process.env.AIRTABLE_EVALAP_OBSERVACIONES!,
+    PROG_CAP:     process.env.AIRTABLE_EVALAP_PROG_CAP!,
+    RESP_LINK:    process.env.AIRTABLE_EVALAP_RESP_LINK!,
+  },
+
+  // ── Tabla "Respuestas Evaluación" ─────────────────────
+  respEvalTableId: process.env.AIRTABLE_RESP_TABLE_ID!,
+  respEvalFields: {
+    ID:            process.env.AIRTABLE_RESP_ID!,
+    EVALUACION:    process.env.AIRTABLE_RESP_EVALUACION!,
+    PREGUNTA:      process.env.AIRTABLE_RESP_PREGUNTA!,
+    RESPUESTA_DADA: process.env.AIRTABLE_RESP_RESPUESTA_DADA!,
+    ES_CORRECTA:   process.env.AIRTABLE_RESP_ES_CORRECTA!,
+    PUNTAJE:       process.env.AIRTABLE_RESP_PUNTAJE!,
+    TIEMPO_SEG:    process.env.AIRTABLE_RESP_TIEMPO_SEG!,
+    ORDEN:         process.env.AIRTABLE_RESP_ORDEN!,
+  },
+
+  // ── Tabla "Miembros Comités SST" ──────────────────────
+  miembrosComitesTableId: process.env.AIRTABLE_MBR_TABLE_ID!,
+  miembrosComitesFields: {
+    ID:            process.env.AIRTABLE_MBR_ID!,
+    ID_EMPLEADO:   process.env.AIRTABLE_MBR_ID_EMPLEADO!,
+    NOMBRE:        process.env.AIRTABLE_MBR_NOMBRE!,
+    DOCUMENTO:     process.env.AIRTABLE_MBR_DOCUMENTO!,
+    CARGO:         process.env.AIRTABLE_MBR_CARGO!,
+    COMITE:        process.env.AIRTABLE_MBR_COMITE!,
+    ROL:           process.env.AIRTABLE_MBR_ROL!,
+    REPRESENTACION: process.env.AIRTABLE_MBR_REPRESENTACION!,
+    ESTADO:        process.env.AIRTABLE_MBR_ESTADO!,
   },
 };
 

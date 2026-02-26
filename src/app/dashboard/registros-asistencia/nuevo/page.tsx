@@ -53,6 +53,7 @@ interface ProgramacionItem {
   totalAsistentes: number;
   capacitacionNombre: string;
   capacitacionCodigo: string;
+  capacitacionCategoria: string;
   observaciones: string;
 }
 
@@ -248,6 +249,9 @@ export default function NuevoRegistroPage() {
   const [selectedProgs, setSelectedProgs] = useState<ProgramacionItem[]>([]);
   const capDropdownRef = useRef<HTMLDivElement>(null);
 
+  // Filtro de categoría
+  const [categoriaFilter, setCategoriaFilter] = useState<string>("");
+
   // Grabador de voz (Temas Tratados)
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -269,6 +273,11 @@ export default function NuevoRegistroPage() {
   const [generatingLinks, setGeneratingLinks] = useState(false);
   const [showLinksPanel, setShowLinksPanel] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Estado de evaluación por empleado (true = evaluación aprobada, puede firmar)
+  const [evalStatus, setEvalStatus] = useState<Record<string, boolean>>({});
+  const [hasEvaluaciones, setHasEvaluaciones] = useState(false);
+  const [loadingEvalStatus, setLoadingEvalStatus] = useState(false);
 
   // Persistencia de sesión + polling
   const STORAGE_KEY = "sirius-sgsst-registro-en-curso";
@@ -588,6 +597,39 @@ export default function NuevoRegistroPage() {
     } catch { /* fallback */ }
   };
 
+  // ── Verificar estado de evaluación para todos los asistentes ──
+  const fetchEvalStatus = useCallback(async () => {
+    if (asistentes.length === 0 || selectedProgs.length === 0) return;
+    setLoadingEvalStatus(true);
+    try {
+      const idEmpleadoCores = asistentes
+        .map((a) => a.persona.idEmpleado)
+        .filter(Boolean);
+      const progCapIds = selectedProgs.map((p) => p.id);
+      const res = await fetch("/api/evaluaciones/check-batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idEmpleadoCores, progCapIds }),
+        cache: "no-store",
+      });
+      const json = await res.json();
+      if (json.success) {
+        setEvalStatus(json.results || {});
+        setHasEvaluaciones(json.hasEvaluaciones ?? false);
+      }
+    } catch { /* silencioso */ }
+    finally { setLoadingEvalStatus(false); }
+  }, [asistentes, selectedProgs]);
+
+  // Verificar eval status cuando entramos a paso 2 y periódicamente
+  useEffect(() => {
+    if (step !== "asistentes" || asistentes.length === 0) return;
+    fetchEvalStatus();
+    // Re-check together with polling
+    const interval = setInterval(fetchEvalStatus, 15_000);
+    return () => clearInterval(interval);
+  }, [step, asistentes.length, fetchEvalStatus]);
+
   // Firmar asistente
   const firmarAsistente = async (asistenteId: string, firmaDataUrl: string) => {
     const asistente = asistentes.find((a) => a.id === asistenteId);
@@ -782,6 +824,42 @@ export default function NuevoRegistroPage() {
               Datos del Evento
             </h2>
 
+            {/* Filtro por Categoría */}
+            <div>
+              <label className="block text-sm font-medium text-white/70 mb-1">
+                Categoría de capacitación
+              </label>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setCategoriaFilter(""); setSelectedProgs([]); }}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                    categoriaFilter === ""
+                      ? "bg-purple-500/30 border-purple-400/50 text-purple-200"
+                      : "bg-white/10 border-white/20 text-white/50 hover:bg-white/15"
+                  }`}
+                >
+                  Todas
+                </button>
+                {Array.from(
+                  new Set(programaciones.map((p) => p.capacitacionCategoria).filter(Boolean))
+                ).sort().map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => { setCategoriaFilter(cat); setSelectedProgs([]); }}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                      categoriaFilter === cat
+                        ? "bg-purple-500/30 border-purple-400/50 text-purple-200"
+                        : "bg-white/10 border-white/20 text-white/50 hover:bg-white/15"
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Selector de Programación / Capacitación */}
             <div>
               <label className="block text-sm font-medium text-white/70 mb-1">
@@ -850,11 +928,13 @@ export default function NuevoRegistroPage() {
                     {/* Lista: mostrar primero las pendientes (no ejecutadas), luego el resto */}
                     <div className="max-h-60 overflow-y-auto">
                       {(() => {
-                        const filtered = programaciones.filter((p) =>
-                          (p.identificador + " " + p.capacitacionNombre + " " + p.mes)
+                        const filtered = programaciones.filter((p) => {
+                          const matchSearch = (p.identificador + " " + p.capacitacionNombre + " " + p.mes)
                             .toLowerCase()
-                            .includes(capSearch.toLowerCase())
-                        );
+                            .includes(capSearch.toLowerCase());
+                          const matchCat = !categoriaFilter || p.capacitacionCategoria === categoriaFilter;
+                          return matchSearch && matchCat;
+                        });
                         const pending   = filtered.filter((p) => p.programado && !p.ejecutado);
                         const executed  = filtered.filter((p) => p.ejecutado);
                         const others    = filtered.filter((p) => !p.programado && !p.ejecutado);
@@ -1094,6 +1174,25 @@ export default function NuevoRegistroPage() {
               </div>
             </div>
 
+            {/* Banner: evaluación requerida antes de firmar */}
+            {hasEvaluaciones && (
+              <div className="bg-amber-500/10 backdrop-blur-xl rounded-xl border border-amber-400/25 p-4 flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-amber-200">Evaluación obligatoria</p>
+                  <p className="text-xs text-white/60 mt-0.5">
+                    Los asistentes deben completar y <strong className="text-white/80">aprobar la evaluación</strong> antes de poder firmar.
+                    Genera los <strong className="text-white/80">Links Remotos</strong> para que cada asistente presente su evaluación y firme desde su dispositivo.
+                  </p>
+                  {loadingEvalStatus && (
+                    <p className="text-xs text-amber-300/60 mt-1 flex items-center gap-1">
+                      <Loader2 className="w-3 h-3 animate-spin" /> Verificando estado de evaluaciones…
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Panel de Links Remotos */}
             {signingLinks && signingLinks.length > 0 && (
               <div className="bg-blue-500/10 backdrop-blur-xl rounded-2xl border border-blue-400/25 overflow-hidden">
@@ -1232,13 +1331,21 @@ export default function NuevoRegistroPage() {
                               </div>
                             ) : (
                               <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                                <button
-                                  onClick={() => setFirmandoId(asistente.id)}
-                                  className="flex items-center justify-center gap-1 px-3 py-1.5 rounded bg-purple-500/20 border border-purple-400/30 text-purple-300 text-xs font-medium hover:bg-purple-500/30 transition-all cursor-pointer"
-                                >
-                                  <PenTool className="w-3 h-3" />
-                                  Firmar
-                                </button>
+                                {/* Block signing if eval required but not completed */}
+                                {hasEvaluaciones && !evalStatus[asistente.persona.idEmpleado] ? (
+                                  <span className="flex items-center gap-1 px-2 py-1.5 rounded bg-amber-500/15 border border-amber-400/25 text-amber-300 text-[11px]" title="Debe completar la evaluación antes de firmar">
+                                    <AlertTriangle className="w-3 h-3" />
+                                    Pendiente eval.
+                                  </span>
+                                ) : (
+                                  <button
+                                    onClick={() => setFirmandoId(asistente.id)}
+                                    className="flex items-center justify-center gap-1 px-3 py-1.5 rounded bg-purple-500/20 border border-purple-400/30 text-purple-300 text-xs font-medium hover:bg-purple-500/30 transition-all cursor-pointer"
+                                  >
+                                    <PenTool className="w-3 h-3" />
+                                    Firmar
+                                  </button>
+                                )}
                                 {signingLinks && (() => {
                                   const link = signingLinks.find((l) => l.detalleRecordId === asistente.detalleRecordId);
                                   if (!link) return null;
