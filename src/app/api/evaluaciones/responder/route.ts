@@ -68,9 +68,11 @@ export async function POST(request: NextRequest) {
   const base = getSGSSTUrl;
 
   // ── Calcular puntaje ─────────────────────────────────
-  const puntajeObtenido = respuestas.reduce((sum, r) => sum + (r.puntajeObtenido || 0), 0);
-  const porcentaje = puntajeMaximo > 0
-    ? Math.round((puntajeObtenido / puntajeMaximo) * 100 * 100) / 100
+  const puntajeObtenidoRaw = respuestas.reduce((sum, r) => sum + (r.puntajeObtenido || 0), 0);
+  const puntajeObtenido = Math.round(puntajeObtenidoRaw * 100) / 100;
+  const puntajeMaximoClean = Math.round(puntajeMaximo * 100) / 100;
+  const porcentaje = puntajeMaximoClean > 0
+    ? Math.round((puntajeObtenido / puntajeMaximoClean) * 100 * 100) / 100
     : 0;
 
   // ── Obtener puntaje mínimo de la plantilla ───────────
@@ -92,7 +94,7 @@ export async function POST(request: NextRequest) {
     [eF.CARGO]:       cargo,
     [eF.FECHA]:       new Date().toISOString().split("T")[0],
     [eF.PUNTAJE_OBT]: puntajeObtenido,
-    [eF.PUNTAJE_MAX]: puntajeMaximo,
+    [eF.PUNTAJE_MAX]: puntajeMaximoClean,
     [eF.PORCENTAJE]:  porcentaje,
     [eF.ESTADO]:      estado,
     [eF.INTENTO]:     intentoNumero,
@@ -146,7 +148,7 @@ export async function POST(request: NextRequest) {
     success: true,
     evalId,
     puntajeObtenido,
-    puntajeMaximo,
+    puntajeMaximo: puntajeMaximoClean,
     porcentaje,
     estado,
     puntajeMinimo,

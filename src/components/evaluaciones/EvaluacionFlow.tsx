@@ -528,7 +528,7 @@ export default function EvaluacionFlow({
             </div>
             <div className="bg-white rounded-xl p-3">
               <p className="text-2xl font-bold text-slate-800">
-                {resultado.puntajeObtenido}/{resultado.puntajeMaximo}
+                {Number(resultado.puntajeObtenido).toFixed(2)}/{Number(resultado.puntajeMaximo).toFixed(2)}
               </p>
               <p className="text-xs text-slate-500">Puntos</p>
             </div>
