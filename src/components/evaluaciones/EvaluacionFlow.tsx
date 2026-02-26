@@ -129,6 +129,31 @@ export default function EvaluacionFlow({
 
   useEffect(() => { loadPendientes(); }, [loadPendientes]);
 
+  // ── Check remaining evaluations (for multi-eval flow) ──
+  const checkRemainingEvals = useCallback(async () => {
+    try {
+      const params = new URLSearchParams({ idEmpleadoCore });
+      if (progCapId) params.set("progCapId", progCapId);
+      params.set("_t", Date.now().toString());
+      const res = await fetch(`/api/evaluaciones/pendientes?${params.toString()}`, { cache: "no-store" });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.message);
+      const list: PendienteEval[] = json.pendientes || [];
+      const stillPending = list.some((p) => p.disponible && !p.aprobada);
+      if (!stillPending) {
+        // All evaluations completed → advance to signature
+        if (onFinished) onFinished();
+      } else {
+        // More evaluations remain → go back to list
+        setPendientes(list);
+        setScreen("lista");
+      }
+    } catch {
+      // On error, fall back to showing the list
+      loadPendientes();
+    }
+  }, [idEmpleadoCore, progCapId, onFinished, loadPendientes]);
+
   // ── Start an evaluation ──────────────────────────────
   const startEval = async (p: PendienteEval) => {
     setScreen("loading");
@@ -252,9 +277,11 @@ export default function EvaluacionFlow({
       setResultado(resultData);
       setScreen("resultado");
 
-      // Auto-advance to signature when approved and skip is not allowed
-      if (!allowSkip && json.estado === "Aprobada" && onFinished) {
-        setTimeout(() => onFinished(), 2500);
+      // When skip not allowed: after showing result, check remaining evals
+      if (!allowSkip && json.estado === "Aprobada") {
+        setTimeout(() => {
+          checkRemainingEvals();
+        }, 2500);
       }
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : "Error al enviar evaluación");
@@ -263,7 +290,7 @@ export default function EvaluacionFlow({
       setSubmitting(false);
       if (!forced) { /* user-initiated */ }
     }
-  }, [plantilla, submitting, preguntas, answers, idEmpleadoCore, nombres, cedula, cargo, progCapId, intentoNumero]);
+  }, [plantilla, submitting, preguntas, answers, idEmpleadoCore, nombres, cedula, cargo, progCapId, intentoNumero, allowSkip, checkRemainingEvals]);
 
   // ── Evaluar correcta ─────────────────────────────────
   function evaluarCorrecta(p: Pregunta, respuestaDada: string): boolean {
@@ -492,7 +519,7 @@ export default function EvaluacionFlow({
           {/* Score */}
           <div className="grid grid-cols-3 gap-3 text-center">
             <div className="bg-white rounded-xl p-3">
-              <p className="text-2xl font-bold text-slate-800">{resultado.porcentaje}%</p>
+              <p className="text-2xl font-bold text-slate-800">{Number(resultado.porcentaje).toFixed(2)}%</p>
               <p className="text-xs text-slate-500">Tu puntaje</p>
             </div>
             <div className="bg-white rounded-xl p-3">
@@ -548,15 +575,15 @@ export default function EvaluacionFlow({
           </div>
         )}
 
-        {/* If approved & not allowSkip → auto-advancing, show countdown */}
+        {/* If approved & not allowSkip → checking remaining evals */}
         {!allowSkip && resultado.estado === "Aprobada" ? (
           <div className="flex items-center justify-center gap-2 py-3 text-sm text-green-600 font-medium">
             <Loader2 className="w-4 h-4 animate-spin" />
-            Pasando a firma de asistencia…
+            Verificando evaluaciones restantes…
           </div>
         ) : (
           <>
-            {/* Show retry button only if not approved or allowSkip */}
+            {/* Show retry / return to list button */}
             {(resultado.estado !== "Aprobada" || allowSkip) && (
               <button
                 onClick={() => { loadPendientes(); }}

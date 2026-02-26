@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
   // ── Calcular puntaje ─────────────────────────────────
   const puntajeObtenido = respuestas.reduce((sum, r) => sum + (r.puntajeObtenido || 0), 0);
   const porcentaje = puntajeMaximo > 0
-    ? Math.round((puntajeObtenido / puntajeMaximo) * 100 * 10) / 10
+    ? Math.round((puntajeObtenido / puntajeMaximo) * 100 * 100) / 100
     : 0;
 
   // ── Obtener puntaje mínimo de la plantilla ───────────
