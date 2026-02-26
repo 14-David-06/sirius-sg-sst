@@ -10,6 +10,7 @@ import {
   AlertTriangle,
   ClipboardList,
   FileDown,
+  FileText,
   PlusCircle,
   CheckCircle,
   Clock,
@@ -101,6 +102,7 @@ export default function HistorialRegistrosPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [exportandoId, setExportandoId] = useState<string | null>(null);
+  const [exportandoPdfId, setExportandoPdfId] = useState<string | null>(null);
 
   // ── Panel de detalle ──────────────────────────────────────
   const [detalle, setDetalle] = useState<RegistroDetalle | null>(null);
@@ -305,6 +307,34 @@ export default function HistorialRegistrosPage() {
     }
   };
 
+  const exportarPDF = async (registroId: string, nombreEvento: string) => {
+    setExportandoPdfId(registroId);
+    try {
+      const res = await fetch("/api/registros-asistencia/evaluaciones-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ registroRecordId: registroId }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        throw new Error(json?.message || "Error al generar el PDF");
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Evaluaciones_${nombreEvento.replace(/\s+/g, "_")}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al generar PDF de evaluaciones");
+    } finally {
+      setExportandoPdfId(null);
+    }
+  };
+
   // ── Render ────────────────────────────────────────────────
   return (
     <div className="min-h-screen relative">
@@ -476,6 +506,18 @@ export default function HistorialRegistrosPage() {
                                   <FileDown className="w-3 h-3" />
                                 )}
                                 Excel
+                              </button>
+                              <button
+                                onClick={() => exportarPDF(reg.id, reg.nombreEvento)}
+                                disabled={exportandoPdfId === reg.id}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-violet-500/20 border border-violet-400/30 text-white text-xs font-medium hover:bg-violet-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
+                              >
+                                {exportandoPdfId === reg.id ? (
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <FileText className="w-3 h-3" />
+                                )}
+                                Eval PDF
                               </button>
                             </div>
                           </td>
@@ -867,7 +909,7 @@ export default function HistorialRegistrosPage() {
                 </div>
 
                 {/* Footer: exportar */}
-                <div className="px-6 py-4 border-t border-white/10">
+                <div className="px-6 py-4 border-t border-white/10 space-y-2">
                   <button
                     onClick={() => exportarExcel(detalle.id, detalle.nombreEvento)}
                     disabled={exportandoId === detalle.id}
@@ -875,6 +917,14 @@ export default function HistorialRegistrosPage() {
                   >
                     {exportandoId === detalle.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
                     Exportar Excel
+                  </button>
+                  <button
+                    onClick={() => exportarPDF(detalle.id, detalle.nombreEvento)}
+                    disabled={exportandoPdfId === detalle.id}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-violet-500/20 border border-violet-400/30 text-white font-medium hover:bg-violet-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  >
+                    {exportandoPdfId === detalle.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                    Resultados Evaluaciones (PDF)
                   </button>
                 </div>
               </div>

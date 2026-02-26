@@ -176,6 +176,7 @@ export const airtableSGSSTConfig = {
     INTENSIDAD: process.env.AIRTABLE_CAP_INTENSIDAD!,
     TIPO:       process.env.AIRTABLE_CAP_TIPO!,
     CATEGORIA:  process.env.AIRTABLE_CAP_CATEGORIA!,
+    POBLACION:  process.env.AIRTABLE_CAP_POBLACION!,
   },
 
   // ── Tabla "Programación Capacitaciones" ───────────────
@@ -321,6 +322,7 @@ export const airtableSGSSTConfig = {
     ROL:           process.env.AIRTABLE_MBR_ROL!,
     REPRESENTACION: process.env.AIRTABLE_MBR_REPRESENTACION!,
     ESTADO:        process.env.AIRTABLE_MBR_ESTADO!,
+    EXCLUIR_ASISTENCIA: process.env.AIRTABLE_MBR_EXCLUIR_ASISTENCIA!,
   },
 };
 

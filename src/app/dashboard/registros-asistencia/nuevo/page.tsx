@@ -54,6 +54,7 @@ interface ProgramacionItem {
   capacitacionNombre: string;
   capacitacionCodigo: string;
   capacitacionCategoria: string;
+  poblacionObjetivo: string;
   observaciones: string;
 }
 

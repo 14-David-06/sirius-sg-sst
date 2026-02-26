@@ -347,9 +347,12 @@ export default function EvaluacionFlow({
 
   if (screen === "lista") return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 mb-2">
-        <ClipboardList className="w-5 h-5 text-[#0154AC]" />
-        <h3 className="text-sm font-bold text-slate-800">Evaluaciones disponibles</h3>
+      <div className="mb-2">
+        <div className="flex items-center gap-2">
+          <ClipboardList className="w-5 h-5 text-[#0154AC]" />
+          <h3 className="text-sm font-bold text-slate-800">Evaluaciones disponibles</h3>
+        </div>
+        <p className="text-xs text-slate-500 mt-1 ml-7">Evaluación de <span className="font-semibold text-slate-700">{nombres}</span></p>
       </div>
       {pendientes.map((p) => (
         <div
@@ -425,6 +428,7 @@ export default function EvaluacionFlow({
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs text-slate-400 uppercase tracking-wide font-semibold">{plantilla.nombre}</p>
+            <p className="text-xs text-slate-500">Evaluación de <span className="font-semibold text-slate-700">{nombres}</span></p>
             <p className="text-sm font-bold text-slate-800 mt-0.5">
               Pregunta {currentIdx + 1} de {preguntas.length}
             </p>

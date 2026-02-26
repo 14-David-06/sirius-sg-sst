@@ -23,6 +23,29 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, message: "idEmpleadoCore requerido" }, { status: 400 });
   }
 
+  // ── 0. Excluir empleados marcados con checkbox (Miembros Comité SST) ────
+  try {
+    const { miembrosComitesTableId: mbrTbl, miembrosComitesFields: mbrF } = airtableSGSSTConfig;
+    const exclFormula = encodeURIComponent(
+      `AND({${mbrF.ID_EMPLEADO}}="${idEmpleadoCore}", {${mbrF.EXCLUIR_ASISTENCIA}}=TRUE())`
+    );
+    const exclRes = await fetch(
+      `${getSGSSTUrl(mbrTbl)}?returnFieldsByFieldId=true&filterByFormula=${exclFormula}&fields[]=${mbrF.ID_EMPLEADO}&pageSize=1`,
+      { headers: getSGSSTHeaders(), cache: "no-store" }
+    );
+    if (exclRes.ok) {
+      const exclData = await exclRes.json();
+      if (exclData.records?.length > 0) {
+        return NextResponse.json(
+          { success: true, pendientes: [] },
+          { headers: { "Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache" } }
+        );
+      }
+    }
+  } catch (e) {
+    console.warn("[pendientes] Error checking exclusion checkbox:", e);
+  }
+
   const {
     miembrosComitesTableId,
     miembrosComitesFields: mF,

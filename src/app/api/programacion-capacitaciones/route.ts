@@ -47,13 +47,14 @@ export async function GET() {
     ]);
 
     // Build lookup: capacitacion record ID → { nombre, codigo, categoria }
-    const capMap = new Map<string, { nombre: string; codigo: string; categoria: string }>(
+    const capMap = new Map<string, { nombre: string; codigo: string; categoria: string; poblacion: string }>(
       capRecords.map((r) => [
         r.id,
         {
           nombre:    (r.fields[cf.NOMBRE]    as string) || "",
           codigo:    (r.fields[cf.CODIGO]    as string) || "",
           categoria: (r.fields[cf.CATEGORIA] as string) || "",
+          poblacion: (r.fields[cf.POBLACION] as string) || "Todos los Colaboradores",
         },
       ])
     );
@@ -61,8 +62,8 @@ export async function GET() {
     const data = progRecords.map((r) => {
       const capIds = (r.fields[pf.CAPACITACION_LINK] as string[]) ?? [];
       const capInfo = capIds.length > 0
-        ? (capMap.get(capIds[0]) ?? { nombre: "", codigo: "", categoria: "" })
-        : { nombre: "", codigo: "", categoria: "" };
+        ? (capMap.get(capIds[0]) ?? { nombre: "", codigo: "", categoria: "", poblacion: "Todos los Colaboradores" })
+        : { nombre: "", codigo: "", categoria: "", poblacion: "Todos los Colaboradores" };
       return {
         id: r.id,
         identificador:         (r.fields[pf.IDENTIFICADOR] as string) ?? "",
@@ -76,6 +77,7 @@ export async function GET() {
         capacitacionCodigo:    capInfo.codigo,
         capacitacionCategoria: capInfo.categoria,
         observaciones:         (r.fields[pf.OBSERVACIONES] as string) ?? "",
+        poblacionObjetivo:     capInfo.poblacion,
       };
     });
 

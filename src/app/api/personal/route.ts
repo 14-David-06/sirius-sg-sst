@@ -4,6 +4,7 @@ import {
   getAirtableUrl,
   getAirtableHeaders,
 } from "@/infrastructure/config/airtable";
+import { airtableSGSSTConfig, getSGSSTUrl, getSGSSTHeaders } from "@/infrastructure/config/airtableSGSST";
 
 interface AirtableRecord {
   id: string;
@@ -35,7 +36,25 @@ export async function GET() {
     const url = getAirtableUrl(personalTableId);
     const headers = getAirtableHeaders();
 
-    // Excluir: CEO y Contratistas
+    // ── Obtener IDs excluidos de asistencia (checkbox en Miembros Comité SST) ──
+    const { miembrosComitesTableId, miembrosComitesFields: mF } = airtableSGSSTConfig;
+    const excludedIds = new Set<string>();
+    try {
+      const exclFormula = encodeURIComponent(`{${mF.EXCLUIR_ASISTENCIA}}=TRUE()`);
+      const exclUrl = `${getSGSSTUrl(miembrosComitesTableId)}?returnFieldsByFieldId=true&filterByFormula=${exclFormula}&fields[]=${mF.ID_EMPLEADO}`;
+      const exclRes = await fetch(exclUrl, { headers: getSGSSTHeaders(), cache: "no-store" });
+      if (exclRes.ok) {
+        const exclData = await exclRes.json();
+        for (const r of (exclData.records || [])) {
+          const empId = r.fields[mF.ID_EMPLEADO] as string;
+          if (empId) excludedIds.add(empId);
+        }
+      }
+    } catch (e) {
+      console.warn("[personal] Error fetching exclusion list:", e);
+    }
+
+    // Excluir: CEO y Contratistas (el Responsable SST se excluye por checkbox después)
     const filterFormula = `AND({Estado de Actividad} = 'Activo', {Tipo Personal} != 'Contratista', {Rol (from Rol)} != 'DIRECTOR EJECUTIVO (CEO) (Chief Executive Officer)')`;
 
     let allRecords: AirtableRecord[] = [];
@@ -65,7 +84,13 @@ export async function GET() {
       offset = data.offset;
     } while (offset);
 
-    const personal: PersonalItem[] = allRecords.map((record) => {
+    // Filtrar excluidos por checkbox de Miembros Comité SST
+    const filteredRecords = allRecords.filter((record) => {
+      const empId = (record.fields[personalFields.ID_EMPLEADO] as string) || "";
+      return !excludedIds.has(empId);
+    });
+
+    const personal: PersonalItem[] = filteredRecords.map((record) => {
       const f = record.fields;
       const fotoArray = f[personalFields.FOTO_PERFIL] as
         | { url: string; filename: string }[]

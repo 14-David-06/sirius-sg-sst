@@ -34,6 +34,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: "idEmpleadoCores requerido" }, { status: 400 });
   }
 
+  // ── 0. Identificar empleados excluidos (checkbox en Miembros Comité SST) ──
+  const excludedSet = new Set<string>();
+  try {
+    const { miembrosComitesTableId: mbrTbl, miembrosComitesFields: mbrF } = airtableSGSSTConfig;
+    const exclFormula = encodeURIComponent(`{${mbrF.EXCLUIR_ASISTENCIA}}=TRUE()`);
+    const exclRes = await fetch(
+      `${getSGSSTUrl(mbrTbl)}?returnFieldsByFieldId=true&filterByFormula=${exclFormula}&fields[]=${mbrF.ID_EMPLEADO}`,
+      { headers: getSGSSTHeaders(), cache: "no-store" }
+    );
+    if (exclRes.ok) {
+      const exclData = await exclRes.json();
+      for (const r of (exclData.records || [])) {
+        const empId = r.fields[mbrF.ID_EMPLEADO] as string;
+        if (empId) excludedSet.add(empId);
+      }
+    }
+  } catch (e) {
+    console.warn("[check-batch] Error checking exclusion checkbox:", e);
+  }
+
   const {
     plantillasEvalTableId,
     plantillasEvalFields: pF,
@@ -92,6 +112,11 @@ export async function POST(request: NextRequest) {
   // ── 3. Build results ──
   const results: Record<string, boolean> = {};
   for (const empId of idEmpleadoCores) {
+    // Responsable SST siempre pasa (excluida de evaluaciones)
+    if (excludedSet.has(empId)) {
+      results[empId] = true;
+      continue;
+    }
     if (!progCapIds || progCapIds.length === 0) {
       // No specific progCapIds — just check if they have ANY approved eval
       results[empId] = !!(approvedMap[empId] && approvedMap[empId].size > 0);

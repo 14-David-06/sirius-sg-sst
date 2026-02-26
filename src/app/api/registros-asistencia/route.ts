@@ -70,6 +70,10 @@ export async function POST(request: NextRequest) {
       asistenciaCapacitacionesFields: asisF,
       programacionCapacitacionesTableId,
       programacionCapacitacionesFields: progF,
+      capacitacionesTableId,
+      capacitacionesFields: capF,
+      miembrosComitesTableId,
+      miembrosComitesFields: mF,
     } = airtableSGSSTConfig;
     const headers = getSGSSTHeaders();
 
@@ -82,13 +86,96 @@ export async function POST(request: NextRequest) {
       payload.programacionRecordIds ??
       (payload.programacionRecordId ? [payload.programacionRecordId] : []);
 
-    // ── 1. Generar código único para el evento ────────────
+    // ── 1. Determinar Población Objetivo por programación ──
+    // Resolve: progRecordId → linked capacitación → POBLACION
+    const progPoblacion: Record<string, string> = {};
+    if (progRecordIds.length > 0) {
+      try {
+        // Fetch programación records to get linked capacitación IDs
+        const progOrParts = progRecordIds.map(id => `RECORD_ID()="${id}"`).join(",");
+        const progFormula = encodeURIComponent(`OR(${progOrParts})`);
+        const progRes = await fetch(
+          `${getSGSSTUrl(programacionCapacitacionesTableId)}?returnFieldsByFieldId=true&filterByFormula=${progFormula}&fields[]=${progF.CAPACITACION_LINK}`,
+          { headers, cache: "no-store" }
+        );
+        const progData = progRes.ok ? await progRes.json() : { records: [] };
+
+        // Map: progRecordId → capRecordId
+        const progCapMap: Record<string, string> = {};
+        for (const r of (progData.records || [])) {
+          const capIds = (r.fields[progF.CAPACITACION_LINK] as string[]) || [];
+          if (capIds.length > 0) progCapMap[r.id] = capIds[0];
+        }
+
+        // Fetch unique capacitación records to get POBLACION
+        const uniqueCapIds = [...new Set(Object.values(progCapMap))];
+        if (uniqueCapIds.length > 0) {
+          const capOrParts = uniqueCapIds.map(id => `RECORD_ID()="${id}"`).join(",");
+          const capFormula = encodeURIComponent(`OR(${capOrParts})`);
+          const capRes = await fetch(
+            `${getSGSSTUrl(capacitacionesTableId)}?returnFieldsByFieldId=true&filterByFormula=${capFormula}&fields[]=${capF.POBLACION}`,
+            { headers, cache: "no-store" }
+          );
+          const capData = capRes.ok ? await capRes.json() : { records: [] };
+          const capPoblacionMap: Record<string, string> = {};
+          for (const r of (capData.records || [])) {
+            capPoblacionMap[r.id] = (r.fields[capF.POBLACION] as string) || "Todos los Colaboradores";
+          }
+          // Build final mapping: progRecordId → poblacion
+          for (const [pId, cId] of Object.entries(progCapMap)) {
+            progPoblacion[pId] = capPoblacionMap[cId] || "Todos los Colaboradores";
+          }
+        }
+      } catch (e) {
+        console.warn("[registros-asistencia] Error resolving prog populations:", e);
+        // Fall through — all progs will be treated as "Todos los Colaboradores"
+      }
+    }
+
+    // ── 2. Obtener membresías de comités por empleado ──
+    const empComitesMap: Record<string, Set<string>> = {};
+    const hasCommitteeTargeted = Object.values(progPoblacion).some(p => p !== "Todos los Colaboradores");
+    if (hasCommitteeTargeted) {
+      try {
+        const mbrFormula = encodeURIComponent(`{${mF.ESTADO}}="Activo"`);
+        const mbrRes = await fetch(
+          `${getSGSSTUrl(miembrosComitesTableId)}?returnFieldsByFieldId=true&filterByFormula=${mbrFormula}&fields[]=${mF.ID_EMPLEADO}&fields[]=${mF.COMITE}`,
+          { headers, cache: "no-store" }
+        );
+        if (mbrRes.ok) {
+          const mbrData = await mbrRes.json();
+          for (const r of (mbrData.records || [])) {
+            const empId = r.fields[mF.ID_EMPLEADO] as string;
+            const comite = r.fields[mF.COMITE] as string;
+            if (empId && comite) {
+              if (!empComitesMap[empId]) empComitesMap[empId] = new Set();
+              empComitesMap[empId].add(comite);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("[registros-asistencia] Error fetching committee memberships:", e);
+      }
+    }
+
+    // Helper: get applicable prog IDs for an employee
+    const getEmployeeProgs = (idEmpleado: string): string[] => {
+      if (progRecordIds.length === 0) return [];
+      const comites = empComitesMap[idEmpleado] || new Set<string>();
+      return progRecordIds.filter(progId => {
+        const poblacion = progPoblacion[progId] || "Todos los Colaboradores";
+        if (poblacion === "Todos los Colaboradores") return true;
+        return comites.has(poblacion);
+      });
+    };
+
+    // ── 3. Generar código único para el evento ────────────
     const year = new Date().getFullYear();
     const ts  = Date.now().toString().slice(-5);
     const codigoBase = payload.capacitacionCodigo.replace(/^CAP-?/i, "");
     const eventoCodigo = `EVT-CAP${codigoBase}-${year}-${ts}`;
 
-    // ── 2. Crear el Evento Capacitación ──────────────────
+    // ── 4. Crear el Evento Capacitación ──────────────────
     const evtData = payload.eventoData;
     const eventoFields: Record<string, unknown> = {
       [evtF.CODIGO]:               eventoCodigo,
@@ -124,9 +211,15 @@ export async function POST(request: NextRequest) {
     const eventoJson: AirtableResponse = await eventoRes.json();
     const eventoRecordId = eventoJson.records[0].id;
 
-    // ── 3. Crear registros de Asistencia ──────────────────
+    // ── 5. Crear registros de Asistencia (con progs filtradas por comité) ──
     const asistenciaUrl = getSGSSTUrl(asistenciaCapacitacionesTableId);
+    const progAttendeeCount: Record<string, number> = {};
     const records = payload.asistentes.map((a, idx) => {
+      const empProgs = getEmployeeProgs(a.idEmpleado);
+      // Track per-prog attendee count
+      for (const pid of empProgs) {
+        progAttendeeCount[pid] = (progAttendeeCount[pid] || 0) + 1;
+      }
       const fields: Record<string, unknown> = {
         [asisF.ID_ASISTENCIA]: `ASIS-${eventoCodigo}-${String(idx + 1).padStart(3, "0")}`,
         [asisF.NOMBRES]:          a.nombreCompleto,
@@ -137,8 +230,8 @@ export async function POST(request: NextRequest) {
         [asisF.ID_EMPLEADO_CORE]: a.idEmpleado,
         [asisF.FIRMA_CONFIRMADA]: false,
       };
-      if (progRecordIds.length > 0) {
-        fields[asisF.PROGRAMACION_LINK] = progRecordIds;
+      if (empProgs.length > 0) {
+        fields[asisF.PROGRAMACION_LINK] = empProgs;
       }
       return { fields };
     });
@@ -165,7 +258,7 @@ export async function POST(request: NextRequest) {
       createdIds.push(...data.records.map((r) => r.id));
     }
 
-    // ── 4. Actualizar Programaciones: marcar Ejecutado, fecha, total ──
+    // ── 6. Actualizar Programaciones: marcar Ejecutado, fecha, total ──
     for (const progId of progRecordIds) {
       const patchUrl = `${getSGSSTUrl(programacionCapacitacionesTableId)}/${progId}`;
       await fetch(patchUrl, {
@@ -175,7 +268,7 @@ export async function POST(request: NextRequest) {
           fields: {
             [progF.EJECUTADO]:        true,
             [progF.FECHA_EJECUCION]:  evtData.fecha || fechaRegistro,
-            [progF.TOTAL_ASISTENTES]: createdIds.length,
+            [progF.TOTAL_ASISTENTES]: progAttendeeCount[progId] || 0,
           },
         }),
       });

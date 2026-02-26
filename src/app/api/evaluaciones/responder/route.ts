@@ -1,6 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { airtableSGSSTConfig, getSGSSTUrl, getSGSSTHeaders } from "@/infrastructure/config/airtableSGSST";
 
+/**
+ * Genera un código único para EvalAplicadas: EVAL-YYYYMMDD-XXXX
+ */
+function generateEvalId(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  const rnd = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `EVAL-${y}${m}${d}-${rnd}`;
+}
+
+/**
+ * Genera un código único para una Respuesta: RESP-YYYYMMDD-XXXX-NNN
+ * @param evalCode Código de la evaluación padre
+ * @param index    Índice de la respuesta (1-based)
+ */
+function generateRespId(evalCode: string, index: number): string {
+  // Extract the date+random portion from the eval code (EVAL-YYYYMMDD-XXXX → YYYYMMDD-XXXX)
+  const suffix = evalCode.replace("EVAL-", "");
+  return `RESP-${suffix}-${String(index).padStart(3, "0")}`;
+}
+
 interface RespuestaItem {
   preguntaId: string;    // BancoPreguntas record ID
   ppId: string;          // PregxPlant record ID
@@ -86,7 +109,9 @@ export async function POST(request: NextRequest) {
   const estado = porcentaje >= puntajeMinimo ? "Aprobada" : "No Aprobada";
 
   // ── 1. Crear EvalAplicadas ───────────────────────────
+  const evalCode = generateEvalId();
   const evalFields: Record<string, unknown> = {
+    [eF.ID]:          evalCode,
     [eF.PLANTILLA]:   [plantillaId],
     [eF.ID_EMPLEADO]: idEmpleadoCore,
     [eF.NOMBRES]:     nombres,
@@ -118,19 +143,24 @@ export async function POST(request: NextRequest) {
 
   // ── 2. Crear RespEval records en batches ─────────────
   const batchSize = 10;
+  let globalRespIdx = 0;
   for (let i = 0; i < respuestas.length; i += batchSize) {
     const batch = respuestas.slice(i, i + batchSize);
-    const records = batch.map((r) => ({
-      fields: {
-        [rF.EVALUACION]:      [evalId],
-        [rF.PREGUNTA]:        [r.preguntaId],
-        [rF.RESPUESTA_DADA]:  r.respuestaDada,
-        [rF.ES_CORRECTA]:     r.esCorrecta,
-        [rF.PUNTAJE]:         r.puntajeObtenido,
-        [rF.TIEMPO_SEG]:      r.tiempoSeg || 0,
-        [rF.ORDEN]:           r.ordenPresentado,
-      },
-    }));
+    const records = batch.map((r) => {
+      globalRespIdx++;
+      return {
+        fields: {
+          [rF.ID]:              generateRespId(evalCode, globalRespIdx),
+          [rF.EVALUACION]:      [evalId],
+          [rF.PREGUNTA]:        [r.preguntaId],
+          [rF.RESPUESTA_DADA]:  r.respuestaDada,
+          [rF.ES_CORRECTA]:     r.esCorrecta,
+          [rF.PUNTAJE]:         r.puntajeObtenido,
+          [rF.TIEMPO_SEG]:      r.tiempoSeg || 0,
+          [rF.ORDEN]:           r.ordenPresentado,
+        },
+      };
+    });
 
     const batchRes = await fetch(`${base(respEvalTableId)}?returnFieldsByFieldId=true`, {
       method: "POST",
