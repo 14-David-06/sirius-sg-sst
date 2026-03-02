@@ -367,7 +367,52 @@ export async function GET() {
       }
     }
 
-    // ── 5. Resolver nombres de empleados ────────────────
+    // ── 5. Resolver nombres de insumos ─────────────────
+    // Recopilar todos los códigos de insumo únicos y obtener sus nombres
+    const insumoNombreMap = new Map<string, string>();
+    try {
+      const { insumoTableId, insumoFields } = airtableInsumosConfig;
+      const insHeaders = getInsumosHeaders();
+
+      // Recopilar códigos únicos de todos los detalles
+      const codigosInsumo = new Set<string>();
+      for (const r of detalleMap.values()) {
+        const codigo = r.fields[detalleFields.CODIGO_INSUMO] as string;
+        if (codigo) codigosInsumo.add(codigo);
+      }
+
+      // Fetch insumos para obtener nombres
+      if (codigosInsumo.size > 0) {
+        let insOffset: string | undefined;
+        do {
+          const insParams = new URLSearchParams({
+            pageSize: "100",
+            returnFieldsByFieldId: "true",
+          });
+          if (insOffset) insParams.set("offset", insOffset);
+
+          const insRes = await fetch(
+            `${getInsumosUrl(insumoTableId)}?${insParams.toString()}`,
+            { headers: insHeaders }
+          );
+          if (!insRes.ok) {
+            console.error("Error fetching insumos:", insRes.status, await insRes.text());
+            break;
+          }
+          const insData: AirtableListResponse = await insRes.json();
+          for (const r of insData.records) {
+            const codigo = r.fields[insumoFields.CODIGO] as string;
+            const nombre = r.fields[insumoFields.NOMBRE] as string;
+            if (codigo && nombre) insumoNombreMap.set(codigo, nombre);
+          }
+          insOffset = insData.offset;
+        } while (insOffset);
+      }
+    } catch (e) {
+      console.error("Error resolviendo nombres de insumos:", e);
+    }
+
+    // ── 6. Resolver nombres de empleados ────────────────
     // Se trae toda la tabla Personal (mismo patrón que /exportar) porque
     // ID_EMPLEADO puede ser campo fórmula no filtrable directamente.
     const nombreMap = new Map<string, string>();
@@ -403,7 +448,7 @@ export async function GET() {
       console.error("Error resolviendo nombres de empleados:", e);
     }
 
-    // ── 6. Mapear respuesta ─────────────────────────────
+    // ── 7. Mapear respuesta ─────────────────────────────
     const result = allEntregas.map((ent) => {
       const f = ent.fields;
       const dLinks = (f[entregasFields.DETALLE_LINK] as string[]) || [];
@@ -414,12 +459,14 @@ export async function GET() {
           const r = detalleMap.get(id);
           if (!r) return null;
           const df = r.fields;
+          const codigoInsumo = (df[detalleFields.CODIGO_INSUMO] as string) || "";
           return {
             id: r.id,
             cantidad: (df[detalleFields.CANTIDAD] as number) || 0,
             talla: (df[detalleFields.TALLA] as string) || "",
             condicion: (df[detalleFields.CONDICION] as string) || "",
-            codigoInsumo: (df[detalleFields.CODIGO_INSUMO] as string) || "",
+            codigoInsumo,
+            nombreInsumo: insumoNombreMap.get(codigoInsumo) || codigoInsumo,
           };
         })
         .filter(Boolean);

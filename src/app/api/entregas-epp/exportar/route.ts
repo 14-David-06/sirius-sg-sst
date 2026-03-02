@@ -131,9 +131,11 @@ function parseReferenciaComercial(raw: unknown): string {
 }
 
 /**
- * Convierte una firma PNG con trazos blancos sobre fondo transparente
- * a trazos negros sobre fondo transparente (solo invierte RGB donde hay alpha).
- * Las firmas nuevas ya vienen con trazo negro, pero las antiguas tienen trazo blanco.
+ * Convierte una firma PNG a trazos negros sobre fondo transparente.
+ * Maneja múltiples casos:
+ * - Firmas con fondo blanco y trazo negro → solo hace el fondo transparente
+ * - Firmas con fondo negro y trazo blanco → invierte colores y hace fondo transparente
+ * - Firmas con fondo transparente y trazo blanco → invierte trazo a negro
  */
 function convertSignatureToBlackTransparent(base64Data: string): string {
   const buf = Buffer.from(base64Data, "base64");
@@ -204,37 +206,74 @@ function convertSignatureToBlackTransparent(base64Data: string): string {
       }
     }
 
-    // Detectar si la firma tiene trazos blancos (antiguas) — si el pixel promedio
-    // con alpha > 0 tiene R+G+B > 384 (brightness > 128 por canal), es blanca
-    let totalBrightness = 0;
-    let visiblePixels = 0;
-    for (let i = 0; i < pixels.length; i += 4) {
-      if (pixels[i + 3] > 20) {
-        totalBrightness += pixels[i] + pixels[i + 1] + pixels[i + 2];
-        visiblePixels++;
+    // Muestrear las 4 esquinas para determinar el color del fondo
+    // (las esquinas siempre son fondo, no trazo)
+    const cornerSamples: number[] = [];
+    const sampleSize = 10; // pixels a muestrear en cada esquina
+
+    // Esquina superior izquierda
+    for (let y = 0; y < sampleSize && y < height; y++) {
+      for (let x = 0; x < sampleSize && x < width; x++) {
+        const i = (y * width + x) * 4;
+        if (pixels[i + 3] > 200) { // Solo pixels opacos
+          cornerSamples.push((pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3);
+        }
       }
     }
-    const avgBrightness = visiblePixels > 0 ? totalBrightness / (visiblePixels * 3) : 0;
-
-    // Solo invertir si la firma tiene trazos claros (> 180 de brightness promedio)
-    if (avgBrightness > 180) {
-      for (let i = 0; i < pixels.length; i += 4) {
-        if (pixels[i + 3] > 0) {
-          pixels[i] = 255 - pixels[i];       // R
-          pixels[i + 1] = 255 - pixels[i + 1]; // G
-          pixels[i + 2] = 255 - pixels[i + 2]; // B
-          // Alpha se mantiene → fondo transparente
+    // Esquina superior derecha
+    for (let y = 0; y < sampleSize && y < height; y++) {
+      for (let x = Math.max(0, width - sampleSize); x < width; x++) {
+        const i = (y * width + x) * 4;
+        if (pixels[i + 3] > 200) {
+          cornerSamples.push((pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3);
+        }
+      }
+    }
+    // Esquina inferior izquierda
+    for (let y = Math.max(0, height - sampleSize); y < height; y++) {
+      for (let x = 0; x < sampleSize && x < width; x++) {
+        const i = (y * width + x) * 4;
+        if (pixels[i + 3] > 200) {
+          cornerSamples.push((pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3);
+        }
+      }
+    }
+    // Esquina inferior derecha
+    for (let y = Math.max(0, height - sampleSize); y < height; y++) {
+      for (let x = Math.max(0, width - sampleSize); x < width; x++) {
+        const i = (y * width + x) * 4;
+        if (pixels[i + 3] > 200) {
+          cornerSamples.push((pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3);
         }
       }
     }
 
-    // Si la firma tenía fondo blanco sólido (todas las transparencias son 255),
-    // hacer transparente lo que era blanco puro
+    // Calcular brillo promedio del fondo
+    const avgCornerBrightness = cornerSamples.length > 0
+      ? cornerSamples.reduce((a, b) => a + b, 0) / cornerSamples.length
+      : 128;
+
+    // Si el fondo es oscuro (< 80), la firma tiene fondo negro → invertir
+    const hasDarkBackground = avgCornerBrightness < 80;
+
+    if (hasDarkBackground) {
+      // Invertir TODOS los colores (el fondo negro se vuelve blanco, el trazo blanco se vuelve negro)
+      for (let i = 0; i < pixels.length; i += 4) {
+        pixels[i] = 255 - pixels[i];       // R
+        pixels[i + 1] = 255 - pixels[i + 1]; // G
+        pixels[i + 2] = 255 - pixels[i + 2]; // B
+        // Alpha se mantiene
+      }
+    }
+
+    // Ahora hacer transparente todo lo que sea blanco/casi blanco
+    // (esto elimina el fondo, sea originalmente blanco o negro invertido a blanco)
     for (let i = 0; i < pixels.length; i += 4) {
-      const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2], al = pixels[i + 3];
-      // Blanco puro o casi blanco con alpha completo → transparente
-      if (al > 250 && r > 245 && g > 245 && b > 245) {
-        pixels[i + 3] = 0; // Hacer transparente
+      const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
+      const brightness = (r + g + b) / 3;
+      // Pixel claro → transparente (umbral 230 para cubrir blancos y grises muy claros)
+      if (brightness > 230) {
+        pixels[i + 3] = 0;
       }
     }
 
@@ -659,7 +698,7 @@ export async function GET() {
       ws.getRow(currentRow).height = 22;
       currentRow++;
 
-      // Row 3: Title bar (Azul Cielo vibrante)
+      // Row 3: Title bar (Azul Barranca primario)
       ws.mergeCells(currentRow, 1, currentRow, TOTAL_COLS);
       const titleCell = ws.getCell(currentRow, 1);
       titleCell.value = "FORMATO DE ENTREGA DE ELEMENTOS DE PROTECCIÓN PERSONAL";
@@ -673,7 +712,7 @@ export async function GET() {
       titleCell.fill = {
         type: "pattern",
         pattern: "solid",
-        fgColor: { argb: `FF${BRAND.AZUL_CIELO}` },
+        fgColor: { argb: `FF${BRAND.AZUL_BARRANCA}` },
       };
       titleCell.border = allBorders;
       ws.getRow(currentRow).height = 28;

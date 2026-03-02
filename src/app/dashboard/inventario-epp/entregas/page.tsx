@@ -33,6 +33,7 @@ interface DetalleEntrega {
   talla: string;
   condicion: string;
   codigoInsumo: string;
+  nombreInsumo: string;
 }
 
 interface TokenEntrega {
@@ -602,7 +603,7 @@ export default function EntregasListPage() {
                                 <Package className="w-4 h-4 text-orange-400/60 shrink-0" />
                                 <div className="flex-1 min-w-0">
                                   <p className="text-xs font-medium text-white truncate">
-                                    {det.codigoInsumo}
+                                    {det.nombreInsumo}
                                   </p>
                                   <p className="text-[10px] text-white/30">
                                     {det.condicion} · Talla:{" "}
