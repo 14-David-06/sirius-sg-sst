@@ -261,6 +261,7 @@ export const airtableSGSSTConfig = {
     PREGUNTAS_LINK:   process.env.AIRTABLE_PLNT_PREGUNTAS_LINK!,
     POBLACION:        process.env.AIRTABLE_PLNT_POBLACION!,
     CATEGORIAS:       process.env.AIRTABLE_PLNT_CATEGORIAS!,
+    PROGRAMACIONES:   process.env.AIRTABLE_PLNT_PROGRAMACIONES!,
   },
 
   // ── Tabla "Preguntas por Plantilla" ───────────────────
@@ -323,6 +324,60 @@ export const airtableSGSSTConfig = {
     REPRESENTACION: process.env.AIRTABLE_MBR_REPRESENTACION!,
     ESTADO:        process.env.AIRTABLE_MBR_ESTADO!,
     EXCLUIR_ASISTENCIA: process.env.AIRTABLE_MBR_EXCLUIR_ASISTENCIA!,
+  },
+
+  // ── Tabla "Inspecciones Áreas" (cabecera) ─────────────
+  inspeccionesAreasTableId: process.env.AIRTABLE_INSPA_TABLE_ID!,
+  inspeccionesAreasFields: {
+    ID:                   process.env.AIRTABLE_INSPA_ID!,
+    FECHA:                process.env.AIRTABLE_INSPA_FECHA!,
+    INSPECTOR:            process.env.AIRTABLE_INSPA_INSPECTOR!,
+    AREA:                 process.env.AIRTABLE_INSPA_AREA!,
+    ESTADO:               process.env.AIRTABLE_INSPA_ESTADO!,
+    OBSERVACIONES:        process.env.AIRTABLE_INSPA_OBSERVACIONES!,
+    URL_DOCUMENTO:        process.env.AIRTABLE_INSPA_URL_DOCUMENTO!,
+    FECHA_EXPORTACION:    process.env.AIRTABLE_INSPA_FECHA_EXPORTACION!,
+    DETALLE_LINK:         process.env.AIRTABLE_INSPA_DETALLE_LINK!,
+    RESPONSABLES_LINK:    process.env.AIRTABLE_INSPA_RESPONSABLES_LINK!,
+    ACCIONES_LINK:        process.env.AIRTABLE_INSPA_ACCIONES_LINK!,
+  },
+
+  // ── Tabla "Detalle Inspección Áreas" ──────────────────
+  detalleInspeccionAreasTableId: process.env.AIRTABLE_DETINSPA_TABLE_ID!,
+  detalleInspeccionAreasFields: {
+    ID:                process.env.AIRTABLE_DETINSPA_ID!,
+    INSPECCION_LINK:   process.env.AIRTABLE_DETINSPA_INSPECCION_LINK!,
+    CATEGORIA:         process.env.AIRTABLE_DETINSPA_CATEGORIA!,
+    CRITERIO:          process.env.AIRTABLE_DETINSPA_CRITERIO!,
+    CONDICION:         process.env.AIRTABLE_DETINSPA_CONDICION!,
+    OBSERVACION:       process.env.AIRTABLE_DETINSPA_OBSERVACION!,
+  },
+
+  // ── Tabla "Responsables Inspección Áreas" ─────────────
+  respInspeccionAreasTableId: process.env.AIRTABLE_RESPINSPA_TABLE_ID!,
+  respInspeccionAreasFields: {
+    ID_FIRMA:         process.env.AIRTABLE_RESPINSPA_ID_FIRMA!,
+    INSPECCION_LINK:  process.env.AIRTABLE_RESPINSPA_INSPECCION_LINK!,
+    TIPO:             process.env.AIRTABLE_RESPINSPA_TIPO!,
+    NOMBRE:           process.env.AIRTABLE_RESPINSPA_NOMBRE!,
+    CEDULA:           process.env.AIRTABLE_RESPINSPA_CEDULA!,
+    CARGO:            process.env.AIRTABLE_RESPINSPA_CARGO!,
+    FIRMA:            process.env.AIRTABLE_RESPINSPA_FIRMA!,
+    FECHA_FIRMA:      process.env.AIRTABLE_RESPINSPA_FECHA_FIRMA!,
+  },
+
+  // ── Tabla "Acciones Correctivas Áreas" ────────────────
+  accionesCorrectivasAreasTableId: process.env.AIRTABLE_ACCINSPA_TABLE_ID!,
+  accionesCorrectivasAreasFields: {
+    ID:                process.env.AIRTABLE_ACCINSPA_ID!,
+    INSPECCION_LINK:   process.env.AIRTABLE_ACCINSPA_INSPECCION_LINK!,
+    DESCRIPCION:       process.env.AIRTABLE_ACCINSPA_DESCRIPCION!,
+    TIPO:              process.env.AIRTABLE_ACCINSPA_TIPO!,
+    RESPONSABLE:       process.env.AIRTABLE_ACCINSPA_RESPONSABLE!,
+    FECHA_PROPUESTA:   process.env.AIRTABLE_ACCINSPA_FECHA_PROPUESTA!,
+    ESTADO:            process.env.AIRTABLE_ACCINSPA_ESTADO!,
+    FECHA_CIERRE:      process.env.AIRTABLE_ACCINSPA_FECHA_CIERRE!,
+    EVIDENCIA_URL:     process.env.AIRTABLE_ACCINSPA_EVIDENCIA_URL!,
   },
 };
 

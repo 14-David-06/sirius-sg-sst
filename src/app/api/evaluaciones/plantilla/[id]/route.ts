@@ -132,8 +132,14 @@ export async function GET(
     const tipo = (pregFields[bF.TIPO] as string) || "Selección Única";
     let respuestaCorrecta = (pregFields[bF.RESPUESTA_CORRECTA] as string) || "";
     if (tipo === "Verdadero/Falso") {
-      // Normalize "true"/"false" → "Verdadero"/"Falso"
-      respuestaCorrecta = respuestaCorrecta.toLowerCase() === "true" ? "Verdadero" : "Falso";
+      // Normalize respuestas Verdadero/Falso (soportar español e inglés)
+      const lower = respuestaCorrecta.toLowerCase().trim();
+      if (lower === "true" || lower === "verdadero") {
+        respuestaCorrecta = "Verdadero";
+      } else if (lower === "false" || lower === "falso") {
+        respuestaCorrecta = "Falso";
+      }
+      // Si ya está en formato correcto ("Verdadero" o "Falso"), no hace nada
     } else if (Object.keys(keyToText).length > 0) {
       // Convert key-based answers to text-based
       if (respuestaCorrecta.startsWith("[")) {

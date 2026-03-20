@@ -296,14 +296,40 @@ export default function EvaluacionFlow({
   function evaluarCorrecta(p: Pregunta, respuestaDada: string): boolean {
     if (!respuestaDada) return false;
     if (p.tipo === "Respuesta Abierta") return false; // manual review
+
+    // Para Selección Múltiple: comparar arrays normalizados
     if (p.tipo === "Selección Múltiple") {
       try {
-        const dada: string[] = JSON.parse(respuestaDada).sort();
-        const correcta: string[] = JSON.parse(p.respuestaCorrecta).sort();
-        return JSON.stringify(dada) === JSON.stringify(correcta);
+        const dada: string[] = JSON.parse(respuestaDada);
+        const correcta: string[] = JSON.parse(p.respuestaCorrecta);
+
+        // Normalizar cada elemento y ordenar
+        const dadaNormalized = dada
+          .map(s => normalizeString(s))
+          .filter(Boolean)
+          .sort();
+        const correctaNormalized = correcta
+          .map(s => normalizeString(s))
+          .filter(Boolean)
+          .sort();
+
+        return JSON.stringify(dadaNormalized) === JSON.stringify(correctaNormalized);
       } catch { return false; }
     }
-    return respuestaDada.trim().toLowerCase() === p.respuestaCorrecta.trim().toLowerCase();
+
+    // Para otros tipos: comparación normalizada
+    return normalizeString(respuestaDada) === normalizeString(p.respuestaCorrecta);
+  }
+
+  // Normaliza strings para comparación robusta
+  function normalizeString(str: string): string {
+    if (!str) return "";
+    return str
+      .trim()                           // Eliminar espacios al inicio/final
+      .replace(/\s+/g, " ")             // Reducir espacios múltiples a uno solo
+      .toLowerCase()                     // Case-insensitive
+      .normalize("NFD")                  // Normalizar Unicode (descomponer acentos)
+      .replace(/[\u0300-\u036f]/g, ""); // Eliminar marcas diacríticas
   }
 
   // ════════════════════════════════════════════════════

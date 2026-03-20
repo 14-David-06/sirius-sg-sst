@@ -24,8 +24,8 @@ const inspectionTypes = [
     cardBg: "bg-blue-500/10 hover:bg-blue-500/20 border-blue-400/20 hover:border-blue-400/35",
     arrowColor: "text-blue-400/50",
     titleHover: "group-hover:text-blue-300",
-    href: "#",
-    available: false,
+    href: "/dashboard/inspecciones-areas",
+    available: true,
   },
   {
     title: "Inspecciones de Equipos de Emergencia",

@@ -69,11 +69,46 @@ export async function GET(request: NextRequest) {
     (r: { fields: Record<string, string> }) => r.fields[mF.COMITE] as string
   ).filter(Boolean);
 
-  // ── 2. Obtener plantillas activas para el año en curso ─
-  const currentYear = new Date().getFullYear().toString();
-  const plntFormula = encodeURIComponent(
-    `AND({${pF.ESTADO}}="Activa", {${pF.VIGENCIA}}="${currentYear}")`
-  );
+  // ── 2. Obtener mes y año actual (zona Colombia) ────────
+  const now = new Date();
+  const currentYear = now.getFullYear().toString();
+  const currentMonth = now.toLocaleString('es-CO', {
+    month: 'long',
+    timeZone: 'America/Bogota'
+  });
+  const currentMonthCapitalized = currentMonth.charAt(0).toUpperCase() + currentMonth.slice(1); // "Marzo"
+
+  // ── 3. Si NO hay progCapId, obtener programaciones del mes actual ─
+  let progCapIdsDelMes: string[] = [];
+  if (!progCapId) {
+    const { programacionCapacitacionesTableId: progTbl, programacionCapacitacionesFields: pgF } = airtableSGSSTConfig;
+    const progFormula = encodeURIComponent(
+      `AND({${pgF.MES}}="${currentMonthCapitalized}", YEAR({${pgF.FECHA_EJECUCION}})=${currentYear})`
+    );
+    const progUrl = `${base(progTbl)}?returnFieldsByFieldId=true&filterByFormula=${progFormula}`;
+    const progRes = await fetch(progUrl, { headers, cache: "no-store" });
+    if (progRes.ok) {
+      const progData = await progRes.json();
+      progCapIdsDelMes = (progData.records || []).map((r: { id: string }) => r.id);
+    }
+  }
+
+  // ── 4. Obtener plantillas activas para el año en curso ─
+  // Si no hay progCapId, filtrar también por programaciones del mes actual
+  let plntFormula: string;
+  if (!progCapId && progCapIdsDelMes.length > 0) {
+    // Filtrar por estado, vigencia Y programaciones del mes
+    const progFilters = progCapIdsDelMes.map(id => `FIND("${id}", ARRAYJOIN({${pF.PROGRAMACIONES}}))`).join(",");
+    plntFormula = encodeURIComponent(
+      `AND({${pF.ESTADO}}="Activa", {${pF.VIGENCIA}}="${currentYear}", OR(${progFilters}))`
+    );
+  } else {
+    // Filtrar solo por estado y vigencia (cuando hay progCapId o no hay programaciones del mes)
+    plntFormula = encodeURIComponent(
+      `AND({${pF.ESTADO}}="Activa", {${pF.VIGENCIA}}="${currentYear}")`
+    );
+  }
+
   const plntUrl = `${base(plantillasEvalTableId)}?returnFieldsByFieldId=true&filterByFormula=${plntFormula}`;
   const plntRes = await fetch(plntUrl, { headers, cache: "no-store" });
   if (!plntRes.ok) {
@@ -106,11 +141,19 @@ export async function GET(request: NextRequest) {
   // Map: plantillaRecordId -> { intentos, aprobada }
   const intentosMap: Record<string, { intentos: number; aprobada: boolean }> = {};
   for (const r of (evalData.records || [])) {
+    const progCapIds: string[] = (r.fields[eF.PROG_CAP] as string[]) || [];
+
     // If progCapId is given, only count attempts scoped to that training
     if (progCapId) {
-      const progCapIds: string[] = (r.fields[eF.PROG_CAP] as string[]) || [];
       if (!progCapIds.includes(progCapId)) continue;
+    } else {
+      // If no progCapId, only count attempts from current month's programaciones
+      if (progCapIdsDelMes.length > 0) {
+        const hasOverlap = progCapIds.some(id => progCapIdsDelMes.includes(id));
+        if (!hasOverlap) continue;
+      }
     }
+
     const plantIds: string[] = (r.fields[eF.PLANTILLA] as string[]) || [];
     const estado = r.fields[eF.ESTADO] as string;
     const intento = Number(r.fields[eF.INTENTO]) || 1;
