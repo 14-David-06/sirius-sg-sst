@@ -202,7 +202,7 @@ El proyecto utiliza **Field IDs** en lugar de nombres de campos para garantizar 
 2. Hacer clic en un campo
 3. En la URL aparecerá el Field ID (ej: `fld1234567890abcd`)
 4. Copiar y pegar en `.env.local`
-
+ 
 Ver `src/infrastructure/config/airtableSGSST.ts` para la lista completa de campos configurados.
 
 ## Seguridad
