@@ -99,53 +99,57 @@ export async function GET(
     }
 
     // 3. Obtener acciones correctivas
-    // IMPORTANTE: Airtable requiere usar el NOMBRE del campo en fórmulas, no el field ID
-    // Y ARRAYJOIN devuelve el campo primario (idInspeccion), no el record ID
-    const accionesUrl = getSGSSTUrl(airtableSGSSTConfig.accionesCorrectivasAreasTableId);
-    const accionesFilter = `FIND('${id}', ARRAYJOIN({Inspección})) > 0`;
-
-    const params3 = new URLSearchParams({
-      filterByFormula: accionesFilter,
-      returnFieldsByFieldId: "true",
-    });
-
-    const accionesResponse = await fetch(`${accionesUrl}?${params3.toString()}`, {
-      method: "GET",
-      headers: getSGSSTHeaders(),
-      cache: "no-store",
-    });
+    // Usar los record IDs del campo ACCIONES_LINK de la cabecera
+    const accionesLinkIds = (cabecera.fields[inspeccionesAreasFields.ACCIONES_LINK] as string[]) || [];
 
     let acciones: unknown[] = [];
-    if (accionesResponse.ok) {
-      const accionesData: AirtableResponse = await accionesResponse.json();
-      acciones = accionesData.records.map((r) => {
-        // Obtener el criterio relacionado si existe
-        const criterioLinkIds = r.fields[accionesCorrectivasAreasFields.CRITERIO_LINK] as string[] | undefined;
-        const criterioRelacionadoId = criterioLinkIds?.[0] || null;
-        
-        // Buscar el criterio en la lista de criterios cargados
-        const criterioRelacionado = criterioRelacionadoId 
-          ? (criterios as { id: string; categoria: string; criterio: string; condicion: string }[]).find(c => c.id === criterioRelacionadoId)
-          : null;
+    if (accionesLinkIds.length > 0) {
+      const accionesUrl = getSGSSTUrl(airtableSGSSTConfig.accionesCorrectivasAreasTableId);
+      const accionesFormula = accionesLinkIds.length === 1
+        ? `RECORD_ID()='${accionesLinkIds[0]}'`
+        : `OR(${accionesLinkIds.map((rid) => `RECORD_ID()='${rid}'`).join(",")})`;
 
-        return {
-          id: r.id,
-          descripcion: r.fields[accionesCorrectivasAreasFields.DESCRIPCION] as string,
-          tipo: r.fields[accionesCorrectivasAreasFields.TIPO] as string,
-          responsable: r.fields[accionesCorrectivasAreasFields.RESPONSABLE] as string,
-          fechaPropuesta: r.fields[accionesCorrectivasAreasFields.FECHA_PROPUESTA] as string,
-          estado: r.fields[accionesCorrectivasAreasFields.ESTADO] as string,
-          fechaCierre: (r.fields[accionesCorrectivasAreasFields.FECHA_CIERRE] as string) || null,
-          evidenciaUrl: (r.fields[accionesCorrectivasAreasFields.EVIDENCIA_URL] as string) || null,
-          // Información del criterio relacionado
-          criterioRelacionado: criterioRelacionado ? {
-            id: criterioRelacionado.id,
-            categoria: criterioRelacionado.categoria,
-            criterio: criterioRelacionado.criterio,
-            condicion: criterioRelacionado.condicion,
-          } : null,
-        };
+      const params3 = new URLSearchParams({
+        filterByFormula: accionesFormula,
+        returnFieldsByFieldId: "true",
       });
+
+      const accionesResponse = await fetch(`${accionesUrl}?${params3.toString()}`, {
+        method: "GET",
+        headers: getSGSSTHeaders(),
+        cache: "no-store",
+      });
+
+      if (accionesResponse.ok) {
+        const accionesData: AirtableResponse = await accionesResponse.json();
+        acciones = accionesData.records.map((r) => {
+          // Obtener el criterio relacionado si existe
+          const criterioLinkIds = r.fields[accionesCorrectivasAreasFields.CRITERIO_LINK] as string[] | undefined;
+          const criterioRelacionadoId = criterioLinkIds?.[0] || null;
+
+          // Buscar el criterio en la lista de criterios cargados
+          const criterioRelacionado = criterioRelacionadoId
+            ? (criterios as { id: string; categoria: string; criterio: string; condicion: string }[]).find(c => c.id === criterioRelacionadoId)
+            : null;
+
+          return {
+            id: r.id,
+            descripcion: r.fields[accionesCorrectivasAreasFields.DESCRIPCION] as string,
+            tipo: r.fields[accionesCorrectivasAreasFields.TIPO] as string,
+            responsable: r.fields[accionesCorrectivasAreasFields.RESPONSABLE] as string,
+            fechaPropuesta: r.fields[accionesCorrectivasAreasFields.FECHA_PROPUESTA] as string,
+            estado: r.fields[accionesCorrectivasAreasFields.ESTADO] as string,
+            fechaCierre: (r.fields[accionesCorrectivasAreasFields.FECHA_CIERRE] as string) || null,
+            evidenciaUrl: (r.fields[accionesCorrectivasAreasFields.EVIDENCIA_URL] as string) || null,
+            criterioRelacionado: criterioRelacionado ? {
+              id: criterioRelacionado.id,
+              categoria: criterioRelacionado.categoria,
+              criterio: criterioRelacionado.criterio,
+              condicion: criterioRelacionado.condicion,
+            } : null,
+          };
+        });
+      }
     }
 
     // 4. Obtener responsables (sin descifrar firmas)
