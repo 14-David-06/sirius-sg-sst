@@ -20,20 +20,6 @@ import {
 // ══════════════════════════════════════════════════════════
 type CondicionEPP = "B" | "R" | "M" | "NA" | null;
 
-interface FirmaConfirmacion {
-  documento: string;
-  nombre: string;
-  cargo: string;
-  firma: string; // Base64 data URL
-  fechaHora: string;
-}
-
-interface ExportPayload {
-  inspeccionId: string;
-  firmaResponsable: FirmaConfirmacion;
-  firmaCopasst: FirmaConfirmacion;
-}
-
 interface AirtableRecord {
   id: string;
   fields: Record<string, unknown>;
@@ -139,25 +125,15 @@ const allBorders: Partial<ExcelJS.Borders> = {
 };
 
 // ══════════════════════════════════════════════════════════
-// POST /api/inspecciones-epp/exportar/[id]
-// Exporta una inspección específica con firmas de confirmación
+// GET /api/inspecciones-epp/exportar/[id]
+// Exporta una inspección específica a Excel
 // ══════════════════════════════════════════════════════════
-export async function POST(
-  request: NextRequest,
+export async function GET(
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id: inspeccionId } = await params;
-    const payload: ExportPayload = await request.json();
-
-    const { firmaResponsable, firmaCopasst } = payload;
-
-    if (!firmaResponsable?.firma || !firmaCopasst?.firma) {
-      return NextResponse.json(
-        { success: false, message: "Se requieren ambas firmas de confirmación" },
-        { status: 400 }
-      );
-    }
 
     const { inspeccionesFields, detalleInspeccionFields } = airtableSGSSTConfig;
 
@@ -489,136 +465,8 @@ export async function POST(
       cell.border = allBorders;
     }
 
-    // ══════════════════════════════════════════════════════
-    // SECCIÓN: FIRMAS DE CONFIRMACIÓN
-    // ══════════════════════════════════════════════════════
-    row += 2;
-
-    // Título de la sección
-    ws.mergeCells(row, 1, row, TOTAL_COLS);
-    const firmasTitulo = ws.getCell(row, 1);
-    firmasTitulo.value = "FIRMAS DE CONFIRMACIÓN";
-    firmasTitulo.font = { name: "Calibri", size: 12, bold: true, color: { argb: `FF${BRAND.WHITE}` } };
-    firmasTitulo.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.AZUL_BARRANCA}` } };
-    firmasTitulo.alignment = { horizontal: "center", vertical: "middle" };
-    firmasTitulo.border = allBorders;
-    ws.getRow(row).height = 28;
-    row++;
-
-    // ── Sub-títulos: FIRMA DEL RESPONSABLE / FIRMA DEL COPASST
-    ws.getRow(row).height = 22;
-
-    ws.mergeCells(row, 1, row, 6);
-    const subResp = ws.getCell(row, 1);
-    subResp.value = "FIRMA DEL RESPONSABLE DE LA INSPECCIÓN";
-    subResp.font = { name: "Calibri", size: 9, bold: true, color: { argb: `FF${BRAND.IMPERIAL}` } };
-    subResp.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.SUTILEZA}` } };
-    subResp.alignment = { horizontal: "center", vertical: "middle" };
-    subResp.border = allBorders;
-
-    ws.mergeCells(row, 7, row, TOTAL_COLS);
-    const subCop = ws.getCell(row, 7);
-    subCop.value = "FIRMA DEL REPRESENTANTE DEL COPASST";
-    subCop.font = { name: "Calibri", size: 9, bold: true, color: { argb: `FF${BRAND.IMPERIAL}` } };
-    subCop.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.SUTILEZA}` } };
-    subCop.alignment = { horizontal: "center", vertical: "middle" };
-    subCop.border = allBorders;
-    row++;
-
-    // ── Área de imágenes de firmas
-    ws.getRow(row).height = 80;
-
-    ws.mergeCells(row, 1, row, 6);
-    const respFirmaArea = ws.getCell(row, 1);
-    respFirmaArea.value = "";
-    respFirmaArea.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.WHITE}` } };
-    respFirmaArea.border = allBorders;
-
-    try {
-      const base64Resp = firmaResponsable.firma.replace(/^data:image\/png;base64,/, "");
-      const imgRespId = wb.addImage({ base64: base64Resp, extension: "png" });
-      ws.addImage(imgRespId, { tl: { col: 1.5, row: row - 1 + 0.15 }, ext: { width: 180, height: 60 } });
-    } catch (err) {
-      console.error("Error insertando firma responsable:", err);
-    }
-
-    ws.mergeCells(row, 7, row, TOTAL_COLS);
-    const copFirmaArea = ws.getCell(row, 7);
-    copFirmaArea.value = "";
-    copFirmaArea.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.WHITE}` } };
-    copFirmaArea.border = allBorders;
-
-    try {
-      const base64Cop = firmaCopasst.firma.replace(/^data:image\/png;base64,/, "");
-      const imgCopId = wb.addImage({ base64: base64Cop, extension: "png" });
-      ws.addImage(imgCopId, { tl: { col: 8.5, row: row - 1 + 0.15 }, ext: { width: 180, height: 60 } });
-    } catch (err) {
-      console.error("Error insertando firma COPASST:", err);
-    }
-    row++;
-
-    // ── Nombre completo
-    ws.getRow(row).height = 18;
-
-    ws.mergeCells(row, 1, row, 6);
-    const respNombre = ws.getCell(row, 1);
-    respNombre.value = firmaResponsable.nombre;
-    respNombre.font = { name: "Calibri", size: 10, bold: true, color: { argb: `FF${BRAND.IMPERIAL}` } };
-    respNombre.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.COTILEDON}` } };
-    respNombre.alignment = { horizontal: "center", vertical: "middle" };
-    respNombre.border = allBorders;
-
-    ws.mergeCells(row, 7, row, TOTAL_COLS);
-    const copNombre = ws.getCell(row, 7);
-    copNombre.value = firmaCopasst.nombre;
-    copNombre.font = { name: "Calibri", size: 10, bold: true, color: { argb: `FF${BRAND.IMPERIAL}` } };
-    copNombre.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.COTILEDON}` } };
-    copNombre.alignment = { horizontal: "center", vertical: "middle" };
-    copNombre.border = allBorders;
-    row++;
-
-    // ── Cédula
-    ws.getRow(row).height = 16;
-
-    ws.mergeCells(row, 1, row, 6);
-    const respDoc = ws.getCell(row, 1);
-    respDoc.value = `C.C. ${firmaResponsable.documento}`;
-    respDoc.font = { name: "Calibri", size: 9, color: { argb: `FF${BRAND.IMPERIAL}` } };
-    respDoc.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.WHITE}` } };
-    respDoc.alignment = { horizontal: "center", vertical: "middle" };
-    respDoc.border = allBorders;
-
-    ws.mergeCells(row, 7, row, TOTAL_COLS);
-    const copDoc = ws.getCell(row, 7);
-    copDoc.value = `C.C. ${firmaCopasst.documento}`;
-    copDoc.font = { name: "Calibri", size: 9, color: { argb: `FF${BRAND.IMPERIAL}` } };
-    copDoc.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.WHITE}` } };
-    copDoc.alignment = { horizontal: "center", vertical: "middle" };
-    copDoc.border = allBorders;
-    row++;
-
-    // ── Cargo laboral
-    ws.getRow(row).height = 16;
-
-    ws.mergeCells(row, 1, row, 6);
-    const respCargo = ws.getCell(row, 1);
-    respCargo.value = firmaResponsable.cargo || "Responsable de Inspección";
-    respCargo.font = { name: "Calibri", size: 9, italic: true, color: { argb: `FF${BRAND.IMPERIAL}` } };
-    respCargo.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.SUTILEZA}` } };
-    respCargo.alignment = { horizontal: "center", vertical: "middle" };
-    respCargo.border = allBorders;
-
-    ws.mergeCells(row, 7, row, TOTAL_COLS);
-    const copCargo = ws.getCell(row, 7);
-    copCargo.value = firmaCopasst.cargo || "Representante COPASST";
-    copCargo.font = { name: "Calibri", size: 9, italic: true, color: { argb: `FF${BRAND.IMPERIAL}` } };
-    copCargo.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.SUTILEZA}` } };
-    copCargo.alignment = { horizontal: "center", vertical: "middle" };
-    copCargo.border = allBorders;
-    row++;
-
     // ── Footer ───────────────────────────────────────────
-    row++;
+    row += 2;
     ws.getRow(row).height = 20;
     ws.mergeCells(row, 1, row, TOTAL_COLS);
     const footerCell = ws.getCell(row, 1);
@@ -665,8 +513,6 @@ export async function POST(
           fields: {
             [inspeccionesFields.URL_DOCUMENTO]: s3Url,
             [inspeccionesFields.FECHA_EXPORTACION]: new Date().toISOString(),
-            [inspeccionesFields.RESPONSABLE_FIRMANTE]: `${firmaResponsable.nombre} (C.C. ${firmaResponsable.documento})`,
-            [inspeccionesFields.COPASST_FIRMANTE]: `${firmaCopasst.nombre} (C.C. ${firmaCopasst.documento})`,
           },
         };
 
