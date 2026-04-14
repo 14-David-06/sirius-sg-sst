@@ -500,6 +500,9 @@ export async function GET() {
         nombreEmpleado: nombreMap.get(idEmpleadoCore) || "",
         estado: (f[entregasFields.ESTADO] as string) || "",
         motivo: (f[entregasFields.MOTIVO] as string) || "",
+        fotoEvidenciaUrl: (Array.isArray(f[entregasFields.FOTO_EVIDENCIA_URL])
+          ? (f[entregasFields.FOTO_EVIDENCIA_URL] as { url: string }[]).map((a) => a.url).join(",")
+          : ""),
         detalles,
         tokens,
       };

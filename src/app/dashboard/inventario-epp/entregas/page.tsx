@@ -59,6 +59,7 @@ interface EntregaEPP {
   nombreEmpleado: string;
   estado: string;
   motivo: string;
+  fotoEvidenciaUrl: string;
   detalles: DetalleEntrega[];
   tokens: TokenEntrega[];
 }
@@ -866,6 +867,33 @@ export default function EntregasListPage() {
                           </div>
                         </div>
                       </div>
+
+                      {/* Fotos de evidencia */}
+                      {ent.fotoEvidenciaUrl && (
+                        <div className="mt-4 pt-3 border-t border-white/5">
+                          <h3 className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                            <Eye className="w-3.5 h-3.5" />
+                            Fotos de evidencia
+                          </h3>
+                          <div className="grid grid-cols-3 gap-2">
+                            {ent.fotoEvidenciaUrl.split(",").map((url: string, idx: number) => (
+                              <a
+                                key={idx}
+                                href={url.trim()}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block rounded-xl overflow-hidden border border-white/10 hover:border-orange-400/30 transition-all aspect-square"
+                              >
+                                <img
+                                  src={url.trim()}
+                                  alt={`Evidencia ${idx + 1}`}
+                                  className="w-full h-full object-cover bg-black/30"
+                                />
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
                       {/* Tokens / Firmas */}
                       {ent.tokens.length > 0 && (

@@ -23,6 +23,9 @@ import {
   PenTool,
   Eraser,
   Check,
+  Camera,
+  ImageIcon,
+  Trash2,
 } from "lucide-react";
 import { useSession } from "@/presentation/context/SessionContext";
 
@@ -261,6 +264,12 @@ export default function EntregaEPPPage() {
   const [notas, setNotas] = useState("");
   const [motivo, setMotivo] = useState(MOTIVOS[0]);
 
+  // Fotos evidencia (1-3 obligatorias)
+  const [fotosEvidencia, setFotosEvidencia] = useState<File[]>([]);
+  const [fotosPreviews, setFotosPreviews] = useState<string[]>([]);
+  const [fotoUploading, setFotoUploading] = useState(false);
+  const fotoInputRef = useRef<HTMLInputElement>(null);
+
   // Estado de la página
   const [pageState, setPageState] = useState<PageState>("idle");
   const [errorMsg, setErrorMsg] = useState("");
@@ -413,6 +422,11 @@ export default function EntregaEPPPage() {
       setPageState("error");
       return;
     }
+    if (fotosEvidencia.length === 0) {
+      setErrorMsg("Debe agregar al menos 1 foto de evidencia.");
+      setPageState("error");
+      return;
+    }
 
     setPageState("submitting");
     setErrorMsg("");
@@ -458,6 +472,32 @@ export default function EntregaEPPPage() {
       const entregas: EntregaCreada[] = json.entregas.map(
         (e: EntregaCreada) => ({ ...e, firmado: false })
       );
+
+      // Subir fotos de evidencia a S3
+      if (fotosEvidencia.length > 0 && entregas.length > 0) {
+        setFotoUploading(true);
+        try {
+          for (const ent of entregas) {
+            const formData = new FormData();
+            formData.append("entregaRecordId", ent.entregaId);
+            for (const foto of fotosEvidencia) {
+              formData.append("fotos", foto);
+            }
+            const fotoRes = await fetch("/api/entregas-epp/foto-evidencia", {
+              method: "POST",
+              body: formData,
+            });
+            const fotoJson = await fotoRes.json();
+            if (!fotoJson.success) {
+              console.error("Error subiendo fotos para entrega", ent.entregaId, fotoJson.message);
+            }
+          }
+        } catch (fotoErr) {
+          console.error("Error subiendo fotos de evidencia:", fotoErr);
+        } finally {
+          setFotoUploading(false);
+        }
+      }
 
       setEntregasCreadas(entregas);
       setSigningIndex(0);
@@ -535,6 +575,8 @@ export default function EntregaEPPPage() {
     setBeneficiarios([]);
     setNotas("");
     setMotivo(MOTIVOS[0]);
+    setFotosEvidencia([]);
+    setFotosPreviews([]);
     setEntregasCreadas([]);
     setSigningIndex(0);
     fetchData();
@@ -1154,6 +1196,85 @@ export default function EntregaEPPPage() {
               </div>
             </div>
 
+            {/* ── Fotos de evidencia (1-3) ─────────────────── */}
+            <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/15 p-6 mb-6">
+              <h2 className="text-base font-semibold text-white mb-4 flex items-center gap-2">
+                <Camera className="w-5 h-5 text-orange-400" />
+                Fotos de evidencia
+                <span className="text-xs font-normal text-orange-300">(obligatorio · {fotosEvidencia.length}/3)</span>
+              </h2>
+
+              {/* Grid de fotos existentes + botón agregar */}
+              <div className="grid grid-cols-3 gap-3 mb-3">
+                {fotosPreviews.map((preview, idx) => (
+                  <div key={idx} className="relative rounded-xl overflow-hidden border border-white/15 aspect-square">
+                    <img
+                      src={preview}
+                      alt={`Evidencia ${idx + 1}`}
+                      className="w-full h-full object-cover bg-black/30"
+                    />
+                    <button
+                      onClick={() => {
+                        setFotosEvidencia((prev) => prev.filter((_, i) => i !== idx));
+                        setFotosPreviews((prev) => {
+                          URL.revokeObjectURL(prev[idx]);
+                          return prev.filter((_, i) => i !== idx);
+                        });
+                      }}
+                      className="absolute top-1.5 right-1.5 w-7 h-7 rounded-lg bg-red-500/80 flex items-center justify-center text-white hover:bg-red-600 transition-all cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                    <div className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded-md bg-black/60 text-[9px] text-white/70">
+                      {((fotosEvidencia[idx]?.size || 0) / 1024).toFixed(0)} KB
+                    </div>
+                  </div>
+                ))}
+
+                {/* Botón agregar foto (si aún no llega a 3) */}
+                {fotosEvidencia.length < 3 && (
+                  <div
+                    onClick={() => fotoInputRef.current?.click()}
+                    className="border-2 border-dashed border-white/15 rounded-xl aspect-square flex flex-col items-center justify-center cursor-pointer hover:border-orange-400/30 hover:bg-white/5 transition-all"
+                  >
+                    <ImageIcon className="w-8 h-8 text-white/15 mb-1.5" />
+                    <p className="text-[11px] text-white/30">
+                      {fotosEvidencia.length === 0 ? "Agregar foto" : "Agregar otra"}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {fotosEvidencia.length === 0 && (
+                <p className="text-[11px] text-orange-300/60 text-center">
+                  Debe agregar mínimo 1 foto y máximo 3 · JPG, PNG o WebP · Máx. 10 MB c/u
+                </p>
+              )}
+
+              <input
+                ref={fotoInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                capture="environment"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  if (file.size > 10 * 1024 * 1024) {
+                    setErrorMsg("La imagen excede 10 MB");
+                    return;
+                  }
+                  if (fotosEvidencia.length >= 3) {
+                    setErrorMsg("Máximo 3 fotos de evidencia");
+                    return;
+                  }
+                  setFotosEvidencia((prev) => [...prev, file]);
+                  setFotosPreviews((prev) => [...prev, URL.createObjectURL(file)]);
+                  if (fotoInputRef.current) fotoInputRef.current.value = "";
+                }}
+              />
+            </div>
+
             {/* ── Info sobre firma digital ────────────── */}
             <div className="bg-blue-500/5 border border-blue-400/15 rounded-xl px-4 py-3 mb-6">
               <div className="flex items-start gap-2.5">
@@ -1196,15 +1317,17 @@ export default function EntregaEPPPage() {
                 disabled={
                   beneficiarios.length === 0 ||
                   totalLineas === 0 ||
+                  fotosEvidencia.length === 0 ||
                   pageState === "submitting" ||
+                  fotoUploading ||
                   !user
                 }
                 className="w-full py-3.5 rounded-xl bg-orange-500/30 border border-orange-400/40 text-orange-300 font-semibold text-sm hover:bg-orange-500/40 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                {pageState === "submitting" ? (
+                {pageState === "submitting" || fotoUploading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Registrando entrega...
+                    {fotoUploading ? "Subiendo fotos..." : "Registrando entrega..."}
                   </>
                 ) : (
                   <>

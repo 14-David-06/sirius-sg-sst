@@ -51,6 +51,7 @@ interface Entrega {
   motivo: string;
   fechaConfirmacion: string;
   observaciones: string;
+  fotoEvidenciaUrl: string;
   detalles: DetalleEntrega[];
   tokens: TokenEntrega[];
 }
@@ -348,6 +349,9 @@ export async function GET(req: NextRequest) {
         motivo: (f[entregasFields.MOTIVO] as string) || "",
         fechaConfirmacion: (f[entregasFields.FECHA_CONFIRMACION] as string) || "",
         observaciones: (f[entregasFields.OBSERVACIONES] as string) || "",
+        fotoEvidenciaUrl: (Array.isArray(f[entregasFields.FOTO_EVIDENCIA_URL])
+          ? (f[entregasFields.FOTO_EVIDENCIA_URL] as { url: string }[]).map((a) => a.url).join(",")
+          : ""),
         detalles,
         tokens,
       });

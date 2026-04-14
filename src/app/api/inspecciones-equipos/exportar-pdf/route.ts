@@ -79,6 +79,14 @@ interface DetalleEquipo {
   correas: string;
   fechaVencimiento: string;
   observaciones: string;
+  // Datos detallados parseados de observaciones (JSON embebido)
+  observacionesLimpias: string;
+  criteriosExtintor?: Record<string, { estado: string | null }>;
+  infoExtintor?: { claseAgente: string; tipoExtintor: string; capacidad: string; fechaProximaRecarga: string };
+  elementosBotiquin?: Record<string, { estado: string | null; cantidad: string; fechaVencimiento: string }>;
+  elementosCamilla?: Record<string, { estado: string | null }>;
+  elementosKit?: Record<string, { estado: string | null; cantidad: string; fechaVencimiento: string }>;
+  verificacionesKit?: Record<string, { respuesta: boolean | null }>;
 }
 
 interface Responsable {
@@ -156,6 +164,42 @@ function formatFechaLarga(iso: string | undefined | null): string {
     });
   } catch {
     return iso;
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// Parser de datos detallados embebidos en observaciones
+// ══════════════════════════════════════════════════════════
+function parseObservacionesDetalladas(obs: string): {
+  observacionesLimpias: string;
+  criteriosExtintor?: Record<string, { estado: string | null }>;
+  infoExtintor?: { claseAgente: string; tipoExtintor: string; capacidad: string; fechaProximaRecarga: string };
+  elementosBotiquin?: Record<string, { estado: string | null; cantidad: string; fechaVencimiento: string }>;
+  elementosCamilla?: Record<string, { estado: string | null }>;
+  elementosKit?: Record<string, { estado: string | null; cantidad: string; fechaVencimiento: string }>;
+  verificacionesKit?: Record<string, { respuesta: boolean | null }>;
+} {
+  const separador = "---DATOS_DETALLADOS---";
+  const idx = obs.indexOf(separador);
+  if (idx === -1) return { observacionesLimpias: obs };
+
+  const obsLimpia = obs.substring(0, idx).trim();
+  const jsonStr = obs.substring(idx + separador.length).trim();
+
+  try {
+    const datos = JSON.parse(jsonStr);
+    return {
+      observacionesLimpias: obsLimpia,
+      criteriosExtintor: datos.criteriosExtintor || undefined,
+      infoExtintor: datos.infoExtintor || undefined,
+      elementosBotiquin: datos.elementosBotiquin || undefined,
+      elementosCamilla: datos.elementosCamilla || undefined,
+      elementosKit: datos.elementosKit || undefined,
+      verificacionesKit: datos.verificacionesKit || undefined,
+    };
+  } catch {
+    console.error("Error parseando datos detallados de observaciones");
+    return { observacionesLimpias: obs };
   }
 }
 
@@ -434,17 +478,14 @@ function generarPDFInspeccion(insp: InspeccionCompleta, logoBase64: string | nul
     ];
 
     const body = detalles.map((det) => {
-      const separador = "---DATOS_DETALLADOS---";
-      const obsIdx = det.observaciones.indexOf(separador);
-      const obsLimpia = obsIdx === -1 ? det.observaciones : det.observaciones.substring(0, obsIdx).trim();
-
       const rowArr: (string | { content: string; styles?: object })[] = [
         det.area,
         det.equipoNombre || det.equipoCodigo || det.idDetalle,
       ];
 
       criterios.forEach((c) => {
-        const val = det[c.key] || "";
+        const rawVal = det[c.key];
+        const val = typeof rawVal === "string" ? rawVal : "";
         const styles: Record<string, unknown> = { halign: "center" as const };
         if (val === "Bueno") styles.textColor = [0, 128, 0];
         if (val === "Malo") styles.textColor = [200, 0, 0];
@@ -452,7 +493,7 @@ function generarPDFInspeccion(insp: InspeccionCompleta, logoBase64: string | nul
       });
 
       rowArr.push(formatFechaLarga(det.fechaVencimiento));
-      rowArr.push(obsLimpia);
+      rowArr.push(det.observacionesLimpias);
       return rowArr;
     });
 
@@ -511,6 +552,286 @@ function generarPDFInspeccion(insp: InspeccionCompleta, logoBase64: string | nul
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     currentY = (doc as any).lastAutoTable.finalY + 5;
+
+    // ═══════════════════════════════════════════════════════
+    // DETALLE ESPECÍFICO POR EQUIPO (datos de ---DATOS_DETALLADOS---)
+    // ═══════════════════════════════════════════════════════
+    const detallesConDatos = detalles.filter(
+      (d) => d.criteriosExtintor || d.infoExtintor || d.elementosBotiquin || d.elementosCamilla || d.elementosKit || d.verificacionesKit
+    );
+
+    if (detallesConDatos.length > 0) {
+      // Título de sección detallada
+      if (currentY + 15 > pageHeight - margin) { doc.addPage(); currentY = margin; }
+      doc.setFillColor(100, 100, 100);
+      doc.rect(margin, currentY, contentWidth, 6, "FD");
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(...COLORS.WHITE);
+      doc.text(`DETALLE ESPECÍFICO — ${categoria.toUpperCase()}`, margin + contentWidth / 2, currentY + 4, { align: "center" });
+      doc.setTextColor(...COLORS.BLACK);
+      currentY += 8;
+
+      detallesConDatos.forEach((det) => {
+        const nombreEquipo = det.equipoNombre || det.equipoCodigo || det.idDetalle;
+
+        // ── EXTINTOR ──
+        if (det.criteriosExtintor || det.infoExtintor) {
+          if (currentY + 25 > pageHeight - margin) { doc.addPage(); currentY = margin; }
+
+          // Info snapshot del extintor
+          if (det.infoExtintor) {
+            doc.setFillColor(245, 245, 245);
+            doc.rect(margin, currentY, contentWidth, 10, "FD");
+            doc.setDrawColor(...COLORS.BLACK);
+            doc.rect(margin, currentY, contentWidth, 10, "S");
+            doc.setFontSize(7);
+            doc.setFont("helvetica", "bold");
+            doc.text(`${nombreEquipo}`, margin + 3, currentY + 4);
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(6.5);
+            const infoText = [
+              det.infoExtintor.claseAgente ? `Clase/Agente: ${det.infoExtintor.claseAgente}` : null,
+              det.infoExtintor.tipoExtintor ? `Tipo: ${det.infoExtintor.tipoExtintor}` : null,
+              det.infoExtintor.capacidad ? `Capacidad: ${det.infoExtintor.capacidad}` : null,
+              det.infoExtintor.fechaProximaRecarga ? `Próxima Recarga: ${formatFechaLarga(det.infoExtintor.fechaProximaRecarga)}` : null,
+            ].filter(Boolean).join("  |  ");
+            doc.text(infoText, margin + 3, currentY + 8);
+            currentY += 12;
+          } else {
+            doc.setFontSize(7);
+            doc.setFont("helvetica", "bold");
+            doc.text(`${nombreEquipo}`, margin + 3, currentY + 4);
+            currentY += 6;
+          }
+
+          // Tabla de criterios detallados del extintor
+          if (det.criteriosExtintor) {
+            const critEntries = Object.entries(det.criteriosExtintor);
+            if (critEntries.length > 0) {
+              const critHead = [[
+                { content: "Criterio", styles: { fillColor: COLORS.HEADER_BLUE, halign: "left" as const } },
+                { content: "Estado", styles: { fillColor: COLORS.HEADER_BLUE, halign: "center" as const } },
+              ]];
+              const critBody = critEntries.map(([nombre, val]) => {
+                const estado = val?.estado || "—";
+                const styles: Record<string, unknown> = { halign: "center" as const };
+                if (estado === "Bueno" || estado === "Sí") styles.textColor = [0, 128, 0];
+                if (estado === "Malo" || estado === "No") styles.textColor = [200, 0, 0];
+                return [nombre, { content: estado, styles }];
+              });
+              // Agregar observaciones del equipo como fila final
+              if (det.observacionesLimpias) {
+                critBody.push(["Observaciones", det.observacionesLimpias]);
+              }
+
+              autoTable(doc, {
+                startY: currentY,
+                head: critHead,
+                body: critBody,
+                columnStyles: { 0: { cellWidth: contentWidth * 0.6 }, 1: { cellWidth: contentWidth * 0.4, halign: "center" as const } },
+                headStyles: { fillColor: COLORS.HEADER_BLUE, textColor: COLORS.BLACK, fontStyle: "bold", fontSize: 6.5 },
+                bodyStyles: { fontSize: 6.5, textColor: COLORS.BLACK },
+                alternateRowStyles: { fillColor: COLORS.LIGHT_GRAY },
+                tableLineColor: COLORS.BLACK, tableLineWidth: 0.1,
+                margin: { left: margin, right: margin },
+                theme: "grid",
+              });
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              currentY = (doc as any).lastAutoTable.finalY + 4;
+            }
+          }
+        }
+
+        // ── BOTIQUÍN ──
+        if (det.elementosBotiquin) {
+          if (currentY + 15 > pageHeight - margin) { doc.addPage(); currentY = margin; }
+          doc.setFontSize(7);
+          doc.setFont("helvetica", "bold");
+          doc.text(`${nombreEquipo}`, margin + 3, currentY + 4);
+          currentY += 6;
+
+          const elemEntries = Object.entries(det.elementosBotiquin);
+          if (elemEntries.length > 0) {
+            const elemHead = [[
+              { content: "Elemento", styles: { fillColor: COLORS.HEADER_BLUE, halign: "left" as const } },
+              { content: "Estado", styles: { fillColor: COLORS.HEADER_BLUE, halign: "center" as const } },
+              { content: "Cantidad", styles: { fillColor: COLORS.HEADER_BLUE, halign: "center" as const } },
+              { content: "Vencimiento", styles: { fillColor: COLORS.HEADER_BLUE, halign: "center" as const } },
+            ]];
+            const elemBody = elemEntries.map(([nombre, val]) => {
+              const estado = val?.estado || "—";
+              const styles: Record<string, unknown> = { halign: "center" as const };
+              if (estado === "Bueno") styles.textColor = [0, 128, 0];
+              if (estado === "Malo") styles.textColor = [200, 0, 0];
+              return [
+                nombre,
+                { content: estado, styles },
+                { content: val?.cantidad || "—", styles: { halign: "center" as const } },
+                { content: formatFechaLarga(val?.fechaVencimiento) || "—", styles: { halign: "center" as const } },
+              ];
+            });
+
+            autoTable(doc, {
+              startY: currentY,
+              head: elemHead,
+              body: elemBody,
+              columnStyles: {
+                0: { cellWidth: contentWidth * 0.35 },
+                1: { cellWidth: contentWidth * 0.20, halign: "center" as const },
+                2: { cellWidth: contentWidth * 0.20, halign: "center" as const },
+                3: { cellWidth: contentWidth * 0.25, halign: "center" as const },
+              },
+              headStyles: { fillColor: COLORS.HEADER_BLUE, textColor: COLORS.BLACK, fontStyle: "bold", fontSize: 6.5 },
+              bodyStyles: { fontSize: 6.5, textColor: COLORS.BLACK },
+              alternateRowStyles: { fillColor: COLORS.LIGHT_GRAY },
+              tableLineColor: COLORS.BLACK, tableLineWidth: 0.1,
+              margin: { left: margin, right: margin },
+              theme: "grid",
+            });
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            currentY = (doc as any).lastAutoTable.finalY + 4;
+          }
+        }
+
+        // ── CAMILLA ──
+        if (det.elementosCamilla) {
+          if (currentY + 15 > pageHeight - margin) { doc.addPage(); currentY = margin; }
+          doc.setFontSize(7);
+          doc.setFont("helvetica", "bold");
+          doc.text(`${nombreEquipo}`, margin + 3, currentY + 4);
+          currentY += 6;
+
+          const elemEntries = Object.entries(det.elementosCamilla);
+          if (elemEntries.length > 0) {
+            const elemHead = [[
+              { content: "Elemento", styles: { fillColor: COLORS.HEADER_BLUE, halign: "left" as const } },
+              { content: "Estado", styles: { fillColor: COLORS.HEADER_BLUE, halign: "center" as const } },
+            ]];
+            const elemBody = elemEntries.map(([nombre, val]) => {
+              const estado = val?.estado || "—";
+              const styles: Record<string, unknown> = { halign: "center" as const };
+              if (estado === "Bueno") styles.textColor = [0, 128, 0];
+              if (estado === "Malo") styles.textColor = [200, 0, 0];
+              return [nombre, { content: estado, styles }];
+            });
+
+            autoTable(doc, {
+              startY: currentY,
+              head: elemHead,
+              body: elemBody,
+              columnStyles: {
+                0: { cellWidth: contentWidth * 0.6 },
+                1: { cellWidth: contentWidth * 0.4, halign: "center" as const },
+              },
+              headStyles: { fillColor: COLORS.HEADER_BLUE, textColor: COLORS.BLACK, fontStyle: "bold", fontSize: 6.5 },
+              bodyStyles: { fontSize: 6.5, textColor: COLORS.BLACK },
+              alternateRowStyles: { fillColor: COLORS.LIGHT_GRAY },
+              tableLineColor: COLORS.BLACK, tableLineWidth: 0.1,
+              margin: { left: margin, right: margin },
+              theme: "grid",
+            });
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            currentY = (doc as any).lastAutoTable.finalY + 4;
+          }
+        }
+
+        // ── KIT DERRAMES ──
+        if (det.elementosKit) {
+          if (currentY + 15 > pageHeight - margin) { doc.addPage(); currentY = margin; }
+          doc.setFontSize(7);
+          doc.setFont("helvetica", "bold");
+          doc.text(`${nombreEquipo}`, margin + 3, currentY + 4);
+          currentY += 6;
+
+          const elemEntries = Object.entries(det.elementosKit);
+          if (elemEntries.length > 0) {
+            const elemHead = [[
+              { content: "Elemento", styles: { fillColor: COLORS.HEADER_BLUE, halign: "left" as const } },
+              { content: "Estado", styles: { fillColor: COLORS.HEADER_BLUE, halign: "center" as const } },
+              { content: "Cantidad", styles: { fillColor: COLORS.HEADER_BLUE, halign: "center" as const } },
+              { content: "Vencimiento", styles: { fillColor: COLORS.HEADER_BLUE, halign: "center" as const } },
+            ]];
+            const elemBody = elemEntries.map(([nombre, val]) => {
+              const estado = val?.estado || "—";
+              const styles: Record<string, unknown> = { halign: "center" as const };
+              if (estado === "Bueno") styles.textColor = [0, 128, 0];
+              if (estado === "Malo") styles.textColor = [200, 0, 0];
+              return [
+                nombre,
+                { content: estado, styles },
+                { content: val?.cantidad || "—", styles: { halign: "center" as const } },
+                { content: formatFechaLarga(val?.fechaVencimiento) || "—", styles: { halign: "center" as const } },
+              ];
+            });
+
+            autoTable(doc, {
+              startY: currentY,
+              head: elemHead,
+              body: elemBody,
+              columnStyles: {
+                0: { cellWidth: contentWidth * 0.35 },
+                1: { cellWidth: contentWidth * 0.20, halign: "center" as const },
+                2: { cellWidth: contentWidth * 0.20, halign: "center" as const },
+                3: { cellWidth: contentWidth * 0.25, halign: "center" as const },
+              },
+              headStyles: { fillColor: COLORS.HEADER_BLUE, textColor: COLORS.BLACK, fontStyle: "bold", fontSize: 6.5 },
+              bodyStyles: { fontSize: 6.5, textColor: COLORS.BLACK },
+              alternateRowStyles: { fillColor: COLORS.LIGHT_GRAY },
+              tableLineColor: COLORS.BLACK, tableLineWidth: 0.1,
+              margin: { left: margin, right: margin },
+              theme: "grid",
+            });
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            currentY = (doc as any).lastAutoTable.finalY + 4;
+          }
+
+          // Verificaciones generales del kit
+          if (det.verificacionesKit) {
+            if (currentY + 15 > pageHeight - margin) { doc.addPage(); currentY = margin; }
+            doc.setFillColor(100, 100, 100);
+            doc.rect(margin, currentY, contentWidth, 6, "FD");
+            doc.setFontSize(6.5);
+            doc.setFont("helvetica", "bold");
+            doc.setTextColor(...COLORS.WHITE);
+            doc.text("VERIFICACIONES GENERALES DEL KIT", margin + contentWidth / 2, currentY + 4, { align: "center" });
+            doc.setTextColor(...COLORS.BLACK);
+            currentY += 7;
+
+            const verHead = [[
+              { content: "Criterio", styles: { fillColor: COLORS.HEADER_BLUE, halign: "left" as const } },
+              { content: "Cumple", styles: { fillColor: COLORS.HEADER_BLUE, halign: "center" as const } },
+            ]];
+            const verBody = Object.entries(det.verificacionesKit).map(([nombre, val]) => {
+              const cumple = val?.respuesta === true ? "Sí" : val?.respuesta === false ? "No" : "—";
+              const styles: Record<string, unknown> = { halign: "center" as const };
+              if (cumple === "Sí") styles.textColor = [0, 128, 0];
+              if (cumple === "No") styles.textColor = [200, 0, 0];
+              return [nombre, { content: cumple, styles }];
+            });
+
+            autoTable(doc, {
+              startY: currentY,
+              head: verHead,
+              body: verBody,
+              columnStyles: {
+                0: { cellWidth: contentWidth * 0.7 },
+                1: { cellWidth: contentWidth * 0.3, halign: "center" as const },
+              },
+              headStyles: { fillColor: COLORS.HEADER_BLUE, textColor: COLORS.BLACK, fontStyle: "bold", fontSize: 6.5 },
+              bodyStyles: { fontSize: 6.5, textColor: COLORS.BLACK },
+              alternateRowStyles: { fillColor: COLORS.LIGHT_GRAY },
+              tableLineColor: COLORS.BLACK, tableLineWidth: 0.1,
+              margin: { left: margin, right: margin },
+              theme: "grid",
+            });
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            currentY = (doc as any).lastAutoTable.finalY + 4;
+          }
+        }
+      }); // end detallesConDatos.forEach
+    } // end if detallesConDatos
+
     });
 
     // ═══════════════════════════════════════════════════════
@@ -732,6 +1053,10 @@ export async function POST(request: NextRequest) {
 
       links.forEach((inspId) => {
         if (!detallesMap[inspId]) detallesMap[inspId] = [];
+
+        const obsRaw = (r.fields[detalleEquiposFields.OBSERVACIONES] as string) || "";
+        const parsed = parseObservacionesDetalladas(obsRaw);
+
         detallesMap[inspId].push({
           id: r.id,
           inspeccionRecordId: inspId,
@@ -752,7 +1077,14 @@ export async function POST(request: NextRequest) {
           estructura: (r.fields[detalleEquiposFields.ESTRUCTURA] as string) || "",
           correas: (r.fields[detalleEquiposFields.CORREAS] as string) || "",
           fechaVencimiento: (r.fields[detalleEquiposFields.FECHA_VENCIMIENTO] as string) || "",
-          observaciones: (r.fields[detalleEquiposFields.OBSERVACIONES] as string) || "",
+          observaciones: obsRaw,
+          observacionesLimpias: parsed.observacionesLimpias,
+          criteriosExtintor: parsed.criteriosExtintor,
+          infoExtintor: parsed.infoExtintor,
+          elementosBotiquin: parsed.elementosBotiquin,
+          elementosCamilla: parsed.elementosCamilla,
+          elementosKit: parsed.elementosKit,
+          verificacionesKit: parsed.verificacionesKit,
         });
       });
     });

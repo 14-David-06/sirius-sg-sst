@@ -42,6 +42,14 @@ interface DetalleEquipo {
   correas: string;
   fechaVencimiento: string;
   observaciones: string;
+  // Datos detallados parseados de observaciones (JSON embebido)
+  observacionesLimpias: string;
+  criteriosExtintor?: Record<string, { estado: string | null }>;
+  infoExtintor?: { claseAgente: string; tipoExtintor: string; capacidad: string; fechaProximaRecarga: string };
+  elementosBotiquin?: Record<string, { estado: string | null; cantidad: string; fechaVencimiento: string }>;
+  elementosCamilla?: Record<string, { estado: string | null }>;
+  elementosKit?: Record<string, { estado: string | null; cantidad: string; fechaVencimiento: string }>;
+  verificacionesKit?: Record<string, { respuesta: boolean | null }>;
 }
 
 interface Responsable {
@@ -136,6 +144,42 @@ function formatFechaLarga(iso: string | undefined | null): string {
     });
   } catch {
     return iso;
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// Parser de datos detallados embebidos en observaciones
+// ══════════════════════════════════════════════════════════
+function parseObservacionesDetalladas(obs: string): {
+  observacionesLimpias: string;
+  criteriosExtintor?: Record<string, { estado: string | null }>;
+  infoExtintor?: { claseAgente: string; tipoExtintor: string; capacidad: string; fechaProximaRecarga: string };
+  elementosBotiquin?: Record<string, { estado: string | null; cantidad: string; fechaVencimiento: string }>;
+  elementosCamilla?: Record<string, { estado: string | null }>;
+  elementosKit?: Record<string, { estado: string | null; cantidad: string; fechaVencimiento: string }>;
+  verificacionesKit?: Record<string, { respuesta: boolean | null }>;
+} {
+  const separador = "---DATOS_DETALLADOS---";
+  const idx = obs.indexOf(separador);
+  if (idx === -1) return { observacionesLimpias: obs };
+
+  const obsLimpia = obs.substring(0, idx).trim();
+  const jsonStr = obs.substring(idx + separador.length).trim();
+
+  try {
+    const datos = JSON.parse(jsonStr);
+    return {
+      observacionesLimpias: obsLimpia,
+      criteriosExtintor: datos.criteriosExtintor || undefined,
+      infoExtintor: datos.infoExtintor || undefined,
+      elementosBotiquin: datos.elementosBotiquin || undefined,
+      elementosCamilla: datos.elementosCamilla || undefined,
+      elementosKit: datos.elementosKit || undefined,
+      verificacionesKit: datos.verificacionesKit || undefined,
+    };
+  } catch {
+    console.error("Error parseando datos detallados de observaciones");
+    return { observacionesLimpias: obs };
   }
 }
 
@@ -494,10 +538,7 @@ function generarHojaInspeccion(
 
     // Filas de datos
     detalles.forEach((det, detIdx) => {
-      // Limpiar observaciones: quitar datos detallados serializados
-      const separador = "---DATOS_DETALLADOS---";
-      const obsIdx = det.observaciones.indexOf(separador);
-      const obsLimpia = obsIdx === -1 ? det.observaciones : det.observaciones.substring(0, obsIdx).trim();
+      const obsLimpia = det.observacionesLimpias;
 
       const rowData: string[] = [
         det.area,
@@ -506,7 +547,8 @@ function generarHojaInspeccion(
 
       // Agregar valores de criterios
       criterios.forEach((c) => {
-        const val = det[c.key] || "";
+        const rawVal = det[c.key];
+        const val = typeof rawVal === "string" ? rawVal : "";
         rowData.push(val);
       });
 
@@ -545,6 +587,324 @@ function generarHojaInspeccion(
       ws.getRow(row).height = obsLimpia.length > 40 ? 32 : 18;
       row++;
     });
+
+    // ═══════════════════════════════════════════════════════
+    // DETALLE ESPECÍFICO POR EQUIPO (datos de ---DATOS_DETALLADOS---)
+    // ═══════════════════════════════════════════════════════
+    const detallesConDatos = detalles.filter(
+      (d) => d.criteriosExtintor || d.infoExtintor || d.elementosBotiquin || d.elementosCamilla || d.elementosKit || d.verificacionesKit
+    );
+
+    if (detallesConDatos.length > 0) {
+      // Título de sección detallada
+      ws.mergeCells(row, 1, row, 12);
+      const detTitleCell = ws.getCell(row, 1);
+      detTitleCell.value = `DETALLE ESPECÍFICO — ${categoria.toUpperCase()}`;
+      detTitleCell.font = { name: "Arial", size: 9, bold: true, color: { argb: "FFFFFFFF" } };
+      detTitleCell.alignment = { vertical: "middle", horizontal: "center" };
+      detTitleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF646464" } };
+      detTitleCell.border = thinBorder;
+      ws.getRow(row).height = 20;
+      row++;
+
+      detallesConDatos.forEach((det) => {
+        const nombreEquipo = det.equipoNombre || det.equipoCodigo || det.idDetalle;
+
+        // ── EXTINTOR ──
+        if (det.criteriosExtintor || det.infoExtintor) {
+          // Info snapshot del extintor
+          if (det.infoExtintor) {
+            ws.mergeCells(row, 1, row, 12);
+            const infoCell = ws.getCell(row, 1);
+            const infoText = [
+              `${nombreEquipo}`,
+              det.infoExtintor.claseAgente ? `Clase/Agente: ${det.infoExtintor.claseAgente}` : null,
+              det.infoExtintor.tipoExtintor ? `Tipo: ${det.infoExtintor.tipoExtintor}` : null,
+              det.infoExtintor.capacidad ? `Capacidad: ${det.infoExtintor.capacidad}` : null,
+              det.infoExtintor.fechaProximaRecarga ? `Próxima Recarga: ${formatFechaLarga(det.infoExtintor.fechaProximaRecarga)}` : null,
+            ].filter(Boolean).join("  |  ");
+            infoCell.value = infoText;
+            infoCell.font = { name: "Arial", size: 8, bold: true };
+            infoCell.alignment = { vertical: "middle", horizontal: "left", wrapText: true };
+            infoCell.fill = lightGrayFill;
+            infoCell.border = thinBorder;
+            ws.getRow(row).height = 18;
+            row++;
+          } else {
+            ws.mergeCells(row, 1, row, 12);
+            const nCell = ws.getCell(row, 1);
+            nCell.value = nombreEquipo;
+            nCell.font = { name: "Arial", size: 8, bold: true };
+            nCell.alignment = { vertical: "middle", horizontal: "left" };
+            nCell.border = thinBorder;
+            ws.getRow(row).height = 16;
+            row++;
+          }
+
+          // Tabla de criterios detallados del extintor
+          if (det.criteriosExtintor) {
+            // Header
+            const hCrit = ws.getCell(row, 1);
+            ws.mergeCells(row, 1, row, 6);
+            hCrit.value = "Criterio";
+            hCrit.font = { name: "Arial", size: 8, bold: true };
+            hCrit.alignment = { vertical: "middle", horizontal: "center" };
+            hCrit.fill = headerFill;
+            hCrit.border = thinBorder;
+            const hEst = ws.getCell(row, 7);
+            ws.mergeCells(row, 7, row, 12);
+            hEst.value = "Estado";
+            hEst.font = { name: "Arial", size: 8, bold: true };
+            hEst.alignment = { vertical: "middle", horizontal: "center" };
+            hEst.fill = headerFill;
+            hEst.border = thinBorder;
+            ws.getRow(row).height = 16;
+            row++;
+
+            Object.entries(det.criteriosExtintor).forEach(([nombre, val], cIdx) => {
+              const estado = val?.estado || "—";
+              ws.mergeCells(row, 1, row, 6);
+              const cCell = ws.getCell(row, 1);
+              cCell.value = nombre;
+              cCell.font = { name: "Arial", size: 8 };
+              cCell.alignment = { vertical: "middle", horizontal: "left" };
+              cCell.border = thinBorder;
+              if (cIdx % 2 === 1) cCell.fill = lightGrayFill;
+
+              ws.mergeCells(row, 7, row, 12);
+              const eCell = ws.getCell(row, 7);
+              eCell.value = estado;
+              eCell.alignment = { vertical: "middle", horizontal: "center" };
+              eCell.border = thinBorder;
+              if (cIdx % 2 === 1) eCell.fill = lightGrayFill;
+              if (estado === "Bueno" || estado === "Sí") eCell.font = { name: "Arial", size: 8, color: { argb: "FF006100" } };
+              else if (estado === "Malo" || estado === "No") eCell.font = { name: "Arial", size: 8, bold: true, color: { argb: "FF9C0006" } };
+              else eCell.font = { name: "Arial", size: 8 };
+              ws.getRow(row).height = 15;
+              row++;
+            });
+
+            if (det.observacionesLimpias) {
+              ws.mergeCells(row, 1, row, 6);
+              const oLabel = ws.getCell(row, 1);
+              oLabel.value = "Observaciones";
+              oLabel.font = { name: "Arial", size: 8, bold: true };
+              oLabel.alignment = { vertical: "middle", horizontal: "left" };
+              oLabel.border = thinBorder;
+              ws.mergeCells(row, 7, row, 12);
+              const oVal = ws.getCell(row, 7);
+              oVal.value = det.observacionesLimpias;
+              oVal.font = { name: "Arial", size: 8 };
+              oVal.alignment = { vertical: "middle", horizontal: "left", wrapText: true };
+              oVal.border = thinBorder;
+              ws.getRow(row).height = 20;
+              row++;
+            }
+            row++; // Espacio
+          }
+        }
+
+        // ── BOTIQUÍN ──
+        if (det.elementosBotiquin) {
+          ws.mergeCells(row, 1, row, 12);
+          const nCell = ws.getCell(row, 1);
+          nCell.value = nombreEquipo;
+          nCell.font = { name: "Arial", size: 8, bold: true };
+          nCell.alignment = { vertical: "middle", horizontal: "left" };
+          nCell.fill = lightGrayFill;
+          nCell.border = thinBorder;
+          ws.getRow(row).height = 16;
+          row++;
+
+          // Header
+          const bHeaders = ["Elemento", "Estado", "Cantidad", "Vencimiento"];
+          const bColSpans = [[1, 3], [4, 6], [7, 9], [10, 12]];
+          bHeaders.forEach((h, i) => {
+            ws.mergeCells(row, bColSpans[i][0], row, bColSpans[i][1]);
+            const cell = ws.getCell(row, bColSpans[i][0]);
+            cell.value = h;
+            cell.font = { name: "Arial", size: 8, bold: true };
+            cell.alignment = { vertical: "middle", horizontal: "center" };
+            cell.fill = headerFill;
+            cell.border = thinBorder;
+          });
+          ws.getRow(row).height = 16;
+          row++;
+
+          Object.entries(det.elementosBotiquin).forEach(([nombre, val], eIdx) => {
+            const estado = val?.estado || "—";
+            const cols = [nombre, estado, val?.cantidad || "—", formatFechaLarga(val?.fechaVencimiento) || "—"];
+            cols.forEach((c, i) => {
+              ws.mergeCells(row, bColSpans[i][0], row, bColSpans[i][1]);
+              const cell = ws.getCell(row, bColSpans[i][0]);
+              cell.value = c;
+              cell.font = { name: "Arial", size: 8 };
+              cell.alignment = { vertical: "middle", horizontal: i === 0 ? "left" : "center" };
+              cell.border = thinBorder;
+              if (eIdx % 2 === 1) cell.fill = lightGrayFill;
+              if (i === 1 && estado === "Bueno") cell.font = { name: "Arial", size: 8, color: { argb: "FF006100" } };
+              if (i === 1 && estado === "Malo") cell.font = { name: "Arial", size: 8, bold: true, color: { argb: "FF9C0006" } };
+            });
+            ws.getRow(row).height = 15;
+            row++;
+          });
+          row++; // Espacio
+        }
+
+        // ── CAMILLA ──
+        if (det.elementosCamilla) {
+          ws.mergeCells(row, 1, row, 12);
+          const nCell = ws.getCell(row, 1);
+          nCell.value = nombreEquipo;
+          nCell.font = { name: "Arial", size: 8, bold: true };
+          nCell.alignment = { vertical: "middle", horizontal: "left" };
+          nCell.fill = lightGrayFill;
+          nCell.border = thinBorder;
+          ws.getRow(row).height = 16;
+          row++;
+
+          // Header
+          const cHeaders = ["Elemento", "Estado"];
+          const cColSpans = [[1, 6], [7, 12]];
+          cHeaders.forEach((h, i) => {
+            ws.mergeCells(row, cColSpans[i][0], row, cColSpans[i][1]);
+            const cell = ws.getCell(row, cColSpans[i][0]);
+            cell.value = h;
+            cell.font = { name: "Arial", size: 8, bold: true };
+            cell.alignment = { vertical: "middle", horizontal: "center" };
+            cell.fill = headerFill;
+            cell.border = thinBorder;
+          });
+          ws.getRow(row).height = 16;
+          row++;
+
+          Object.entries(det.elementosCamilla).forEach(([nombre, val], eIdx) => {
+            const estado = val?.estado || "—";
+            ws.mergeCells(row, 1, row, 6);
+            const nC = ws.getCell(row, 1);
+            nC.value = nombre;
+            nC.font = { name: "Arial", size: 8 };
+            nC.alignment = { vertical: "middle", horizontal: "left" };
+            nC.border = thinBorder;
+            if (eIdx % 2 === 1) nC.fill = lightGrayFill;
+
+            ws.mergeCells(row, 7, row, 12);
+            const eC = ws.getCell(row, 7);
+            eC.value = estado;
+            eC.alignment = { vertical: "middle", horizontal: "center" };
+            eC.border = thinBorder;
+            if (eIdx % 2 === 1) eC.fill = lightGrayFill;
+            if (estado === "Bueno") eC.font = { name: "Arial", size: 8, color: { argb: "FF006100" } };
+            else if (estado === "Malo") eC.font = { name: "Arial", size: 8, bold: true, color: { argb: "FF9C0006" } };
+            else eC.font = { name: "Arial", size: 8 };
+            ws.getRow(row).height = 15;
+            row++;
+          });
+          row++; // Espacio
+        }
+
+        // ── KIT DERRAMES ──
+        if (det.elementosKit) {
+          ws.mergeCells(row, 1, row, 12);
+          const nCell = ws.getCell(row, 1);
+          nCell.value = nombreEquipo;
+          nCell.font = { name: "Arial", size: 8, bold: true };
+          nCell.alignment = { vertical: "middle", horizontal: "left" };
+          nCell.fill = lightGrayFill;
+          nCell.border = thinBorder;
+          ws.getRow(row).height = 16;
+          row++;
+
+          // Header
+          const kHeaders = ["Elemento", "Estado", "Cantidad", "Vencimiento"];
+          const kColSpans = [[1, 3], [4, 6], [7, 9], [10, 12]];
+          kHeaders.forEach((h, i) => {
+            ws.mergeCells(row, kColSpans[i][0], row, kColSpans[i][1]);
+            const cell = ws.getCell(row, kColSpans[i][0]);
+            cell.value = h;
+            cell.font = { name: "Arial", size: 8, bold: true };
+            cell.alignment = { vertical: "middle", horizontal: "center" };
+            cell.fill = headerFill;
+            cell.border = thinBorder;
+          });
+          ws.getRow(row).height = 16;
+          row++;
+
+          Object.entries(det.elementosKit).forEach(([nombre, val], eIdx) => {
+            const estado = val?.estado || "—";
+            const cols = [nombre, estado, val?.cantidad || "—", formatFechaLarga(val?.fechaVencimiento) || "—"];
+            cols.forEach((c, i) => {
+              ws.mergeCells(row, kColSpans[i][0], row, kColSpans[i][1]);
+              const cell = ws.getCell(row, kColSpans[i][0]);
+              cell.value = c;
+              cell.font = { name: "Arial", size: 8 };
+              cell.alignment = { vertical: "middle", horizontal: i === 0 ? "left" : "center" };
+              cell.border = thinBorder;
+              if (eIdx % 2 === 1) cell.fill = lightGrayFill;
+              if (i === 1 && estado === "Bueno") cell.font = { name: "Arial", size: 8, color: { argb: "FF006100" } };
+              if (i === 1 && estado === "Malo") cell.font = { name: "Arial", size: 8, bold: true, color: { argb: "FF9C0006" } };
+            });
+            ws.getRow(row).height = 15;
+            row++;
+          });
+
+          // Verificaciones generales del kit
+          if (det.verificacionesKit) {
+            ws.mergeCells(row, 1, row, 12);
+            const verTitleCell = ws.getCell(row, 1);
+            verTitleCell.value = "VERIFICACIONES GENERALES DEL KIT";
+            verTitleCell.font = { name: "Arial", size: 8, bold: true, color: { argb: "FFFFFFFF" } };
+            verTitleCell.alignment = { vertical: "middle", horizontal: "center" };
+            verTitleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF646464" } };
+            verTitleCell.border = thinBorder;
+            ws.getRow(row).height = 18;
+            row++;
+
+            // Header
+            ws.mergeCells(row, 1, row, 8);
+            const vhCrit = ws.getCell(row, 1);
+            vhCrit.value = "Criterio";
+            vhCrit.font = { name: "Arial", size: 8, bold: true };
+            vhCrit.alignment = { vertical: "middle", horizontal: "center" };
+            vhCrit.fill = headerFill;
+            vhCrit.border = thinBorder;
+            ws.mergeCells(row, 9, row, 12);
+            const vhCumple = ws.getCell(row, 9);
+            vhCumple.value = "Cumple";
+            vhCumple.font = { name: "Arial", size: 8, bold: true };
+            vhCumple.alignment = { vertical: "middle", horizontal: "center" };
+            vhCumple.fill = headerFill;
+            vhCumple.border = thinBorder;
+            ws.getRow(row).height = 16;
+            row++;
+
+            Object.entries(det.verificacionesKit).forEach(([nombre, val], vIdx) => {
+              const cumple = val?.respuesta === true ? "Sí" : val?.respuesta === false ? "No" : "—";
+              ws.mergeCells(row, 1, row, 8);
+              const vcCell = ws.getCell(row, 1);
+              vcCell.value = nombre;
+              vcCell.font = { name: "Arial", size: 8 };
+              vcCell.alignment = { vertical: "middle", horizontal: "left" };
+              vcCell.border = thinBorder;
+              if (vIdx % 2 === 1) vcCell.fill = lightGrayFill;
+
+              ws.mergeCells(row, 9, row, 12);
+              const veCell = ws.getCell(row, 9);
+              veCell.value = cumple;
+              veCell.alignment = { vertical: "middle", horizontal: "center" };
+              veCell.border = thinBorder;
+              if (vIdx % 2 === 1) veCell.fill = lightGrayFill;
+              if (cumple === "Sí") veCell.font = { name: "Arial", size: 8, color: { argb: "FF006100" } };
+              else if (cumple === "No") veCell.font = { name: "Arial", size: 8, bold: true, color: { argb: "FF9C0006" } };
+              else veCell.font = { name: "Arial", size: 8 };
+              ws.getRow(row).height = 15;
+              row++;
+            });
+          }
+          row++; // Espacio
+        }
+      }); // end detallesConDatos.forEach
+    } // end if detallesConDatos
 
     row++; // Espacio entre categorías
     });
@@ -731,6 +1091,10 @@ export async function POST(request: NextRequest) {
 
       links.forEach((inspId) => {
         if (!detallesMap[inspId]) detallesMap[inspId] = [];
+
+        const obsRaw = (r.fields[detalleEquiposFields.OBSERVACIONES] as string) || "";
+        const parsed = parseObservacionesDetalladas(obsRaw);
+
         detallesMap[inspId].push({
           id: r.id,
           inspeccionRecordId: inspId,
@@ -751,7 +1115,14 @@ export async function POST(request: NextRequest) {
           estructura: (r.fields[detalleEquiposFields.ESTRUCTURA] as string) || "",
           correas: (r.fields[detalleEquiposFields.CORREAS] as string) || "",
           fechaVencimiento: (r.fields[detalleEquiposFields.FECHA_VENCIMIENTO] as string) || "",
-          observaciones: (r.fields[detalleEquiposFields.OBSERVACIONES] as string) || "",
+          observaciones: obsRaw,
+          observacionesLimpias: parsed.observacionesLimpias,
+          criteriosExtintor: parsed.criteriosExtintor,
+          infoExtintor: parsed.infoExtintor,
+          elementosBotiquin: parsed.elementosBotiquin,
+          elementosCamilla: parsed.elementosCamilla,
+          elementosKit: parsed.elementosKit,
+          verificacionesKit: parsed.verificacionesKit,
         });
       });
     });

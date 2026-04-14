@@ -24,6 +24,7 @@ export const airtableSGSSTConfig = {
     ESTADO: process.env.AIRTABLE_ENT_ESTADO!,
     MOTIVO: process.env.AIRTABLE_ENT_MOTIVO!,
     HISTORIAL_LINK: process.env.AIRTABLE_ENT_HISTORIAL_LINK!,
+    FOTO_EVIDENCIA_URL: process.env.AIRTABLE_ENT_FOTO_EVIDENCIA_URL!,
   },
 
   // ── Tabla "Detalle Entrega EPP" ───────────────────────

@@ -48,6 +48,7 @@ interface EntregaEPP {
   motivo: string;
   fechaConfirmacion: string;
   observaciones: string;
+  fotoEvidenciaUrl: string;
   detalles: DetalleEntrega[];
   tokens: TokenEntrega[];
 }
@@ -718,6 +719,33 @@ export default function HistorialEntregasPage() {
                           <p className="text-sm text-white/80">
                             {entrega.observaciones}
                           </p>
+                        </div>
+                      )}
+
+                      {/* Fotos de evidencia */}
+                      {entrega.fotoEvidenciaUrl && (
+                        <div className="mt-4 pt-3 border-t border-white/5">
+                          <h3 className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                            <Package className="w-3.5 h-3.5" />
+                            Fotos de evidencia
+                          </h3>
+                          <div className="grid grid-cols-3 gap-2">
+                            {entrega.fotoEvidenciaUrl.split(",").map((url: string, idx: number) => (
+                              <a
+                                key={idx}
+                                href={url.trim()}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block rounded-xl overflow-hidden border border-white/10 hover:border-purple-400/30 transition-all aspect-square"
+                              >
+                                <img
+                                  src={url.trim()}
+                                  alt={`Evidencia ${idx + 1}`}
+                                  className="w-full h-full object-cover bg-black/30"
+                                />
+                              </a>
+                            ))}
+                          </div>
                         </div>
                       )}
 
