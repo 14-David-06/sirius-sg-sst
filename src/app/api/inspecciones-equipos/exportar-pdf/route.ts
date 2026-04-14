@@ -118,7 +118,6 @@ interface InspeccionCompleta {
 const FORMATO_POR_CATEGORIA: Record<string, { codigo: string; nombre: string }> = {
   "Extintor":     { codigo: "FT-SST-033", nombre: "Formato de Inspección de Extintor" },
   "Botiquin":     { codigo: "FT-SST-032", nombre: "Formato de Inspección de Botiquín" },
-  "Botiquín":     { codigo: "FT-SST-032", nombre: "Formato de Inspección de Botiquín" },
   "Camilla":      { codigo: "FT-SST-037", nombre: "Formato de Inspección de Camilla" },
   "Kit Derrames": { codigo: "FT-SST-050", nombre: "Formato de Inspección de Kit de Derrames" },
 };
@@ -1182,7 +1181,7 @@ export async function POST(request: NextRequest) {
     }
 
     const pdfBuffer = generarPDFInspeccion(targetInsp, logoBase64, categoria || undefined);
-    const catSlug = categoria ? `_${(categoria as string).replace(/\s+/g, "_")}` : "";
+    const catSlug = categoria ? `_${categoria.replace(/\s+/g, "_")}` : "";
     const filename = idInspeccion
       ? `Inspeccion${catSlug}_${idInspeccion}.pdf`
       : `Inspecciones_Equipos_${new Date().toISOString().split("T")[0]}.pdf`;

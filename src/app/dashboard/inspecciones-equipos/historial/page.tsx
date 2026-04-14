@@ -57,12 +57,12 @@ interface DetalleEquipo {
 
 // Mapeo de categoría → código de formato oficial (para menú PDF)
 const FORMATO_PDF_POR_CATEGORIA: Record<string, { codigo: string; nombre: string; icono: string }> = {
-  "Extintor":     { codigo: "FT-SST-033", nombre: "Extintores",    icono: "🧯" },
-  "Botiquin":     { codigo: "FT-SST-032", nombre: "Botiquines",    icono: "🩹" },
-  "Botiquín":     { codigo: "FT-SST-032", nombre: "Botiquines",    icono: "🩹" },
-  "Camilla":      { codigo: "FT-SST-037", nombre: "Camillas",      icono: "🛏️" },
-  "Kit Derrames": { codigo: "FT-SST-050", nombre: "Kit Derrames",  icono: "⚠️" },
+  "Extintor":     { codigo: "FT-SST-033", nombre: "Extintores",   icono: "🧯" },
+  "Botiquin":     { codigo: "FT-SST-032", nombre: "Botiquines",   icono: "🩹" },
+  "Camilla":      { codigo: "FT-SST-037", nombre: "Camillas",     icono: "🛏️" },
+  "Kit Derrames": { codigo: "FT-SST-050", nombre: "Kit Derrames", icono: "⚠️" },
 };
+const FORMATO_PDF_DEFAULT = { codigo: "FT-SST-065", nombre: "Equipos", icono: "📄" };
 
 // Normaliza variantes de "Botiquín" para deduplicar en el menú
 function normalizarCatUI(cat: string): string {
@@ -896,11 +896,7 @@ export default function HistorialInspeccionesEquiposPage() {
                               ),
                             ];
                             return categorias.map((cat) => {
-                              const fmt = FORMATO_PDF_POR_CATEGORIA[cat] ?? {
-                                codigo: "FT-SST-065",
-                                nombre: cat,
-                                icono: "📄",
-                              };
+                              const fmt = FORMATO_PDF_POR_CATEGORIA[cat] ?? FORMATO_PDF_DEFAULT;
                               const isLoadingThis =
                                 exportingPdfCat?.id === insp.id &&
                                 normalizarCatUI(exportingPdfCat.categoria) === cat;
