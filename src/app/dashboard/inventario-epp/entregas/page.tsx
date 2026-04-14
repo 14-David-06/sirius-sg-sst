@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
@@ -22,6 +22,7 @@ import {
   Fingerprint,
   RefreshCw,
   FileSpreadsheet,
+  FileText,
   PenLine,
   Eraser,
   Save,
@@ -382,12 +383,14 @@ export default function EntregasListPage() {
   const [decryptLoading, setDecryptLoading] = useState(false);
   const [decryptError, setDecryptError] = useState("");
 
-  // Exportar Excel
+  // Exportar Excel / PDF
   const [exportingTipo, setExportingTipo] = useState<string | null>(null);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const [exportMes, setExportMes] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   });
+  const [exportEmpleado, setExportEmpleado] = useState<string>("");
 
   // ── Fetch entregas ────────────────────────────────────
   const fetchEntregas = useCallback(async () => {
@@ -484,6 +487,50 @@ export default function EntregasListPage() {
       setExportingTipo(null);
     }
   };
+
+  // ── Exportar PDF ──────────────────────────────────────
+  const handleExportPdf = async () => {
+    setExportingPdf(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams({ tipo: "dotacion", mes: exportMes });
+      if (exportEmpleado) params.set("idEmpleado", exportEmpleado);
+      const res = await fetch(`/api/entregas-epp/exportar-pdf?${params.toString()}`);
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        throw new Error(json?.message || "Error al generar el PDF");
+      }
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      const disposition = res.headers.get("Content-Disposition");
+      const match = disposition?.match(/filename="(.+?)"/);
+      a.download = match?.[1] || `Entregas_Dotacion_${exportMes}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error("Error exporting PDF:", err);
+      setError(err instanceof Error ? err.message : "Error al exportar PDF");
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
+  // Lista única de empleados a partir de las entregas cargadas
+  const empleadosUnicos = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const ent of entregas) {
+      if (ent.idEmpleadoCore && ent.nombreEmpleado) {
+        map.set(ent.idEmpleadoCore, ent.nombreEmpleado);
+      }
+    }
+    return Array.from(map.entries())
+      .map(([id, nombre]) => ({ id, nombre }))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre));
+  }, [entregas]);
 
   // ── Filtros ───────────────────────────────────────────
   const filtered = entregas.filter((ent) => {
@@ -661,6 +708,48 @@ export default function EntregasListPage() {
                 En Proceso
               </option>
             </select>
+          </div>
+        </div>
+
+        {/* ── Panel exportar PDF Dotación ──────────────── */}
+        <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/15 p-4 mb-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            <div className="flex items-center gap-2 text-sm text-white/70 font-semibold shrink-0">
+              <FileText className="w-4 h-4 text-red-400" />
+              PDF Dotación
+            </div>
+            <input
+              type="month"
+              value={exportMes}
+              onChange={(e) => setExportMes(e.target.value)}
+              className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 text-white text-sm focus:outline-none focus:border-red-400/50 transition-all [color-scheme:dark]"
+            />
+            <select
+              value={exportEmpleado}
+              onChange={(e) => setExportEmpleado(e.target.value)}
+              className="flex-1 min-w-0 px-3 py-2 rounded-xl bg-white/10 border border-white/15 text-white text-sm focus:outline-none focus:border-red-400/50 transition-all appearance-none"
+            >
+              <option value="" className="bg-gray-900">
+                Todos los empleados
+              </option>
+              {empleadosUnicos.map((emp) => (
+                <option key={emp.id} value={emp.id} className="bg-gray-900">
+                  {emp.nombre}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={handleExportPdf}
+              disabled={exportingPdf || loading}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-500/15 border border-red-400/25 text-red-300 text-sm font-semibold hover:bg-red-500/25 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+            >
+              {exportingPdf ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <FileText className="w-4 h-4" />
+              )}
+              {exportingPdf ? "Generando..." : "Generar PDF"}
+            </button>
           </div>
         </div>
 

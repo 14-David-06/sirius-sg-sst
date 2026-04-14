@@ -7,6 +7,7 @@ import {
 import {
   uploadToS3,
   generateS3Key,
+  getSignedUrlForKey,
   S3_FOLDERS,
 } from "@/infrastructure/config/awsS3";
 
@@ -68,6 +69,7 @@ export async function POST(req: NextRequest) {
 
     // ── Subir todas las fotos a S3 ────────────────────────
     const uploadedUrls: string[] = [];
+    const signedUrls: string[] = [];
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
@@ -79,13 +81,17 @@ export async function POST(req: NextRequest) {
       const filename = `foto-entrega-${entregaRecordId}-${i + 1}-${timestamp}.${ext}`;
 
       const s3Key = generateS3Key(S3_FOLDERS.ENTREGA_EPP, filename);
-      const { url: s3Url } = await uploadToS3(s3Key, buffer, file.type);
+      const { url: s3Url, key } = await uploadToS3(s3Key, buffer, file.type);
+
+      // URL firmada para que Airtable pueda descargar el archivo (1h de validez)
+      const presignedUrl = await getSignedUrlForKey(key, 3600);
 
       uploadedUrls.push(s3Url);
+      signedUrls.push(presignedUrl);
       console.log(`Foto evidencia ${i + 1}/${files.length} subida a S3: ${s3Url}`);
     }
 
-    // ── Guardar URLs en Airtable (formato attachment) ──
+    // ── Guardar en Airtable con URLs firmadas (para descarga) ──
     const { entregasTableId, entregasFields } = airtableSGSSTConfig;
     const updateUrl = `${getSGSSTUrl(entregasTableId)}/${entregaRecordId}`;
 
@@ -94,7 +100,7 @@ export async function POST(req: NextRequest) {
       headers: getSGSSTHeaders(),
       body: JSON.stringify({
         fields: {
-          [entregasFields.FOTO_EVIDENCIA_URL]: uploadedUrls.map((url) => ({ url })),
+          [entregasFields.FOTO_EVIDENCIA_URL]: signedUrls.map((url) => ({ url })),
         },
       }),
     });
@@ -109,6 +115,8 @@ export async function POST(req: NextRequest) {
         warning: true,
       });
     }
+
+    await updateRes.json();
 
     return NextResponse.json({
       success: true,
