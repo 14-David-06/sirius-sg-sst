@@ -473,23 +473,60 @@ export default function EntregaEPPPage() {
         (e: EntregaCreada) => ({ ...e, firmado: false })
       );
 
-      // Subir fotos de evidencia a S3
+      // Subir fotos de evidencia a S3 (directo desde navegador)
       if (fotosEvidencia.length > 0 && entregas.length > 0) {
         setFotoUploading(true);
         try {
           for (const ent of entregas) {
-            const formData = new FormData();
-            formData.append("entregaRecordId", ent.entregaId);
-            for (const foto of fotosEvidencia) {
-              formData.append("fotos", foto);
-            }
-            const fotoRes = await fetch("/api/entregas-epp/foto-evidencia", {
+            // Paso 1: Obtener URLs prefirmadas de carga
+            const presignRes = await fetch("/api/entregas-epp/foto-evidencia/presign", {
               method: "POST",
-              body: formData,
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                entregaRecordId: ent.entregaId,
+                fotos: fotosEvidencia.map((f) => ({
+                  type: f.type,
+                  extension: f.name.split(".").pop() || "jpg",
+                })),
+              }),
             });
-            const fotoJson = await fotoRes.json();
-            if (!fotoJson.success) {
-              console.error("Error subiendo fotos para entrega", ent.entregaId, fotoJson.message);
+            const presignJson = await presignRes.json();
+            if (!presignJson.success) {
+              console.error("Error obteniendo URLs de carga:", presignJson.message);
+              continue;
+            }
+
+            // Paso 2: Subir cada foto directo a S3 con la URL prefirmada
+            const s3Keys: string[] = [];
+            for (let i = 0; i < fotosEvidencia.length; i++) {
+              const foto = fotosEvidencia[i];
+              const upload = presignJson.uploads[i];
+              const putRes = await fetch(upload.uploadUrl, {
+                method: "PUT",
+                headers: { "Content-Type": upload.contentType },
+                body: foto,
+              });
+              if (putRes.ok) {
+                s3Keys.push(upload.key);
+              } else {
+                console.error(`Error subiendo foto ${i + 1} a S3:`, putRes.status);
+              }
+            }
+
+            // Paso 3: Notificar al backend para guardar URLs en Airtable
+            if (s3Keys.length > 0) {
+              const saveRes = await fetch("/api/entregas-epp/foto-evidencia", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  entregaRecordId: ent.entregaId,
+                  s3Keys,
+                }),
+              });
+              const saveJson = await saveRes.json();
+              if (!saveJson.success) {
+                console.error("Error guardando fotos en Airtable:", saveJson.message);
+              }
             }
           }
         } catch (fotoErr) {

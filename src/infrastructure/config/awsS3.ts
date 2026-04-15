@@ -104,6 +104,25 @@ export async function getSignedUrlForKey(
 }
 
 /**
+ * Genera una URL firmada temporal para SUBIR un archivo directamente desde el navegador
+ */
+export async function getPresignedUploadUrl(
+  key: string,
+  contentType: string,
+  expiresInSeconds: number = 600
+): Promise<string> {
+  const client = getS3Client();
+
+  const command = new PutObjectCommand({
+    Bucket: s3Config.bucketName,
+    Key: key,
+    ContentType: contentType,
+  });
+
+  return await getSignedUrl(client, command, { expiresIn: expiresInSeconds });
+}
+
+/**
  * Genera el Content-Type basado en la extensión del archivo
  */
 export function getContentType(filename: string): string {
