@@ -7,7 +7,6 @@ import {
 import {
   uploadToS3,
   generateS3Key,
-  getSignedUrlForKey,
   S3_FOLDERS,
 } from "@/infrastructure/config/awsS3";
 
@@ -92,11 +91,8 @@ export async function POST(req: NextRequest) {
     const filename = `foto-entrega-${entregaRecordId}-${index + 1}-${timestamp}.${ext}`;
     const s3Key = generateS3Key(S3_FOLDERS.ENTREGA_EPP, filename);
 
-    const { key } = await uploadToS3(s3Key, buffer, foto.type);
+    const { key, url: publicUrl } = await uploadToS3(s3Key, buffer, foto.type);
     console.log(`Foto evidencia subida a S3: ${key}`);
-
-    // 3. Generar URL firmada para Airtable (24h)
-    const signedUrl = await getSignedUrlForKey(key, 86400);
 
     // 4. Construir array actualizado preservando las demás fotos
     const updatedAttachments: ({ id: string } | { url: string })[] = [];
@@ -104,10 +100,11 @@ export async function POST(req: NextRequest) {
 
     for (let i = 0; i < maxIndex; i++) {
       if (i === index) {
-        updatedAttachments.push({ url: signedUrl });
+        // Airtable procesa mejor URLs estables que URLs firmadas temporales.
+        updatedAttachments.push({ url: publicUrl });
       } else if (i < currentAttachments.length) {
         const existing = currentAttachments[i];
-        if (existing.id) {
+        if (existing.id && /^att[a-zA-Z0-9]+$/.test(existing.id)) {
           updatedAttachments.push({ id: existing.id });
         } else {
           updatedAttachments.push({ url: existing.url });
@@ -129,9 +126,19 @@ export async function POST(req: NextRequest) {
 
     if (!updateRes.ok) {
       const errText = await updateRes.text();
-      console.error("Error actualizando foto en Airtable:", errText);
+      console.error("Error actualizando foto en Airtable:", {
+        status: updateRes.status,
+        entregaRecordId,
+        index,
+        errText,
+      });
       return NextResponse.json(
-        { success: false, message: "Foto subida a S3 pero error al guardar en Airtable" },
+        {
+          success: false,
+          message: "Foto subida a S3 pero error al guardar en Airtable",
+          airtableStatus: updateRes.status,
+          airtableError: errText,
+        },
         { status: 500 }
       );
     }
