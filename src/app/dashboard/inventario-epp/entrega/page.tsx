@@ -264,11 +264,21 @@ export default function EntregaEPPPage() {
   const [notas, setNotas] = useState("");
   const [motivo, setMotivo] = useState(MOTIVOS[0]);
 
-  // Fotos evidencia (1-3 obligatorias)
-  const [fotosEvidencia, setFotosEvidencia] = useState<File[]>([]);
-  const [fotosPreviews, setFotosPreviews] = useState<string[]>([]);
+  // Fotos evidencia — Dotación (0-3)
+  const [fotosDotacion, setFotosDotacion] = useState<File[]>([]);
+  const [fotosPreviewsDotacion, setFotosPreviewsDotacion] = useState<string[]>([]);
+  const fotoInputRefDotacion = useRef<HTMLInputElement>(null);
+
+  // Fotos evidencia — EPP (0-3)
+  const [fotosEpp, setFotosEpp] = useState<File[]>([]);
+  const [fotosPreviewsEpp, setFotosPreviewsEpp] = useState<string[]>([]);
+  const fotoInputRefEpp = useRef<HTMLInputElement>(null);
+
   const [fotoUploading, setFotoUploading] = useState(false);
-  const fotoInputRef = useRef<HTMLInputElement>(null);
+
+  // Visibilidad de paneles de fotos
+  const esDotacion = motivo.toLowerCase().includes("dotación");
+  const tieneEpp = beneficiarios.some((b) => b.lineas.length > 0);
 
   // Estado de la página
   const [pageState, setPageState] = useState<PageState>("idle");
@@ -422,12 +432,6 @@ export default function EntregaEPPPage() {
       setPageState("error");
       return;
     }
-    if (fotosEvidencia.length === 0) {
-      setErrorMsg("Debe agregar al menos 1 foto de evidencia.");
-      setPageState("error");
-      return;
-    }
-
     setPageState("submitting");
     setErrorMsg("");
 
@@ -473,8 +477,9 @@ export default function EntregaEPPPage() {
         (e: EntregaCreada) => ({ ...e, firmado: false })
       );
 
-      // Subir fotos de evidencia a S3 (directo desde navegador)
-      if (fotosEvidencia.length > 0 && entregas.length > 0) {
+      // Subir fotos de evidencia a S3 (dotación + EPP combinadas)
+      const todasLasFotos = [...fotosDotacion, ...fotosEpp];
+      if (todasLasFotos.length > 0 && entregas.length > 0) {
         setFotoUploading(true);
         try {
           for (const ent of entregas) {
@@ -484,7 +489,7 @@ export default function EntregaEPPPage() {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 entregaRecordId: ent.entregaId,
-                fotos: fotosEvidencia.map((f) => ({
+                fotos: todasLasFotos.map((f) => ({
                   type: f.type,
                   extension: f.name.split(".").pop() || "jpg",
                 })),
@@ -498,8 +503,8 @@ export default function EntregaEPPPage() {
 
             // Paso 2: Subir cada foto directo a S3 con la URL prefirmada
             const s3Keys: string[] = [];
-            for (let i = 0; i < fotosEvidencia.length; i++) {
-              const foto = fotosEvidencia[i];
+            for (let i = 0; i < todasLasFotos.length; i++) {
+              const foto = todasLasFotos[i];
               const upload = presignJson.uploads[i];
               const putRes = await fetch(upload.uploadUrl, {
                 method: "PUT",
@@ -612,8 +617,10 @@ export default function EntregaEPPPage() {
     setBeneficiarios([]);
     setNotas("");
     setMotivo(MOTIVOS[0]);
-    setFotosEvidencia([]);
-    setFotosPreviews([]);
+    setFotosDotacion([]);
+    setFotosPreviewsDotacion([]);
+    setFotosEpp([]);
+    setFotosPreviewsEpp([]);
     setEntregasCreadas([]);
     setSigningIndex(0);
     fetchData();
@@ -1233,84 +1240,163 @@ export default function EntregaEPPPage() {
               </div>
             </div>
 
-            {/* ── Fotos de evidencia (1-3) ─────────────────── */}
-            <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/15 p-6 mb-6">
-              <h2 className="text-base font-semibold text-white mb-4 flex items-center gap-2">
-                <Camera className="w-5 h-5 text-orange-400" />
-                Fotos de evidencia
-                <span className="text-xs font-normal text-orange-300">(obligatorio · {fotosEvidencia.length}/3)</span>
-              </h2>
+            {/* ── Fotos de evidencia — Dotación (0-3) ──────── */}
+            {esDotacion && (
+              <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/15 p-6 mb-6">
+                <h2 className="text-base font-semibold text-white mb-4 flex items-center gap-2">
+                  <Camera className="w-5 h-5 text-blue-400" />
+                  Fotos de evidencia — Dotación
+                  <span className="text-xs font-normal text-blue-300">({fotosDotacion.length}/3)</span>
+                </h2>
 
-              {/* Grid de fotos existentes + botón agregar */}
-              <div className="grid grid-cols-3 gap-3 mb-3">
-                {fotosPreviews.map((preview, idx) => (
-                  <div key={idx} className="relative rounded-xl overflow-hidden border border-white/15 aspect-square">
-                    <img
-                      src={preview}
-                      alt={`Evidencia ${idx + 1}`}
-                      className="w-full h-full object-cover bg-black/30"
-                    />
-                    <button
-                      onClick={() => {
-                        setFotosEvidencia((prev) => prev.filter((_, i) => i !== idx));
-                        setFotosPreviews((prev) => {
-                          URL.revokeObjectURL(prev[idx]);
-                          return prev.filter((_, i) => i !== idx);
-                        });
-                      }}
-                      className="absolute top-1.5 right-1.5 w-7 h-7 rounded-lg bg-red-500/80 flex items-center justify-center text-white hover:bg-red-600 transition-all cursor-pointer"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                    <div className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded-md bg-black/60 text-[9px] text-white/70">
-                      {((fotosEvidencia[idx]?.size || 0) / 1024).toFixed(0)} KB
+                <div className="grid grid-cols-3 gap-3 mb-3">
+                  {fotosPreviewsDotacion.map((preview, idx) => (
+                    <div key={idx} className="relative rounded-xl overflow-hidden border border-white/15 aspect-square">
+                      <img
+                        src={preview}
+                        alt={`Dotación ${idx + 1}`}
+                        className="w-full h-full object-cover bg-black/30"
+                      />
+                      <button
+                        onClick={() => {
+                          setFotosDotacion((prev) => prev.filter((_, i) => i !== idx));
+                          setFotosPreviewsDotacion((prev) => {
+                            URL.revokeObjectURL(prev[idx]);
+                            return prev.filter((_, i) => i !== idx);
+                          });
+                        }}
+                        className="absolute top-1.5 right-1.5 w-7 h-7 rounded-lg bg-red-500/80 flex items-center justify-center text-white hover:bg-red-600 transition-all cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                      <div className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded-md bg-black/60 text-[9px] text-white/70">
+                        {((fotosDotacion[idx]?.size || 0) / 1024).toFixed(0)} KB
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
 
-                {/* Botón agregar foto (si aún no llega a 3) */}
-                {fotosEvidencia.length < 3 && (
-                  <div
-                    onClick={() => fotoInputRef.current?.click()}
-                    className="border-2 border-dashed border-white/15 rounded-xl aspect-square flex flex-col items-center justify-center cursor-pointer hover:border-orange-400/30 hover:bg-white/5 transition-all"
-                  >
-                    <ImageIcon className="w-8 h-8 text-white/15 mb-1.5" />
-                    <p className="text-[11px] text-white/30">
-                      {fotosEvidencia.length === 0 ? "Agregar foto" : "Agregar otra"}
-                    </p>
-                  </div>
+                  {fotosDotacion.length < 3 && (
+                    <div
+                      onClick={() => fotoInputRefDotacion.current?.click()}
+                      className="border-2 border-dashed border-white/15 rounded-xl aspect-square flex flex-col items-center justify-center cursor-pointer hover:border-blue-400/30 hover:bg-white/5 transition-all"
+                    >
+                      <ImageIcon className="w-8 h-8 text-white/15 mb-1.5" />
+                      <p className="text-[11px] text-white/30">
+                        {fotosDotacion.length === 0 ? "Agregar foto" : "Agregar otra"}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {fotosDotacion.length === 0 && (
+                  <p className="text-[11px] text-blue-300/60 text-center">
+                    0 a 3 fotos · JPG, PNG o WebP · Máx. 10 MB c/u
+                  </p>
                 )}
+
+                <input
+                  ref={fotoInputRefDotacion}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  capture="environment"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (file.size > 10 * 1024 * 1024) {
+                      setErrorMsg("La imagen excede 10 MB");
+                      return;
+                    }
+                    if (fotosDotacion.length >= 3) {
+                      setErrorMsg("Máximo 3 fotos de dotación");
+                      return;
+                    }
+                    setFotosDotacion((prev) => [...prev, file]);
+                    setFotosPreviewsDotacion((prev) => [...prev, URL.createObjectURL(file)]);
+                    if (fotoInputRefDotacion.current) fotoInputRefDotacion.current.value = "";
+                  }}
+                />
               </div>
+            )}
 
-              {fotosEvidencia.length === 0 && (
-                <p className="text-[11px] text-orange-300/60 text-center">
-                  Debe agregar mínimo 1 foto y máximo 3 · JPG, PNG o WebP · Máx. 10 MB c/u
-                </p>
-              )}
+            {/* ── Fotos de evidencia — EPP (0-3) ─────────────── */}
+            {tieneEpp && (
+              <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/15 p-6 mb-6">
+                <h2 className="text-base font-semibold text-white mb-4 flex items-center gap-2">
+                  <Camera className="w-5 h-5 text-orange-400" />
+                  Fotos de evidencia — EPP
+                  <span className="text-xs font-normal text-orange-300">({fotosEpp.length}/3)</span>
+                </h2>
 
-              <input
-                ref={fotoInputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                capture="environment"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  if (file.size > 10 * 1024 * 1024) {
-                    setErrorMsg("La imagen excede 10 MB");
-                    return;
-                  }
-                  if (fotosEvidencia.length >= 3) {
-                    setErrorMsg("Máximo 3 fotos de evidencia");
-                    return;
-                  }
-                  setFotosEvidencia((prev) => [...prev, file]);
-                  setFotosPreviews((prev) => [...prev, URL.createObjectURL(file)]);
-                  if (fotoInputRef.current) fotoInputRef.current.value = "";
-                }}
-              />
-            </div>
+                <div className="grid grid-cols-3 gap-3 mb-3">
+                  {fotosPreviewsEpp.map((preview, idx) => (
+                    <div key={idx} className="relative rounded-xl overflow-hidden border border-white/15 aspect-square">
+                      <img
+                        src={preview}
+                        alt={`EPP ${idx + 1}`}
+                        className="w-full h-full object-cover bg-black/30"
+                      />
+                      <button
+                        onClick={() => {
+                          setFotosEpp((prev) => prev.filter((_, i) => i !== idx));
+                          setFotosPreviewsEpp((prev) => {
+                            URL.revokeObjectURL(prev[idx]);
+                            return prev.filter((_, i) => i !== idx);
+                          });
+                        }}
+                        className="absolute top-1.5 right-1.5 w-7 h-7 rounded-lg bg-red-500/80 flex items-center justify-center text-white hover:bg-red-600 transition-all cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                      <div className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded-md bg-black/60 text-[9px] text-white/70">
+                        {((fotosEpp[idx]?.size || 0) / 1024).toFixed(0)} KB
+                      </div>
+                    </div>
+                  ))}
+
+                  {fotosEpp.length < 3 && (
+                    <div
+                      onClick={() => fotoInputRefEpp.current?.click()}
+                      className="border-2 border-dashed border-white/15 rounded-xl aspect-square flex flex-col items-center justify-center cursor-pointer hover:border-orange-400/30 hover:bg-white/5 transition-all"
+                    >
+                      <ImageIcon className="w-8 h-8 text-white/15 mb-1.5" />
+                      <p className="text-[11px] text-white/30">
+                        {fotosEpp.length === 0 ? "Agregar foto" : "Agregar otra"}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {fotosEpp.length === 0 && (
+                  <p className="text-[11px] text-orange-300/60 text-center">
+                    0 a 3 fotos · JPG, PNG o WebP · Máx. 10 MB c/u
+                  </p>
+                )}
+
+                <input
+                  ref={fotoInputRefEpp}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  capture="environment"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (file.size > 10 * 1024 * 1024) {
+                      setErrorMsg("La imagen excede 10 MB");
+                      return;
+                    }
+                    if (fotosEpp.length >= 3) {
+                      setErrorMsg("Máximo 3 fotos de EPP");
+                      return;
+                    }
+                    setFotosEpp((prev) => [...prev, file]);
+                    setFotosPreviewsEpp((prev) => [...prev, URL.createObjectURL(file)]);
+                    if (fotoInputRefEpp.current) fotoInputRefEpp.current.value = "";
+                  }}
+                />
+              </div>
+            )}
 
             {/* ── Info sobre firma digital ────────────── */}
             <div className="bg-blue-500/5 border border-blue-400/15 rounded-xl px-4 py-3 mb-6">
@@ -1354,7 +1440,6 @@ export default function EntregaEPPPage() {
                 disabled={
                   beneficiarios.length === 0 ||
                   totalLineas === 0 ||
-                  fotosEvidencia.length === 0 ||
                   pageState === "submitting" ||
                   fotoUploading ||
                   !user

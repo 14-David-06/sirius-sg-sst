@@ -26,6 +26,9 @@ import {
   PenLine,
   Eraser,
   Save,
+  Camera,
+  ImageIcon,
+  Upload,
 } from "lucide-react";
 
 // ══════════════════════════════════════════════════════════
@@ -147,6 +150,179 @@ const defaultEstadoStyle = {
   bg: "bg-white/10",
   border: "border-white/15",
 };
+
+// ══════════════════════════════════════════════════════════
+// Gestión de fotos de evidencia por entrega
+// ══════════════════════════════════════════════════════════
+function GestorFotos({
+  entrega,
+  onUpdated,
+}: {
+  entrega: EntregaEPP;
+  onUpdated: () => void;
+}) {
+  const currentUrls = entrega.fotoEvidenciaUrl
+    ? entrega.fotoEvidenciaUrl.split(",").map((u) => u.trim()).filter(Boolean)
+    : [];
+
+  const [uploading, setUploading] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const targetIndexRef = useRef<number>(0);
+
+  const handleSelectFile = (index: number) => {
+    targetIndexRef.current = index;
+    setError(null);
+    setSuccess(null);
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (!file) return;
+
+    const idx = targetIndexRef.current;
+
+    if (file.size > 10 * 1024 * 1024) {
+      setError("La imagen excede 10 MB");
+      return;
+    }
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setError("Formato no permitido. Use JPG, PNG o WebP");
+      return;
+    }
+
+    setUploading(idx);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      // Subir la foto a través del API server (FormData)
+      // Esto evita problemas de CORS con S3 y es más confiable
+      const formData = new FormData();
+      formData.append("entregaRecordId", entrega.id);
+      formData.append("index", String(idx));
+      formData.append("foto", file);
+
+      const res = await fetch("/api/entregas-epp/foto-evidencia/actualizar", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        throw new Error(`Error del servidor (${res.status}): ${errText}`);
+      }
+      const json = await res.json();
+      if (!json.success) throw new Error(json.message);
+
+      const action = idx < currentUrls.length ? "actualizada" : "agregada";
+      setSuccess(`Foto ${idx + 1} ${action} exitosamente`);
+      onUpdated();
+    } catch (err) {
+      console.error("Error en GestorFotos:", err);
+      setError(err instanceof Error ? err.message : "Error al procesar la foto");
+    } finally {
+      setUploading(null);
+    }
+  };
+
+  return (
+    <div className="mt-4 pt-3 border-t border-white/5">
+      <h3 className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+        <Camera className="w-3.5 h-3.5" />
+        Fotos de evidencia
+        <span className="text-[10px] font-normal text-white/30 ml-1">
+          ({currentUrls.length}/3)
+        </span>
+      </h3>
+
+      <div className="grid grid-cols-3 gap-2">
+        {/* Slots de fotos (siempre mostrar 3) */}
+        {[0, 1, 2].map((idx) => {
+          const url = currentUrls[idx];
+          const isUploading = uploading === idx;
+
+          return (
+            <div key={idx} className="relative">
+              {url ? (
+                // Foto existente — click para reemplazar
+                <div className="relative rounded-xl overflow-hidden border border-white/10 aspect-square group">
+                  <img
+                    src={url}
+                    alt={`Evidencia ${idx + 1}`}
+                    className="w-full h-full object-cover bg-black/30"
+                  />
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  <button
+                    onClick={() => handleSelectFile(idx)}
+                    disabled={isUploading}
+                    className="absolute bottom-1.5 right-1.5 w-8 h-8 rounded-lg bg-blue-500/80 border border-blue-400/40 flex items-center justify-center text-white hover:bg-blue-600 transition-all cursor-pointer disabled:opacity-50"
+                    title="Reemplazar esta foto"
+                  >
+                    {isUploading ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                  <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded-md bg-black/60 text-[9px] text-white/70">
+                    Foto {idx + 1}
+                  </div>
+                </div>
+              ) : (
+                // Slot vacío — click para agregar
+                <button
+                  onClick={() => handleSelectFile(idx)}
+                  disabled={isUploading || (idx > 0 && !currentUrls[idx - 1])}
+                  className="border-2 border-dashed border-white/10 rounded-xl aspect-square flex flex-col items-center justify-center cursor-pointer hover:border-orange-400/20 hover:bg-white/5 transition-all disabled:opacity-30 disabled:cursor-not-allowed w-full"
+                  title={idx > 0 && !currentUrls[idx - 1] ? "Agregue la foto anterior primero" : "Agregar foto"}
+                >
+                  {isUploading ? (
+                    <Loader2 className="w-6 h-6 text-orange-400/50 animate-spin" />
+                  ) : (
+                    <>
+                      <Upload className="w-6 h-6 text-white/15 mb-1" />
+                      <p className="text-[10px] text-white/25">Agregar</p>
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Mensajes */}
+      {success && (
+        <p className="text-[10px] text-green-400 flex items-center gap-1 mt-2">
+          <CheckCircle className="w-3 h-3" /> {success}
+        </p>
+      )}
+      {error && (
+        <p className="text-[10px] text-red-400 flex items-center gap-1 mt-2">
+          <XCircle className="w-3 h-3" /> {error}
+        </p>
+      )}
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={handleFileChange}
+      />
+    </div>
+  );
+}
 
 // ══════════════════════════════════════════════════════════
 // Pad de firma inline por entrega
@@ -957,32 +1133,8 @@ export default function EntregasListPage() {
                         </div>
                       </div>
 
-                      {/* Fotos de evidencia */}
-                      {ent.fotoEvidenciaUrl && (
-                        <div className="mt-4 pt-3 border-t border-white/5">
-                          <h3 className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                            <Eye className="w-3.5 h-3.5" />
-                            Fotos de evidencia
-                          </h3>
-                          <div className="grid grid-cols-3 gap-2">
-                            {ent.fotoEvidenciaUrl.split(",").map((url: string, idx: number) => (
-                              <a
-                                key={idx}
-                                href={url.trim()}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="block rounded-xl overflow-hidden border border-white/10 hover:border-orange-400/30 transition-all aspect-square"
-                              >
-                                <img
-                                  src={url.trim()}
-                                  alt={`Evidencia ${idx + 1}`}
-                                  className="w-full h-full object-cover bg-black/30"
-                                />
-                              </a>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                      {/* Fotos de evidencia — Gestión */}
+                      <GestorFotos entrega={ent} onUpdated={fetchEntregas} />
 
                       {/* Tokens / Firmas */}
                       {ent.tokens.length > 0 && (

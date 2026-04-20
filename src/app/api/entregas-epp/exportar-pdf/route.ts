@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
+import sharp from "sharp";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
@@ -145,7 +146,8 @@ function getMesNombre(mes: string): string {
 }
 
 /**
- * Descarga imagen desde URL y retorna base64 data URI para jsPDF
+ * Descarga imagen desde URL, corrige orientación EXIF y retorna base64 data URI para jsPDF.
+ * sharp.rotate() sin argumentos auto-rota según metadatos EXIF del celular.
  */
 async function fetchImageAsBase64(imageUrl: string): Promise<string | null> {
   try {
@@ -154,10 +156,14 @@ async function fetchImageAsBase64(imageUrl: string): Promise<string | null> {
     const res = await fetch(imageUrl, { signal: controller.signal });
     clearTimeout(timeout);
     if (!res.ok) return null;
-    const contentType = res.headers.get("content-type") || "image/jpeg";
-    const buffer = await res.arrayBuffer();
-    const base64 = Buffer.from(buffer).toString("base64");
-    return `data:${contentType};base64,${base64}`;
+    const rawBuffer = Buffer.from(await res.arrayBuffer());
+    // Auto-rotar según EXIF y convertir a JPEG para consistencia
+    const correctedBuffer = await sharp(rawBuffer)
+      .rotate() // auto-rotate based on EXIF orientation
+      .jpeg({ quality: 85 })
+      .toBuffer();
+    const base64 = correctedBuffer.toString("base64");
+    return `data:image/jpeg;base64,${base64}`;
   } catch {
     return null;
   }

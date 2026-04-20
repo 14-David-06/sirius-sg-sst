@@ -193,6 +193,120 @@ async function handleFormDataUpload(req: NextRequest) {
     });
 }
 
+// ══════════════════════════════════════════════════════════
+// PATCH /api/entregas-epp/foto-evidencia
+// Reemplaza una sola foto en un índice específico, preservando las demás.
+// También permite agregar fotos a slots vacíos.
+// Body JSON: { entregaRecordId, index, s3Key }
+// ══════════════════════════════════════════════════════════
+export async function PATCH(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { entregaRecordId, index, s3Key } = body as {
+      entregaRecordId: string;
+      index: number;
+      s3Key: string;
+    };
+
+    if (!entregaRecordId || !/^rec[a-zA-Z0-9]{14}$/.test(entregaRecordId)) {
+      return NextResponse.json(
+        { success: false, message: "ID de entrega inválido" },
+        { status: 400 }
+      );
+    }
+
+    if (typeof index !== "number" || index < 0 || index > 2) {
+      return NextResponse.json(
+        { success: false, message: "Índice inválido (0-2)" },
+        { status: 400 }
+      );
+    }
+
+    if (!s3Key || !s3Key.startsWith(S3_FOLDERS.ENTREGA_EPP + "/")) {
+      return NextResponse.json(
+        { success: false, message: "Key de S3 inválida" },
+        { status: 400 }
+      );
+    }
+
+    const { entregasTableId, entregasFields } = airtableSGSSTConfig;
+
+    // 1. Leer attachments actuales
+    const getUrl = `${getSGSSTUrl(entregasTableId)}/${entregaRecordId}`;
+    const getRes = await fetch(getUrl, { headers: getSGSSTHeaders() });
+    if (!getRes.ok) {
+      return NextResponse.json(
+        { success: false, message: "No se pudo obtener la entrega" },
+        { status: 500 }
+      );
+    }
+    const record = await getRes.json();
+    const currentAttachments: { id?: string; url: string }[] =
+      Array.isArray(record.fields?.[entregasFields.FOTO_EVIDENCIA_URL])
+        ? record.fields[entregasFields.FOTO_EVIDENCIA_URL]
+        : [];
+
+    // 2. Generar URL firmada de lectura para la nueva foto
+    const newSignedUrl = await getSignedUrlForKey(s3Key, 86400);
+
+    // 3. Construir array actualizado preservando las demás fotos
+    // Para Airtable attachments: incluir "id" para preservar, solo "url" para nuevas
+    const updatedAttachments: ({ id: string } | { url: string })[] = [];
+
+    const maxIndex = Math.max(currentAttachments.length, index + 1);
+    for (let i = 0; i < maxIndex; i++) {
+      if (i === index) {
+        // Reemplazar esta posición con la nueva foto
+        updatedAttachments.push({ url: newSignedUrl });
+      } else if (i < currentAttachments.length) {
+        // Preservar foto existente usando su ID de Airtable
+        const existing = currentAttachments[i];
+        if (existing.id) {
+          updatedAttachments.push({ id: existing.id });
+        } else {
+          updatedAttachments.push({ url: existing.url });
+        }
+      }
+    }
+
+    // 4. Guardar en Airtable
+    const updateUrl = `${getSGSSTUrl(entregasTableId)}/${entregaRecordId}`;
+    const updateRes = await fetch(updateUrl, {
+      method: "PATCH",
+      headers: getSGSSTHeaders(),
+      body: JSON.stringify({
+        fields: {
+          [entregasFields.FOTO_EVIDENCIA_URL]: updatedAttachments,
+        },
+      }),
+    });
+
+    if (!updateRes.ok) {
+      const errText = await updateRes.text();
+      console.error("Error actualizando foto en Airtable:", errText);
+      return NextResponse.json(
+        { success: false, message: "Error al actualizar la foto en Airtable" },
+        { status: 500 }
+      );
+    }
+
+    const publicUrl = `https://${s3Config.bucketName}.s3.${s3Config.region}.amazonaws.com/${s3Key}`;
+
+    return NextResponse.json({
+      success: true,
+      message: "Foto actualizada exitosamente",
+      url: publicUrl,
+      index,
+    });
+  } catch (error) {
+    console.error("Error en PATCH /api/entregas-epp/foto-evidencia:", error);
+    return NextResponse.json(
+      { success: false, message: "Error al actualizar la foto" },
+      { status: 500 }
+    );
+  }
+}
+
 // ──────────────────────────────────────────────────────────
 // Guardar URLs firmadas en Airtable como attachments
 // ──────────────────────────────────────────────────────────
