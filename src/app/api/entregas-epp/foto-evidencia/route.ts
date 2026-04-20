@@ -23,6 +23,12 @@ const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MIN_FOTOS = 1;
 const MAX_FOTOS = 3;
 
+function getFotoFieldId(): string | null {
+  const fieldId = airtableSGSSTConfig.entregasFields.FOTO_EVIDENCIA_URL;
+  if (!fieldId || fieldId === "undefined") return null;
+  return fieldId;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const contentType = req.headers.get("content-type") || "";
@@ -67,6 +73,17 @@ async function handleJsonKeys(req: NextRequest) {
     );
   }
 
+  const fotoFieldId = getFotoFieldId();
+  if (!fotoFieldId) {
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Configuración faltante: AIRTABLE_ENT_FOTO_EVIDENCIA_URL no está definida en el entorno",
+      },
+      { status: 500 }
+    );
+  }
+
   // Validar que las keys pertenezcan al folder correcto
   for (const key of s3Keys) {
     if (!key.startsWith(S3_FOLDERS.ENTREGA_EPP + "/")) {
@@ -87,7 +104,7 @@ async function handleJsonKeys(req: NextRequest) {
   );
 
   // Guardar en Airtable
-  const result = await saveUrlsToAirtable(entregaRecordId, signedUrls);
+  const result = await saveUrlsToAirtable(entregaRecordId, signedUrls, fotoFieldId);
 
   if (!result.success) {
     return NextResponse.json({
@@ -136,6 +153,17 @@ async function handleFormDataUpload(req: NextRequest) {
       );
     }
 
+    const fotoFieldId = getFotoFieldId();
+    if (!fotoFieldId) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Configuración faltante: AIRTABLE_ENT_FOTO_EVIDENCIA_URL no está definida en el entorno",
+        },
+        { status: 500 }
+      );
+    }
+
     for (const file of files) {
       if (!ALLOWED_TYPES.includes(file.type)) {
         return NextResponse.json(
@@ -175,7 +203,7 @@ async function handleFormDataUpload(req: NextRequest) {
     }
 
     // ── Guardar en Airtable ──
-    const result = await saveUrlsToAirtable(entregaRecordId, signedUrls);
+    const result = await saveUrlsToAirtable(entregaRecordId, signedUrls, fotoFieldId);
 
     if (!result.success) {
       return NextResponse.json({
@@ -229,7 +257,17 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    const { entregasTableId, entregasFields } = airtableSGSSTConfig;
+    const { entregasTableId } = airtableSGSSTConfig;
+    const fotoFieldId = getFotoFieldId();
+    if (!fotoFieldId) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Configuración faltante: AIRTABLE_ENT_FOTO_EVIDENCIA_URL no está definida en el entorno",
+        },
+        { status: 500 }
+      );
+    }
 
     // 1. Leer attachments actuales (returnFieldsByFieldId para usar field IDs)
     const getUrl = `${getSGSSTUrl(entregasTableId)}/${entregaRecordId}?returnFieldsByFieldId=true`;
@@ -242,8 +280,8 @@ export async function PATCH(req: NextRequest) {
     }
     const record = await getRes.json();
     const currentAttachments: { id?: string; url: string }[] =
-      Array.isArray(record.fields?.[entregasFields.FOTO_EVIDENCIA_URL])
-        ? record.fields[entregasFields.FOTO_EVIDENCIA_URL]
+      Array.isArray(record.fields?.[fotoFieldId])
+        ? record.fields[fotoFieldId]
         : [];
 
     // 2. Generar URL firmada de lectura para la nueva foto
@@ -276,7 +314,7 @@ export async function PATCH(req: NextRequest) {
       headers: getSGSSTHeaders(),
       body: JSON.stringify({
         fields: {
-          [entregasFields.FOTO_EVIDENCIA_URL]: updatedAttachments,
+          [fotoFieldId]: updatedAttachments,
         },
       }),
     });
@@ -312,9 +350,10 @@ export async function PATCH(req: NextRequest) {
 // ──────────────────────────────────────────────────────────
 async function saveUrlsToAirtable(
   entregaRecordId: string,
-  signedUrls: string[]
+  signedUrls: string[],
+  fotoFieldId: string
 ): Promise<{ success: boolean }> {
-  const { entregasTableId, entregasFields } = airtableSGSSTConfig;
+  const { entregasTableId } = airtableSGSSTConfig;
   const updateUrl = `${getSGSSTUrl(entregasTableId)}/${entregaRecordId}`;
 
   const updateRes = await fetch(updateUrl, {
@@ -322,7 +361,7 @@ async function saveUrlsToAirtable(
     headers: getSGSSTHeaders(),
     body: JSON.stringify({
       fields: {
-        [entregasFields.FOTO_EVIDENCIA_URL]: signedUrls.map((url) => ({ url })),
+        [fotoFieldId]: signedUrls.map((url) => ({ url })),
       },
     }),
   });

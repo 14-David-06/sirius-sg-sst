@@ -20,6 +20,12 @@ import {
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
+function getFotoFieldId(): string | null {
+  const fieldId = airtableSGSSTConfig.entregasFields.FOTO_EVIDENCIA_URL;
+  if (!fieldId || fieldId === "undefined") return null;
+  return fieldId;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
@@ -64,7 +70,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { entregasTableId, entregasFields } = airtableSGSSTConfig;
+    const { entregasTableId } = airtableSGSSTConfig;
+    const fotoFieldId = getFotoFieldId();
+    if (!fotoFieldId) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Configuración faltante: AIRTABLE_ENT_FOTO_EVIDENCIA_URL no está definida en el entorno",
+        },
+        { status: 500 }
+      );
+    }
 
     // 1. Leer attachments actuales de Airtable (returnFieldsByFieldId para usar field IDs)
     const getUrl = `${getSGSSTUrl(entregasTableId)}/${entregaRecordId}?returnFieldsByFieldId=true`;
@@ -79,8 +95,8 @@ export async function POST(req: NextRequest) {
 
     const record = await getRes.json();
     const currentAttachments: { id?: string; url: string }[] =
-      Array.isArray(record.fields?.[entregasFields.FOTO_EVIDENCIA_URL])
-        ? record.fields[entregasFields.FOTO_EVIDENCIA_URL]
+      Array.isArray(record.fields?.[fotoFieldId])
+        ? record.fields[fotoFieldId]
         : [];
 
     // 2. Subir foto a S3
@@ -119,7 +135,7 @@ export async function POST(req: NextRequest) {
       headers: getSGSSTHeaders(),
       body: JSON.stringify({
         fields: {
-          [entregasFields.FOTO_EVIDENCIA_URL]: updatedAttachments,
+          [fotoFieldId]: updatedAttachments,
         },
       }),
     });
@@ -182,7 +198,17 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    const { entregasTableId, entregasFields } = airtableSGSSTConfig;
+    const { entregasTableId } = airtableSGSSTConfig;
+    const fotoFieldId = getFotoFieldId();
+    if (!fotoFieldId) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Configuración faltante: AIRTABLE_ENT_FOTO_EVIDENCIA_URL no está definida en el entorno",
+        },
+        { status: 500 }
+      );
+    }
 
     // 1. Leer attachments actuales
     const getUrl = `${getSGSSTUrl(entregasTableId)}/${entregaRecordId}?returnFieldsByFieldId=true`;
@@ -197,8 +223,8 @@ export async function DELETE(req: NextRequest) {
 
     const record = await getRes.json();
     const currentAttachments: { id?: string; url: string }[] =
-      Array.isArray(record.fields?.[entregasFields.FOTO_EVIDENCIA_URL])
-        ? record.fields[entregasFields.FOTO_EVIDENCIA_URL]
+      Array.isArray(record.fields?.[fotoFieldId])
+        ? record.fields[fotoFieldId]
         : [];
 
     if (index >= currentAttachments.length) {
@@ -227,7 +253,7 @@ export async function DELETE(req: NextRequest) {
       headers: getSGSSTHeaders(),
       body: JSON.stringify({
         fields: {
-          [entregasFields.FOTO_EVIDENCIA_URL]: updatedAttachments.length > 0
+          [fotoFieldId]: updatedAttachments.length > 0
             ? updatedAttachments
             : [],
         },
