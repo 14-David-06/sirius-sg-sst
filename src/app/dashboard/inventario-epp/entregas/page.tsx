@@ -29,6 +29,7 @@ import {
   Camera,
   ImageIcon,
   Upload,
+  Trash2,
 } from "lucide-react";
 
 // ══════════════════════════════════════════════════════════
@@ -166,6 +167,8 @@ function GestorFotos({
     : [];
 
   const [uploading, setUploading] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState<number | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -229,6 +232,39 @@ function GestorFotos({
     }
   };
 
+  const handleDeletePhoto = async (idx: number) => {
+    setDeleting(idx);
+    setConfirmDelete(null);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const res = await fetch("/api/entregas-epp/foto-evidencia/actualizar", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          entregaRecordId: entrega.id,
+          index: idx,
+        }),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        throw new Error(`Error del servidor (${res.status}): ${errText}`);
+      }
+      const json = await res.json();
+      if (!json.success) throw new Error(json.message);
+
+      setSuccess(`Foto ${idx + 1} eliminada exitosamente`);
+      onUpdated();
+    } catch (err) {
+      console.error("Error eliminando foto:", err);
+      setError(err instanceof Error ? err.message : "Error al eliminar la foto");
+    } finally {
+      setDeleting(null);
+    }
+  };
+
   return (
     <div className="mt-4 pt-3 border-t border-white/5">
       <h3 className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-3 flex items-center gap-1.5">
@@ -244,28 +280,57 @@ function GestorFotos({
         {[0, 1, 2].map((idx) => {
           const url = currentUrls[idx];
           const isUploading = uploading === idx;
+          const isDeleting = deleting === idx;
+          const isConfirming = confirmDelete === idx;
 
           return (
             <div key={idx} className="relative">
               {url ? (
-                // Foto existente — click para reemplazar
+                // Foto existente
                 <div className="relative rounded-xl overflow-hidden border border-white/10 aspect-square group">
                   <img
                     src={url}
                     alt={`Evidencia ${idx + 1}`}
                     className="w-full h-full object-cover bg-black/30"
                   />
-                  <a
-                    href={url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all"
-                    onClick={(e) => e.stopPropagation()}
-                  />
+                  {isConfirming ? (
+                    // Overlay de confirmación de eliminación
+                    <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center gap-2 z-10">
+                      <p className="text-[10px] text-white/80 text-center px-2">¿Eliminar esta foto?</p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleDeletePhoto(idx)}
+                          className="px-3 py-1.5 rounded-lg bg-red-500/90 text-white text-[10px] font-medium hover:bg-red-600 transition-all cursor-pointer"
+                        >
+                          Eliminar
+                        </button>
+                        <button
+                          onClick={() => setConfirmDelete(null)}
+                          className="px-3 py-1.5 rounded-lg bg-white/20 text-white text-[10px] font-medium hover:bg-white/30 transition-all cursor-pointer"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  ) : isDeleting ? (
+                    // Overlay de cargando eliminación
+                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-10">
+                      <Loader2 className="w-6 h-6 text-red-400 animate-spin" />
+                    </div>
+                  ) : (
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  )}
+                  {/* Botón reemplazar */}
                   <button
                     onClick={() => handleSelectFile(idx)}
-                    disabled={isUploading}
-                    className="absolute bottom-1.5 right-1.5 w-8 h-8 rounded-lg bg-blue-500/80 border border-blue-400/40 flex items-center justify-center text-white hover:bg-blue-600 transition-all cursor-pointer disabled:opacity-50"
+                    disabled={isUploading || isDeleting || isConfirming}
+                    className="absolute bottom-1.5 right-1.5 w-8 h-8 rounded-lg bg-blue-500/80 border border-blue-400/40 flex items-center justify-center text-white hover:bg-blue-600 transition-all cursor-pointer disabled:opacity-50 z-20"
                     title="Reemplazar esta foto"
                   >
                     {isUploading ? (
@@ -274,7 +339,16 @@ function GestorFotos({
                       <RefreshCw className="w-3.5 h-3.5" />
                     )}
                   </button>
-                  <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded-md bg-black/60 text-[9px] text-white/70">
+                  {/* Botón eliminar */}
+                  <button
+                    onClick={() => { setConfirmDelete(idx); setError(null); setSuccess(null); }}
+                    disabled={isUploading || isDeleting || isConfirming}
+                    className="absolute bottom-1.5 left-1.5 w-8 h-8 rounded-lg bg-red-500/80 border border-red-400/40 flex items-center justify-center text-white hover:bg-red-600 transition-all cursor-pointer disabled:opacity-50 z-20"
+                    title="Eliminar esta foto"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                  <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded-md bg-black/60 text-[9px] text-white/70 z-20">
                     Foto {idx + 1}
                   </div>
                 </div>

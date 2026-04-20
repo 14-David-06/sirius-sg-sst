@@ -149,3 +149,103 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+// ══════════════════════════════════════════════════════════
+// DELETE /api/entregas-epp/foto-evidencia/actualizar
+// Elimina una foto individual por índice, preservando las demás.
+// Body JSON: { entregaRecordId, index }
+// ══════════════════════════════════════════════════════════
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { entregaRecordId, index } = body;
+
+    if (!entregaRecordId || !/^rec[a-zA-Z0-9]{14}$/.test(entregaRecordId)) {
+      return NextResponse.json(
+        { success: false, message: "ID de entrega inválido" },
+        { status: 400 }
+      );
+    }
+
+    if (typeof index !== "number" || index < 0 || index > 2) {
+      return NextResponse.json(
+        { success: false, message: "Índice inválido (0-2)" },
+        { status: 400 }
+      );
+    }
+
+    const { entregasTableId, entregasFields } = airtableSGSSTConfig;
+
+    // 1. Leer attachments actuales
+    const getUrl = `${getSGSSTUrl(entregasTableId)}/${entregaRecordId}?returnFieldsByFieldId=true`;
+    const getRes = await fetch(getUrl, { headers: getSGSSTHeaders() });
+    if (!getRes.ok) {
+      console.error("Error leyendo entrega:", await getRes.text());
+      return NextResponse.json(
+        { success: false, message: "No se pudo obtener la entrega" },
+        { status: 500 }
+      );
+    }
+
+    const record = await getRes.json();
+    const currentAttachments: { id?: string; url: string }[] =
+      Array.isArray(record.fields?.[entregasFields.FOTO_EVIDENCIA_URL])
+        ? record.fields[entregasFields.FOTO_EVIDENCIA_URL]
+        : [];
+
+    if (index >= currentAttachments.length) {
+      return NextResponse.json(
+        { success: false, message: "No existe una foto en ese índice" },
+        { status: 400 }
+      );
+    }
+
+    // 2. Construir array sin la foto eliminada
+    const updatedAttachments: ({ id: string } | { url: string })[] = [];
+    for (let i = 0; i < currentAttachments.length; i++) {
+      if (i === index) continue; // saltar la foto a eliminar
+      const existing = currentAttachments[i];
+      if (existing.id) {
+        updatedAttachments.push({ id: existing.id });
+      } else {
+        updatedAttachments.push({ url: existing.url });
+      }
+    }
+
+    // 3. Guardar en Airtable (array vacío si era la única foto)
+    const updateUrl = `${getSGSSTUrl(entregasTableId)}/${entregaRecordId}`;
+    const updateRes = await fetch(updateUrl, {
+      method: "PATCH",
+      headers: getSGSSTHeaders(),
+      body: JSON.stringify({
+        fields: {
+          [entregasFields.FOTO_EVIDENCIA_URL]: updatedAttachments.length > 0
+            ? updatedAttachments
+            : [],
+        },
+      }),
+    });
+
+    if (!updateRes.ok) {
+      const errText = await updateRes.text();
+      console.error("Error eliminando foto en Airtable:", errText);
+      return NextResponse.json(
+        { success: false, message: "Error al eliminar la foto en Airtable" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: `Foto ${index + 1} eliminada exitosamente`,
+      index,
+    });
+  } catch (error) {
+    console.error("Error en DELETE /api/entregas-epp/foto-evidencia/actualizar:", error);
+    return NextResponse.json(
+      { success: false, message: "Error al eliminar la foto" },
+      { status: 500 }
+    );
+  }
+}
