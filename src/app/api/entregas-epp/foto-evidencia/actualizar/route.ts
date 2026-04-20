@@ -67,8 +67,8 @@ export async function POST(req: NextRequest) {
 
     const { entregasTableId, entregasFields } = airtableSGSSTConfig;
 
-    // 1. Leer attachments actuales de Airtable
-    const getUrl = `${getSGSSTUrl(entregasTableId)}/${entregaRecordId}`;
+    // 1. Leer attachments actuales de Airtable (returnFieldsByFieldId para usar field IDs)
+    const getUrl = `${getSGSSTUrl(entregasTableId)}/${entregaRecordId}?returnFieldsByFieldId=true`;
     const getRes = await fetch(getUrl, { headers: getSGSSTHeaders() });
     if (!getRes.ok) {
       console.error("Error leyendo entrega:", await getRes.text());

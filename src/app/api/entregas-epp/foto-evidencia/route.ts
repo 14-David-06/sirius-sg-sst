@@ -231,8 +231,8 @@ export async function PATCH(req: NextRequest) {
 
     const { entregasTableId, entregasFields } = airtableSGSSTConfig;
 
-    // 1. Leer attachments actuales
-    const getUrl = `${getSGSSTUrl(entregasTableId)}/${entregaRecordId}`;
+    // 1. Leer attachments actuales (returnFieldsByFieldId para usar field IDs)
+    const getUrl = `${getSGSSTUrl(entregasTableId)}/${entregaRecordId}?returnFieldsByFieldId=true`;
     const getRes = await fetch(getUrl, { headers: getSGSSTHeaders() });
     if (!getRes.ok) {
       return NextResponse.json(
