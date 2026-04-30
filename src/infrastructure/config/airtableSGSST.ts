@@ -638,6 +638,143 @@ export const airtableSGSSTConfig = {
     NOMBRE:            process.env.AIRTABLE_ELEMKIT_NOMBRE!,
     ESTADO:            process.env.AIRTABLE_ELEMKIT_ESTADO!,
   },
+
+  // ══════════════════════════════════════════════════════════
+  // COMITÉ COPASST — Actas digitales (FT-SST-008 v001)
+  // Decreto 1072/2015, Res. 0312/2019
+  // ══════════════════════════════════════════════════════════
+
+  // ── Tabla "copasst_actas" (cabecera) ──────────────────────
+  copasstActasTableId: process.env.COPASST_ACTAS_TABLE_ID!,
+  copasstActasFields: {
+    ID:                          process.env.COPASST_ACTAS_ID_FIELD!,
+    NUMERO_ACTA:                 process.env.COPASST_ACTAS_NUMERO_ACTA_FIELD!,
+    MES_EVALUADO:                process.env.COPASST_ACTAS_MES_EVALUADO_FIELD!,
+    FECHA_REUNION:               process.env.COPASST_ACTAS_FECHA_REUNION_FIELD!,
+    HORA_INICIO:                 process.env.COPASST_ACTAS_HORA_INICIO_FIELD!,
+    HORA_CIERRE:                 process.env.COPASST_ACTAS_HORA_CIERRE_FIELD!,
+    LUGAR:                       process.env.COPASST_ACTAS_LUGAR_FIELD!,
+    ACCIDENTES_PRESENTADOS:      process.env.COPASST_ACTAS_ACCIDENTES_FIELD!,
+    ACCIDENTES_DETALLE:          process.env.COPASST_ACTAS_ACCIDENTES_DETALLE_FIELD!,
+    INCIDENTES_PRESENTADOS:      process.env.COPASST_ACTAS_INCIDENTES_FIELD!,
+    INCIDENTES_DETALLE:          process.env.COPASST_ACTAS_INCIDENTES_DETALLE_FIELD!,
+    NOVEDADES_ADMINISTRATIVAS:   process.env.COPASST_ACTAS_NOVEDADES_FIELD!,
+    ESTADO:                      process.env.COPASST_ACTAS_ESTADO_FIELD!,
+    FIRMA_PRESIDENTE:            process.env.COPASST_ACTAS_FIRMA_PRESIDENTE_FIELD!,
+    FIRMA_SECRETARIO:            process.env.COPASST_ACTAS_FIRMA_SECRETARIO_FIELD!,
+    URL_DOCUMENTO:               process.env.COPASST_ACTAS_URL_DOCUMENTO_FIELD!,
+    FECHA_EXPORTACION:           process.env.COPASST_ACTAS_FECHA_EXPORT_FIELD!,
+    // Links a tablas existentes / compartidas
+    ASISTENTES_LINK:             process.env.COPASST_ACTAS_ASISTENTES_LINK_FIELD!,    // → Miembros Comite SST
+    CAPACITACIONES_PROG_LINK:    process.env.COPASST_ACTAS_CAPACITACIONES_LINK_FIELD!, // → Programación Capacitaciones
+    CONDICIONES_LINK:            process.env.COPASST_ACTAS_CONDICIONES_LINK_FIELD!,   // → copasst_condiciones_inseguras
+    COMPROMISOS_LINK:            process.env.COPASST_ACTAS_COMPROMISOS_LINK_FIELD!,   // → compromisos (compartida)
+    CREATED_AT:                  process.env.COPASST_ACTAS_CREATED_AT_FIELD!,
+    UPDATED_AT:                  process.env.COPASST_ACTAS_UPDATED_AT_FIELD!,
+  },
+
+  // ── Tabla "copasst_condiciones_inseguras" ─────────────────
+  copasstCondicionesTableId: process.env.COPASST_CONDICIONES_TABLE_ID!,
+  copasstCondicionesFields: {
+    ID:           process.env.COPASST_CONDICIONES_ID_FIELD!,
+    ACTA_LINK:    process.env.COPASST_CONDICIONES_ACTA_LINK_FIELD!,
+    DESCRIPCION:  process.env.COPASST_CONDICIONES_DESCRIPCION_FIELD!,
+    RESULTADO:    process.env.COPASST_CONDICIONES_RESULTADO_FIELD!,                   // ok|oportunidad_mejora|critico
+    OBSERVACION:  process.env.COPASST_CONDICIONES_OBSERVACION_FIELD!,
+  },
+
+  // ══════════════════════════════════════════════════════════
+  // COMITÉ COCOLAB — Actas digitales (F-TSST-017 v001)
+  // Res. 652/2012, 1356/2012, 446/2020
+  // ══════════════════════════════════════════════════════════
+
+  // ── Tabla "cocolab_actas" (cabecera) ──────────────────────
+  cocolabActasTableId: process.env.COCOLAB_ACTAS_TABLE_ID!,
+  cocolabActasFields: {
+    ID:                        process.env.COCOLAB_ACTAS_ID_FIELD!,
+    NUMERO_ACTA:               process.env.COCOLAB_ACTAS_NUMERO_ACTA_FIELD!,
+    MES_EVALUADO:              process.env.COCOLAB_ACTAS_MES_EVALUADO_FIELD!,
+    FECHA_REUNION:             process.env.COCOLAB_ACTAS_FECHA_REUNION_FIELD!,
+    HORA_INICIO:               process.env.COCOLAB_ACTAS_HORA_INICIO_FIELD!,
+    HORA_CIERRE:               process.env.COCOLAB_ACTAS_HORA_CIERRE_FIELD!,
+    LUGAR:                     process.env.COCOLAB_ACTAS_LUGAR_FIELD!,
+    QUEJAS_ACOSO:              process.env.COCOLAB_ACTAS_QUEJAS_ACOSO_FIELD!,
+    QUEJAS_ACOSO_DETALLE:      process.env.COCOLAB_ACTAS_QUEJAS_DETALLE_FIELD!,
+    CONFLICTOS_LABORALES:      process.env.COCOLAB_ACTAS_CONFLICTOS_FIELD!,
+    CONFLICTOS_DETALLE:        process.env.COCOLAB_ACTAS_CONFLICTOS_DETALLE_FIELD!,
+    ESTADO:                    process.env.COCOLAB_ACTAS_ESTADO_FIELD!,
+    FIRMA_PRESIDENTE:          process.env.COCOLAB_ACTAS_FIRMA_PRESIDENTE_FIELD!,
+    FIRMA_SECRETARIA:          process.env.COCOLAB_ACTAS_FIRMA_SECRETARIA_FIELD!,
+    URL_DOCUMENTO:             process.env.COCOLAB_ACTAS_URL_DOCUMENTO_FIELD!,
+    FECHA_EXPORTACION:         process.env.COCOLAB_ACTAS_FECHA_EXPORT_FIELD!,
+    ASISTENTES_LINK:           process.env.COCOLAB_ACTAS_ASISTENTES_LINK_FIELD!,    // → Miembros Comite SST
+    ACCIONES_LINK:             process.env.COCOLAB_ACTAS_ACCIONES_LINK_FIELD!,     // → cocolab_acciones_preventivas
+    COMPROMISOS_LINK:          process.env.COCOLAB_ACTAS_COMPROMISOS_LINK_FIELD!,  // → compromisos (compartida)
+    CREATED_AT:                process.env.COCOLAB_ACTAS_CREATED_AT_FIELD!,
+    UPDATED_AT:                process.env.COCOLAB_ACTAS_UPDATED_AT_FIELD!,
+  },
+
+  // ── Tabla "cocolab_acciones_preventivas" ──────────────────
+  cocolabAccionesTableId: process.env.COCOLAB_ACCIONES_TABLE_ID!,
+  cocolabAccionesFields: {
+    ID:           process.env.COCOLAB_ACCIONES_ID_FIELD!,
+    ACTA_LINK:    process.env.COCOLAB_ACCIONES_ACTA_LINK_FIELD!,
+    CATEGORIA:    process.env.COCOLAB_ACCIONES_CATEGORIA_FIELD!,
+    DESCRIPCION:  process.env.COCOLAB_ACCIONES_DESCRIPCION_FIELD!,
+  },
+
+  // ══════════════════════════════════════════════════════════
+  // Tabla "compromisos" — COMPARTIDA entre COPASST y COCOLAB
+  // (discriminador: campo COMITE)
+  // ══════════════════════════════════════════════════════════
+  compromisosTableId: process.env.COMPROMISOS_TABLE_ID!,
+  compromisosFields: {
+    ID:                process.env.COMPROMISOS_ID_FIELD!,
+    COMITE:            process.env.COMPROMISOS_COMITE_FIELD!,             // COPASST|COCOLAB
+    ACTA_COPASST_LINK: process.env.COMPROMISOS_ACTA_COPASST_LINK_FIELD!,
+    ACTA_COCOLAB_LINK: process.env.COMPROMISOS_ACTA_COCOLAB_LINK_FIELD!,
+    COMPROMISO:        process.env.COMPROMISOS_DESCRIPCION_FIELD!,
+    RESPONSABLE:       process.env.COMPROMISOS_RESPONSABLE_FIELD!,
+    FECHA_LIMITE:      process.env.COMPROMISOS_FECHA_LIMITE_FIELD!,
+    CUMPLIDO:          process.env.COMPROMISOS_CUMPLIDO_FIELD!,
+  },
+
+  // ══════════════════════════════════════════════════════════
+  // Tabla EXISTENTE "Miembros Comite SST" (tbl6bA8ZA7WVOckHI)
+  // REUTILIZADA: NO crear duplicados. Filtrar por campo COMITE.
+  // ══════════════════════════════════════════════════════════
+  miembrosComiteTableId: process.env.MIEMBROS_COMITE_TABLE_ID!,
+  miembrosComiteFields: {
+    ID:                process.env.MIEMBROS_COMITE_ID_FIELD!,            // ID Miembro (primary)
+    NOMBRE:            process.env.MIEMBROS_COMITE_NOMBRE_FIELD!,
+    CEDULA:            process.env.MIEMBROS_COMITE_CEDULA_FIELD!,
+    CARGO:             process.env.MIEMBROS_COMITE_CARGO_FIELD!,
+    COMITE:            process.env.MIEMBROS_COMITE_COMITE_FIELD!,        // singleSelect: COPASST|COCOLAB
+    ROL:               process.env.MIEMBROS_COMITE_ROL_FIELD!,
+    ESTADO:            process.env.MIEMBROS_COMITE_ESTADO_FIELD!,
+    ID_EMPLEADO_CORE:  process.env.MIEMBROS_COMITE_EMPLEADO_CORE_FIELD || "",
+    REPRESENTACION:    process.env.MIEMBROS_COMITE_REPRESENTACION_FIELD || "",
+    FECHA_INICIO:      process.env.MIEMBROS_COMITE_FECHA_INICIO_FIELD || "",
+    FECHA_FIN:         process.env.MIEMBROS_COMITE_FECHA_FIN_FIELD || "",
+  },
+
+  // ══════════════════════════════════════════════════════════
+  // Tabla "asistencia_comites" — Tabla intermedia para asistencia + firma
+  // Compartida entre COPASST y COCOLAB (discriminador: campo COMITE)
+  // Reemplaza el uso directo de ASISTENTES_LINK en actas
+  // ══════════════════════════════════════════════════════════
+  asistenciaComitesTableId: process.env.ASISTENCIA_COMITES_TABLE_ID!,
+  asistenciaComitesFields: {
+    ID_ASISTENCIA:          process.env.ASISTENCIA_COMITES_ID_FIELD!,
+    ACTA_COPASST_LINK:      process.env.ASISTENCIA_COMITES_ACTA_COPASST_LINK_FIELD!,
+    ACTA_COCOLAB_LINK:      process.env.ASISTENCIA_COMITES_ACTA_COCOLAB_LINK_FIELD!,
+    MIEMBRO_LINK:           process.env.ASISTENCIA_COMITES_MIEMBRO_LINK_FIELD!,
+    COMITE:                 process.env.ASISTENCIA_COMITES_COMITE_FIELD!,        // COPASST|COCOLAB
+    ASISTIO:                process.env.ASISTENCIA_COMITES_ASISTIO_FIELD!,       // checkbox
+    FIRMA:                  process.env.ASISTENCIA_COMITES_FIRMA_FIELD!,         // longText: data URL
+    FECHA_FIRMA:            process.env.ASISTENCIA_COMITES_FECHA_FIRMA_FIELD!,   // dateTime
+    OBSERVACIONES:          process.env.ASISTENCIA_COMITES_OBSERVACIONES_FIELD || "",
+  },
 };
 
 export function getSGSSTUrl(tableId: string): string {

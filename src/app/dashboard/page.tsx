@@ -125,6 +125,18 @@ const modules = [
     hoverColor: "group-hover:text-cyan-600",
     href: "/dashboard/pve",
   },
+  {
+    title: "Comités SST",
+    description: "Actas digitales COPASST y COCOLAB con firma electrónica y exportación a PDF.",
+    icon: (
+      <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2Z" />
+      </svg>
+    ),
+    color: "bg-amber-50 text-amber-600",
+    hoverColor: "group-hover:text-amber-600",
+    href: "/dashboard/comites",
+  },
 ];
 
 export default function DashboardPage() {
