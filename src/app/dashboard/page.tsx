@@ -201,6 +201,15 @@ const modulesByPhase: Record<Phase, Module[]> = {
       estandar: "Estándar 2.7.1 / 2.8.1",
     },
     {
+      title: "Inducciones y Reinducciones",
+      description: "Gestión de inducciones para nuevos trabajadores y reinducciones periódicas con firma digital.",
+      icon: I.academic,
+      color: "bg-cyan-500/15 text-cyan-300",
+      href: "/dashboard/inducciones",
+      status: "active",
+      estandar: "Estándar 1.2.2",
+    },
+    {
       title: "Plan de Emergencias",
       description: "Plan de prevención, preparación y respuesta ante emergencias.",
       icon: I.fire,
