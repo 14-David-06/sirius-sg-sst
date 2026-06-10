@@ -155,3 +155,50 @@ export function getContentType(filename: string): string {
   };
   return types[ext || ""] || "application/octet-stream";
 }
+
+/**
+ * Extrae la key de S3 desde una URL completa
+ * Ejemplos:
+ *   https://bucket.s3.region.amazonaws.com/path/to/file.json → path/to/file.json
+ *   https://bucket.s3.amazonaws.com/path/to/file.json → path/to/file.json
+ */
+export function extractS3KeyFromUrl(url: string): string | null {
+  try {
+    const urlObj = new URL(url);
+    // Remover el primer "/" del pathname
+    const key = urlObj.pathname.substring(1);
+    return key || null;
+  } catch (error) {
+    console.error("[S3] Error extrayendo key desde URL:", error);
+    return null;
+  }
+}
+
+/**
+ * Lee y parsea un archivo JSON desde S3
+ */
+export async function readJsonFromS3<T = any>(key: string): Promise<T | null> {
+  try {
+    const client = getS3Client();
+    const command = new GetObjectCommand({
+      Bucket: s3Config.bucketName,
+      Key: key,
+    });
+
+    const response = await client.send(command);
+
+    if (!response.Body) {
+      console.error("[S3] El archivo no tiene contenido:", key);
+      return null;
+    }
+
+    // Convertir el stream a string
+    const bodyString = await response.Body.transformToString();
+    const jsonData = JSON.parse(bodyString);
+
+    return jsonData as T;
+  } catch (error) {
+    console.error("[S3] Error leyendo JSON desde S3:", error);
+    return null;
+  }
+}
