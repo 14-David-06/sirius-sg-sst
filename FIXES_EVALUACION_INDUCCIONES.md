@@ -212,6 +212,59 @@ if (step === "constancia" && induccion) { ... }
 
 ---
 
+## 🐛 Problema 4: "Value plnt-ind-2026 is not a valid record ID"
+
+### Error Observado:
+```
+Error creando EvalAplicadas: 
+{"error":{"type":"INVALID_RECORD_ID","message":"Value \"plnt-ind-2026\" is not a valid record ID."}}
+POST /api/evaluaciones/responder 500
+```
+
+### Causa Raíz:
+El endpoint `/api/inducciones/evaluacion` devuelve un ID hardcodeado `"plnt-ind-2026"` que NO existe en Airtable.
+
+Las evaluaciones de inducción son diferentes a las evaluaciones normales:
+- No tienen plantilla pre-creada en Airtable
+- Las preguntas están hardcodeadas en el endpoint
+- El registro se hace al firmar la constancia, no al responder
+
+### Solución:
+**Archivo:** `src/components/evaluaciones/EvaluacionInduccion.tsx`
+
+Detectar si es evaluación de inducción y NO guardar en Airtable:
+
+```typescript
+// ANTES
+setPorcentaje(porc);
+setAprobada(aprobadaResult);
+
+// Guardar en Airtable
+const res = await fetch("/api/evaluaciones/responder", { ... });
+
+// DESPUÉS
+setPorcentaje(porc);
+setAprobada(aprobadaResult);
+
+// Para evaluaciones de inducción, no guardamos en Airtable
+const esInduccion = induccionId !== undefined;
+
+if (!esInduccion) {
+  // Solo guardar si NO es una inducción
+  const res = await fetch("/api/evaluaciones/responder", { ... });
+}
+```
+
+**Lógica:**
+1. Si `induccionId` está presente → es evaluación de inducción
+2. En ese caso, solo calcula puntaje localmente
+3. Llama `onAprobada(puntaje)` con el resultado
+4. El puntaje se registra al firmar la constancia
+
+**Commit:** `2ed9a6f` - Fix: skip Airtable save for induction evaluations
+
+---
+
 ## ✅ Resumen de Commits
 
 | Commit | Descripción | Archivos |
@@ -219,6 +272,7 @@ if (step === "constancia" && induccion) { ... }
 | `b2ad92f` | Mejora evaluación con preguntas generales y botones | 6 archivos |
 | `063c856` | Fix: agregar idEmpleadoCore en token | 1 archivo |
 | `d6f7e4a` | Fix: campos requeridos en evaluación | 2 archivos |
+| `2ed9a6f` | Fix: skip Airtable save para inducciones | 1 archivo |
 
 ---
 
@@ -287,8 +341,9 @@ npm run build
 | idEmpleadoCore undefined | ✅ Resuelto | ✅ |
 | Datos incompletos | ✅ Resuelto | ✅ |
 | TypeScript errors | ✅ Resuelto | ✅ |
-| Botones de test | ✅ Funcionando | ✅ |
-| Preguntas reformuladas | ✅ Implementadas | ✅ |
+| Invalid record ID (plnt-ind-2026) | ✅ Resuelto | Listo para probar |
+| Botones de test | ✅ Funcionando | Listo para probar |
+| Preguntas reformuladas | ✅ Implementadas | Listo para probar |
 
 ---
 
