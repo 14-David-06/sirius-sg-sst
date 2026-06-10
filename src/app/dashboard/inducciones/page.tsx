@@ -17,7 +17,6 @@ import {
   Filter,
 } from "lucide-react";
 import type { EstadoColaborador } from "@/shared/types/inducciones";
-import { formatFechaColombia } from "@/shared/utils";
 
 type FiltroEstado = "TODOS" | "AL_DIA" | "POR_VENCER" | "VENCIDA" | "SIN_INDUCCION";
 
@@ -356,7 +355,7 @@ export default function InduccionesDashboardPage() {
                               {col.ultimaInduccion.tipo === "Induccion" ? "Inducción" : "Reinducción"}
                             </div>
                             <div className="text-xs text-white/50">
-                              {formatFechaColombia(col.ultimaInduccion.fechaRealizacion, { format: "numeric" })}
+                              {new Date(col.ultimaInduccion.fechaRealizacion).toLocaleDateString("es-CO")}
                             </div>
                           </div>
                         ) : (
@@ -365,7 +364,7 @@ export default function InduccionesDashboardPage() {
                       </td>
                       <td className="px-6 py-4 text-white/70 text-sm">
                         {col.ultimaInduccion ? (
-                          formatFechaColombia(col.ultimaInduccion.fechaVencimiento, { format: "numeric" })
+                          new Date(col.ultimaInduccion.fechaVencimiento).toLocaleDateString("es-CO")
                         ) : (
                           <span className="text-white/40">—</span>
                         )}

@@ -23,27 +23,6 @@ interface Empleado {
   cargo: string;
 }
 
-const RESPONSABLE_SST_FIJO_FALLBACK = "María Alejandra";
-
-function getFechaHoyBogota(): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Bogota",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-
-  const year = parts.find((p) => p.type === "year")?.value;
-  const month = parts.find((p) => p.type === "month")?.value;
-  const day = parts.find((p) => p.type === "day")?.value;
-
-  if (!year || !month || !day) {
-    return new Date().toISOString().split("T")[0];
-  }
-
-  return `${year}-${month}-${day}`;
-}
-
 function NuevaInduccionForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -52,7 +31,9 @@ function NuevaInduccionForm() {
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
   const [empleadoSeleccionado, setEmpleadoSeleccionado] = useState<string>("");
   const [tipo, setTipo] = useState<TipoInduccion>("Induccion");
-  const [fechaRealizacion, setFechaRealizacion] = useState<string>(getFechaHoyBogota());
+  const [fechaRealizacion, setFechaRealizacion] = useState<string>(
+    new Date().toISOString().split("T")[0]
+  );
   const [responsableSST, setResponsableSST] = useState<string>("");
   const [observaciones, setObservaciones] = useState<string>("");
 
@@ -61,22 +42,13 @@ function NuevaInduccionForm() {
   const [error, setError] = useState<string>("");
   const [success, setSuccess] = useState(false);
 
-  const colaboradorBloqueado = !!empIdFromUrl && empleados.some((e) => e.idEmpleadoCore === empIdFromUrl);
-
   useEffect(() => {
     cargarEmpleados();
   }, []);
 
   useEffect(() => {
-    cargarResponsableSST();
-  }, []);
-
-  useEffect(() => {
     if (empIdFromUrl && empleados.length > 0) {
-      const existeEmpleado = empleados.some((e) => e.idEmpleadoCore === empIdFromUrl);
-      if (existeEmpleado) {
-        setEmpleadoSeleccionado(empIdFromUrl);
-      }
+      setEmpleadoSeleccionado(empIdFromUrl);
     }
   }, [empIdFromUrl, empleados]);
 
@@ -102,22 +74,6 @@ function NuevaInduccionForm() {
     } finally {
       setLoadingEmpleados(false);
     }
-  };
-
-  const cargarResponsableSST = async () => {
-    try {
-      const response = await fetch("/api/registros-asistencia/conferencista");
-      const data = await response.json();
-
-      if (data.success && data.nombre) {
-        setResponsableSST(data.nombre);
-        return;
-      }
-    } catch {
-      // Si falla el endpoint, usar nombre fijo definido por negocio.
-    }
-
-    setResponsableSST(RESPONSABLE_SST_FIJO_FALLBACK);
   };
 
   const empleadoActual = empleados.find((e) => e.idEmpleadoCore === empleadoSeleccionado);
@@ -274,7 +230,7 @@ function NuevaInduccionForm() {
                     id="empleado"
                     value={empleadoSeleccionado}
                     onChange={(e) => setEmpleadoSeleccionado(e.target.value)}
-                    disabled={loadingEmpleados || colaboradorBloqueado}
+                    disabled={loadingEmpleados}
                     className="w-full bg-white/5 border border-white/10 rounded-lg pl-10 pr-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-400/50 disabled:opacity-50"
                     required
                   >
@@ -288,11 +244,6 @@ function NuevaInduccionForm() {
                     ))}
                   </select>
                 </div>
-                {colaboradorBloqueado && (
-                  <p className="mt-2 text-xs text-white/60">
-                    Colaborador preseleccionado desde el historial de inducciones.
-                  </p>
-                )}
               </div>
 
               {/* Datos del Colaborador (Read-only) */}
@@ -345,15 +296,12 @@ function NuevaInduccionForm() {
                     type="text"
                     id="responsable"
                     value={responsableSST}
-                    readOnly
-                    placeholder="Responsable SST"
+                    onChange={(e) => setResponsableSST(e.target.value)}
+                    placeholder="Nombre del responsable de SST"
                     className="w-full bg-white/5 border border-white/10 rounded-lg pl-10 pr-4 py-3 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-400/50"
                     required
                   />
                 </div>
-                <p className="mt-2 text-xs text-white/60">
-                  Responsable SST asignado automáticamente por configuración del sistema.
-                </p>
               </div>
 
               {/* Observaciones */}

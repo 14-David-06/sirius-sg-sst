@@ -6,22 +6,12 @@
 import { induccionesRepository } from "@/infrastructure/repositories/airtableInduccionesRepository";
 import { induccionesModuleConfig } from "@/infrastructure/config/airtableInducciones";
 import type { EstadoColaborador, RegistroInduccion } from "@/shared/types/inducciones";
-import { getTodayColombia } from "@/shared/utils";
 
 export interface Colaborador {
   idEmpleadoCore: string;
   nombreCompleto: string;
   numeroDocumento: string;
   cargo: string;
-}
-
-function parseFechaCalendario(fecha: string): Date {
-  // Interpretar fechas YYYY-MM-DD como fecha de calendario (mediodia) evita desfases por UTC.
-  if (/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
-    return new Date(`${fecha}T12:00:00`);
-  }
-
-  return new Date(fecha);
 }
 
 export async function obtenerEstadoColaboradores(
@@ -38,13 +28,13 @@ export async function obtenerEstadoColaboradores(
   for (const induccion of todasInducciones) {
     const existente = induccionesPorEmpleado.get(induccion.idEmpleadoCore);
 
-    if (!existente || parseFechaCalendario(induccion.fechaRealizacion) > parseFechaCalendario(existente.fechaRealizacion)) {
+    if (!existente || new Date(induccion.fechaRealizacion) > new Date(existente.fechaRealizacion)) {
       induccionesPorEmpleado.set(induccion.idEmpleadoCore, induccion);
     }
   }
 
   // Calcular estado para cada colaborador
-  const hoy = parseFechaCalendario(getTodayColombia());
+  const hoy = new Date();
   const diasAlerta = induccionesModuleConfig.alertaDiasAnticipacion;
 
   for (const colaborador of colaboradores) {
@@ -67,7 +57,7 @@ export async function obtenerEstadoColaboradores(
     }
 
     // Calcular días para vencimiento
-    const fechaVencimiento = parseFechaCalendario(ultimaInduccion.fechaVencimiento);
+    const fechaVencimiento = new Date(ultimaInduccion.fechaVencimiento);
     const diffTime = fechaVencimiento.getTime() - hoy.getTime();
     const diasParaVencimiento = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 

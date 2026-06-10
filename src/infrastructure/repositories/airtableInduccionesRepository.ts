@@ -188,14 +188,28 @@ export class AirtableInduccionesRepository {
     const url = `${this.client.baseUrl}/${this.registrosTableId}/${recordId}`;
     const fields: any = {};
 
-    if (dto.evaluacionId !== undefined) fields[RF.EVALUACION_ID] = dto.evaluacionId;
-    if (dto.puntajeEvaluacion !== undefined) fields[RF.PUNTAJE_EVALUACION] = dto.puntajeEvaluacion;
-    if (dto.estadoEvaluacion) fields[RF.ESTADO_EVALUACION] = dto.estadoEvaluacion;
-    if (dto.firmaUrl !== undefined) fields[RF.FIRMA_URL] = dto.firmaUrl;
-    if (dto.certificadoUrl !== undefined) fields[RF.CERTIFICADO_URL] = dto.certificadoUrl;
-    if (dto.fechaExportacion !== undefined) fields[RF.FECHA_EXPORTACION] = dto.fechaExportacion;
-    if (dto.estado) fields[RF.ESTADO] = dto.estado;
-    if (dto.observaciones !== undefined) fields[RF.OBSERVACIONES] = dto.observaciones;
+    const setIfConfigured = (fieldId: string | undefined, value: unknown) => {
+      if (fieldId) {
+        fields[fieldId] = value;
+      }
+    };
+
+    if (dto.evaluacionId !== undefined) setIfConfigured(RF.EVALUACION_ID, dto.evaluacionId);
+    if (dto.puntajeEvaluacion !== undefined) setIfConfigured(RF.PUNTAJE_EVALUACION, dto.puntajeEvaluacion);
+    if (dto.estadoEvaluacion) setIfConfigured(RF.ESTADO_EVALUACION, dto.estadoEvaluacion);
+    if (dto.firmaUrl !== undefined) setIfConfigured(RF.FIRMA_URL, dto.firmaUrl);
+    if (dto.firmaResponsableSST !== undefined) {
+      // Solo se escribe si el field ID está configurado en .env (el campo debe existir en Airtable)
+      setIfConfigured(RF.FIRMA_RESPONSABLE_SST, dto.firmaResponsableSST);
+    }
+    if (dto.certificadoUrl !== undefined) setIfConfigured(RF.CERTIFICADO_URL, dto.certificadoUrl);
+    if (dto.documentoSnapshotUrl !== undefined) {
+      // Solo se escribe si el field ID está configurado en .env (el campo debe existir en Airtable)
+      setIfConfigured(RF.DOCUMENTO_SNAPSHOT_URL, dto.documentoSnapshotUrl);
+    }
+    if (dto.fechaExportacion !== undefined) setIfConfigured(RF.FECHA_EXPORTACION, dto.fechaExportacion);
+    if (dto.estado) setIfConfigured(RF.ESTADO, dto.estado);
+    if (dto.observaciones !== undefined) setIfConfigured(RF.OBSERVACIONES, dto.observaciones);
 
     const response = await fetch(url, {
       method: "PATCH",
@@ -249,9 +263,6 @@ export class AirtableInduccionesRepository {
       .substring(0, 32);
     const hashFirma = `${payloadB64}.${signature}`;
 
-    // Obtener el record ID del registro para enlazarlo (campo linked-record)
-    const registro = await this.obtenerRegistroPorIdInduccion(induccionId);
-
     const url = `${this.client.baseUrl}/${this.tokensTableId}`;
     const payload = {
       fields: {
@@ -262,10 +273,6 @@ export class AirtableInduccionesRepository {
         [TF.FECHA_GENERACION]: now.toISOString(),
         [TF.FECHA_EXPIRACION]: expiracion.toISOString(),
         [TF.ESTADO_TOKEN]: "Pendiente",
-        // Enlazar token con el registro de inducción (linked record)
-        ...(registro?.id && TF.REGISTROS_LINK
-          ? { [TF.REGISTROS_LINK]: [registro.id] }
-          : {}),
       },
     };
 
@@ -532,7 +539,17 @@ export class AirtableInduccionesRepository {
       puntajeEvaluacion: f["Puntaje_Evaluacion"] || f[RF.PUNTAJE_EVALUACION] || null,
       estadoEvaluacion: f["Estado_Evaluacion"] || f[RF.ESTADO_EVALUACION] || "Pendiente",
       firmaUrl: f["Firma_URL"] || f[RF.FIRMA_URL] || null,
+      firmaResponsableSST:
+        f["Firma_Responsable_SST"] ||
+        f["Firma_ResponsableSST"] ||
+        (RF.FIRMA_RESPONSABLE_SST ? f[RF.FIRMA_RESPONSABLE_SST] : null) ||
+        null,
       certificadoUrl: f["Certificado_URL"] || f[RF.CERTIFICADO_URL] || null,
+      documentoSnapshotUrl:
+        f["Documento_Snapshot_URL"] ||
+        f["Documento_Unificado_Snapshot_URL"] ||
+        (RF.DOCUMENTO_SNAPSHOT_URL ? f[RF.DOCUMENTO_SNAPSHOT_URL] : null) ||
+        null,
       fechaExportacion: f["Fecha_Exportacion"] || f[RF.FECHA_EXPORTACION] || null,
       estado: f["Estado"] || f[RF.ESTADO] || "En_Proceso",
       observaciones: f["Observaciones"] || f[RF.OBSERVACIONES] || null,
