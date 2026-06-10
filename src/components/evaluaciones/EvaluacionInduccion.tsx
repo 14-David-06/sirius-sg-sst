@@ -161,16 +161,22 @@ export default function EvaluacionInduccion({
   };
 
   // ── Auto-submit (solo DEV) ───────────────────────────────
-  const handleAutoSubmit = () => {
-    handleAutoComplete();
-    // Esperar un momento para que se actualicen las respuestas
-    setTimeout(() => {
-      handleSubmit();
-    }, 100);
+  const handleAutoSubmit = async () => {
+    // Calcular todas las respuestas correctas
+    const allAnswers = new Map<string, string>();
+    preguntas.forEach((p) => {
+      allAnswers.set(p.ppId, p.respuestaCorrecta);
+    });
+
+    // Actualizar estado para que se vea en la UI
+    setAnswers(allAnswers);
+
+    // Llamar submit con las respuestas calculadas directamente
+    await handleSubmitWithAnswers(allAnswers);
   };
 
-  // ── Submit evaluation ───────────────────────────────────
-  const handleSubmit = async () => {
+  // ── Submit con respuestas específicas ────────────────────
+  const handleSubmitWithAnswers = async (answersToSubmit: Map<string, string>) => {
     if (submitting) return;
     setSubmitting(true);
 
@@ -181,7 +187,7 @@ export default function EvaluacionInduccion({
 
       preguntas.forEach((p) => {
         max += p.puntajeAsignado;
-        const respuesta = answers.get(p.ppId);
+        const respuesta = answersToSubmit.get(p.ppId);
 
         if (!respuesta) return;
 
@@ -209,11 +215,10 @@ export default function EvaluacionInduccion({
       setAprobada(aprobadaResult);
 
       // Para evaluaciones de inducción, no guardamos en Airtable
-      // El registro se hace al firmar la constancia
       const esInduccion = induccionId !== undefined;
 
       if (!esInduccion) {
-        // Solo guardar si NO es una inducción (evaluaciones normales)
+        // Solo guardar si NO es una inducción
         const res = await fetch("/api/evaluaciones/responder", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -223,7 +228,7 @@ export default function EvaluacionInduccion({
             nombres: nombreEmpleado,
             cedula: numeroDocumento,
             cargo: cargo,
-            respuestas: Array.from(answers.entries()).map(([ppId, respuesta]) => ({
+            respuestas: Array.from(answersToSubmit.entries()).map(([ppId, respuesta]) => ({
               ppId,
               respuesta,
             })),
@@ -252,6 +257,11 @@ export default function EvaluacionInduccion({
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // ── Submit evaluation ───────────────────────────────────
+  const handleSubmit = async () => {
+    await handleSubmitWithAnswers(answers);
   };
 
   // ── Render: Loading ──────────────────────────────────────
