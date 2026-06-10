@@ -34,7 +34,9 @@ export async function obtenerEstadoColaboradores(
   }
 
   // Calcular estado para cada colaborador
+  // Usar fecha sin hora para evitar problemas de timezone
   const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
   const diasAlerta = induccionesModuleConfig.alertaDiasAnticipacion;
 
   for (const colaborador of colaboradores) {
@@ -56,8 +58,14 @@ export async function obtenerEstadoColaboradores(
       continue;
     }
 
-    // Calcular días para vencimiento
-    const fechaVencimiento = new Date(ultimaInduccion.fechaVencimiento);
+    // Calcular días para vencimiento usando fechas sin timezone
+    // Parse manual para evitar offset UTC
+    const fechaVencParts = ultimaInduccion.fechaVencimiento.split('-');
+    const fechaVencimiento = new Date(
+      parseInt(fechaVencParts[0]),
+      parseInt(fechaVencParts[1]) - 1,
+      parseInt(fechaVencParts[2])
+    );
     const diffTime = fechaVencimiento.getTime() - hoy.getTime();
     const diasParaVencimiento = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 

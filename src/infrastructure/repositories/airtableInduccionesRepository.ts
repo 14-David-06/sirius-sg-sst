@@ -140,10 +140,22 @@ export class AirtableInduccionesRepository {
     const newIdNum = lastId ? parseInt(lastId.split("-")[1]) + 1 : 1;
     const idInduccion = `IND-${String(newIdNum).padStart(4, "0")}`;
 
-    // Calcular fecha de vencimiento
-    const fechaRealizacion = new Date(dto.fechaRealizacion);
+    // Calcular fecha de vencimiento (parse manual para evitar offset UTC)
+    const fechaRealParts = dto.fechaRealizacion.split('-');
+    const fechaRealizacion = new Date(
+      parseInt(fechaRealParts[0]),
+      parseInt(fechaRealParts[1]) - 1,
+      parseInt(fechaRealParts[2])
+    );
+
     const fechaVencimiento = new Date(fechaRealizacion);
     fechaVencimiento.setMonth(fechaVencimiento.getMonth() + induccionesModuleConfig.vigenciaMeses);
+
+    // Formatear fecha vencimiento en formato YYYY-MM-DD
+    const year = fechaVencimiento.getFullYear();
+    const month = String(fechaVencimiento.getMonth() + 1).padStart(2, '0');
+    const day = String(fechaVencimiento.getDate()).padStart(2, '0');
+    const fechaVencimientoStr = `${year}-${month}-${day}`;
 
     const url = `${this.client.baseUrl}/${this.registrosTableId}`;
     const payload = {
@@ -155,7 +167,7 @@ export class AirtableInduccionesRepository {
         [RF.CARGO]: datosEmpleado.cargo,
         [RF.TIPO]: dto.tipo,
         [RF.FECHA_REALIZACION]: dto.fechaRealizacion,
-        [RF.FECHA_VENCIMIENTO]: fechaVencimiento.toISOString().split("T")[0],
+        [RF.FECHA_VENCIMIENTO]: fechaVencimientoStr,
         [RF.RESPONSABLE_SST]: dto.responsableSST,
         [RF.ESTADO_EVALUACION]: "Pendiente",
         [RF.ESTADO]: "En_Proceso",

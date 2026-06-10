@@ -157,8 +157,11 @@ function CertificadoContent() {
   // ════════════════════════════════════════════════════════
   // Vista de Certificado
   // ════════════════════════════════════════════════════════
-  const fechaVenc = new Date(registro.fechaVencimiento);
+  // Calcular vigencia usando fechas sin timezone
+  const fechaVencParts = registro.fechaVencimiento.split('-');
+  const fechaVenc = new Date(parseInt(fechaVencParts[0]), parseInt(fechaVencParts[1]) - 1, parseInt(fechaVencParts[2]));
   const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
   const estaVigente = fechaVenc >= hoy;
 
   return (

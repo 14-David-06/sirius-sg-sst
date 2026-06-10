@@ -28,17 +28,27 @@ export async function GET() {
 
     if (!response.ok) {
       console.error("Error consultando Airtable:", response.status, response.statusText);
-      return NextResponse.json(
-        { success: false, message: "Error al consultar base de datos" },
-        { status: 500 }
-      );
+
+      // Fallback silencioso en caso de error de red
+      const fallbackNombre = process.env.IND_RESPONSABLE_SST_NOMBRE || "María Alejandra";
+      return NextResponse.json({
+        success: true,
+        data: {
+          nombre: fallbackNombre,
+          numeroDocumento: process.env.IND_RESPONSABLE_SST_CEDULA || "",
+          cargo: "Responsable SST",
+          source: "env-fallback-error",
+        },
+      });
     }
 
     const data = await response.json();
 
     if (!data.records || data.records.length === 0) {
-      // Fallback: usar valor por defecto desde .env
-      const fallbackNombre = process.env.IND_RESPONSABLE_SST_NOMBRE || "Responsable SST";
+      console.warn("No se encontró Responsable SST activo en Miembros Comités SST");
+
+      // Fallback: usar valor por defecto desde .env o hardcoded
+      const fallbackNombre = process.env.IND_RESPONSABLE_SST_NOMBRE || "María Alejandra";
       const fallbackCedula = process.env.IND_RESPONSABLE_SST_CEDULA || "";
 
       return NextResponse.json({
@@ -58,7 +68,7 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       data: {
-        nombre: fields[MF.NOMBRE] || "Responsable SST",
+        nombre: fields[MF.NOMBRE] || "María Alejandra",
         numeroDocumento: fields[MF.DOCUMENTO] || "",
         cargo: fields[MF.CARGO] || "Responsable SST",
         source: "airtable",
@@ -66,12 +76,17 @@ export async function GET() {
     });
   } catch (error: any) {
     console.error("Error obteniendo responsable SST:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        message: error.message || "Error interno del servidor",
+
+    // Fallback final en caso de excepción
+    const fallbackNombre = process.env.IND_RESPONSABLE_SST_NOMBRE || "María Alejandra";
+    return NextResponse.json({
+      success: true,
+      data: {
+        nombre: fallbackNombre,
+        numeroDocumento: process.env.IND_RESPONSABLE_SST_CEDULA || "",
+        cargo: "Responsable SST",
+        source: "exception-fallback",
       },
-      { status: 500 }
-    );
+    });
   }
 }

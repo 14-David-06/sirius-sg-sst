@@ -96,8 +96,11 @@ function RegistroCard({ registro }: { registro: RegistroInduccion }) {
       setGenerandoToken(false);
     }
   };
-  const fechaVenc = new Date(registro.fechaVencimiento);
+  // Calcular días para vencer usando fechas sin timezone
+  const fechaVencParts = registro.fechaVencimiento.split('-');
+  const fechaVenc = new Date(parseInt(fechaVencParts[0]), parseInt(fechaVencParts[1]) - 1, parseInt(fechaVencParts[2]));
   const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
   const diasParaVencer = Math.ceil(
     (fechaVenc.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24)
   );
