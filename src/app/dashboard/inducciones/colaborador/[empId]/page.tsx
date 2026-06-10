@@ -88,7 +88,12 @@ function RegistroCard({ registro }: { registro: RegistroInduccion }) {
       const data = await res.json();
 
       if (!data.success) {
-        alert(`Error: ${data.message}`);
+        // Mostrar mensaje específico según el error
+        if (data.message && data.message.includes("Completada")) {
+          alert("❌ No se puede generar link de firma\n\nEsta inducción ya está completada y firmada.\n\nPuedes descargar el certificado desde el botón de abajo.");
+        } else {
+          alert(`❌ Error: ${data.message || "No se pudo generar el link de firma"}`);
+        }
         return;
       }
 
@@ -99,7 +104,7 @@ function RegistroCard({ registro }: { registro: RegistroInduccion }) {
       alert("✅ Link copiado al portapapeles!\n\nEnvíalo al empleado para que firme su inducción.");
     } catch (error: unknown) {
       console.error("Error generando token:", error);
-      alert("Error al generar el link de firma");
+      alert("❌ Error al generar el link de firma\n\nPor favor intenta de nuevo o contacta al administrador.");
     } finally {
       setGenerandoToken(false);
     }
@@ -185,8 +190,20 @@ function RegistroCard({ registro }: { registro: RegistroInduccion }) {
 
       {/* Acciones */}
       <div className="flex flex-wrap items-center gap-2 pt-4 border-t border-white/10">
-        {/* Generar Link de Firma (solo si no está firmada) */}
-        {!registro.firmaUrl && (registro.estado === "En_Proceso" || registro.estado === "Pendiente_Firma") && (
+        {/* Mostrar estado cuando ya está completada */}
+        {registro.estado === "Completada" && registro.firmaUrl && (
+          <div className="w-full p-3 rounded-xl bg-green-500/10 border border-green-400/30">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-green-400" />
+              <p className="text-sm text-green-300 font-semibold">
+                Inducción completada y firmada ✓
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Generar Link de Firma (solo si no está firmada Y no está completada) */}
+        {!registro.firmaUrl && registro.estado !== "Completada" && (registro.estado === "En_Proceso" || registro.estado === "Pendiente_Firma") && (
           <div className="w-full">
             {!linkFirma ? (
               <button

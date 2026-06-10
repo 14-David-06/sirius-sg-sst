@@ -17,12 +17,16 @@ export async function generarTokenFirma(
     throw new Error("Inducción no encontrada");
   }
 
+  console.log(`[generarTokenFirma] ID: ${idInduccion}, Estado actual: ${registro.estado}, Firma URL: ${registro.firmaUrl ? 'SÍ' : 'NO'}`);
+
   // Si está en "En_Proceso", cambiar a "Pendiente_Firma"
   if (registro.estado === "En_Proceso") {
+    console.log(`[generarTokenFirma] Cambiando estado de "En_Proceso" a "Pendiente_Firma"`);
     await induccionesRepository.actualizarRegistro(registro.id!, {
       estado: "Pendiente_Firma",
     });
   } else if (registro.estado !== "Pendiente_Firma") {
+    console.error(`[generarTokenFirma] ERROR - Estado no permitido: "${registro.estado}". Solo se permite "En_Proceso" o "Pendiente_Firma"`);
     throw new Error(`La inducción ya está ${registro.estado}`);
   }
 

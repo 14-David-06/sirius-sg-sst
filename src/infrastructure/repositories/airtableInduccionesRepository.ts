@@ -135,10 +135,14 @@ export class AirtableInduccionesRepository {
     numeroDocumento: string;
     cargo: string;
   }): Promise<RegistroInduccion> {
+    console.log('[crearRegistro] Iniciando creación de nueva inducción...');
+
     // Generar ID_Induccion
     const lastId = await this.obtenerUltimoIdInduccion();
     const newIdNum = lastId ? parseInt(lastId.split("-")[1]) + 1 : 1;
     const idInduccion = `IND-${String(newIdNum).padStart(4, "0")}`;
+
+    console.log(`[crearRegistro] Último ID: ${lastId}, Nuevo número: ${newIdNum}, Nuevo ID: ${idInduccion}`);
 
     // Calcular fecha de vencimiento (parse manual para evitar offset UTC)
     const fechaRealParts = dto.fechaRealizacion.split('-');
@@ -471,17 +475,27 @@ export class AirtableInduccionesRepository {
   private async obtenerUltimoIdInduccion(): Promise<string | null> {
     const url = `${this.client.baseUrl}/${this.registrosTableId}`;
     const params = new URLSearchParams({
-      sort: JSON.stringify([{field: 'ID_Induccion', direction: 'desc'}]),
+      sort: JSON.stringify([{field: RF.ID_INDUCCION, direction: 'desc'}]), // Usar Field ID
       maxRecords: "1",
     });
+
+    console.log('[obtenerUltimoIdInduccion] Consultando último ID...');
 
     const response = await fetch(`${url}?${params}`, {
       headers: this.client.headers,
     });
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      console.error('[obtenerUltimoIdInduccion] Error en la consulta:', await response.text());
+      return null;
+    }
+
     const data = await response.json();
-    return data.records.length > 0 ? (data.records[0].fields["ID_Induccion"] || data.records[0].fields[RF.ID_INDUCCION]) : null;
+    const lastId = data.records.length > 0 ? data.records[0].fields[RF.ID_INDUCCION] : null;
+
+    console.log(`[obtenerUltimoIdInduccion] Último ID encontrado: ${lastId || 'NINGUNO (primera inducción)'}`);
+
+    return lastId;
   }
 
   private async obtenerUltimoIdToken(): Promise<string | null> {

@@ -128,7 +128,10 @@ const PLANTACION = "Barranca de Upía, km 7 vía Cabuyaro, Meta, Colombia";
 
 function formatearFecha(fecha: string): string {
   try {
-    return new Date(fecha).toLocaleDateString("es-CO", {
+    // Agregar hora para evitar problemas con zona horaria
+    // Si la fecha es YYYY-MM-DD, agregar T12:00:00 para interpretarla correctamente
+    const fechaConHora = fecha.includes('T') ? fecha : `${fecha}T12:00:00`;
+    return new Date(fechaConHora).toLocaleDateString("es-CO", {
       year: "numeric",
       month: "long",
       day: "numeric",
@@ -274,7 +277,8 @@ function drawSignatureBox(
   nombre: string,
   linea2: string,
   signatureDataUrl: string | null,
-  pendienteTexto: string
+  pendienteTexto: string,
+  isResponsableSST: boolean = false
 ): void {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
@@ -287,7 +291,26 @@ function drawSignatureBox(
 
   if (signatureDataUrl) {
     try {
-      doc.addImage(signatureDataUrl, "PNG", x + 3, y + 7, w - 6, h - 26);
+      // Firma del responsable SST - IMAGEN mucho más grande dentro del mismo recuadro
+      if (isResponsableSST) {
+        // Márgenes ultra-mínimos para maximizar la imagen
+        const marginTop = 4;
+        const marginBottom = 9; // Espacio mínimo para nombre y línea
+        const marginHorizontal = 0.5;
+
+        // Dimensiones de la imagen maximizadas
+        const imgW = w - (marginHorizontal * 2); // 99.5% del ancho del recuadro
+        const imgH = h - marginTop - marginBottom; // Máxima altura posible
+
+        // Centrado perfecto
+        const imgX = x + marginHorizontal;
+        const imgY = y + marginTop + 1;
+
+        doc.addImage(signatureDataUrl, "PNG", imgX, imgY, imgW, imgH);
+      } else {
+        // Firma del colaborador (tamaño normal)
+        doc.addImage(signatureDataUrl, "PNG", x + 3, y + 7, w - 6, h - 26);
+      }
     } catch {
       // Ignorar error de imagen inválida
     }
@@ -552,6 +575,7 @@ function dibujarCertificado(
 
   y = (pdf as DocAT).lastAutoTable.finalY + 8;
 
+  // Ambas cajas del MISMO tamaño
   const boxW = (CW - 12) / 2;
   const boxH = 48;
 
@@ -565,7 +589,8 @@ function dibujarCertificado(
     registro.nombreEmpleado,
     `CC ${registro.numeroDocumento}`,
     firmaEmpleadoDataUrl,
-    "Pendiente de firma"
+    "Pendiente de firma",
+    false // No es responsable SST
   );
 
   drawSignatureBox(
@@ -578,7 +603,8 @@ function dibujarCertificado(
     registro.responsableSST,
     "Responsable SG-SST",
     firmaResponsableDataUrl,
-    "Pendiente firma responsable SST"
+    "Pendiente firma responsable SST",
+    true // ES responsable SST - SOLO la imagen de la firma es más grande
   );
 }
 

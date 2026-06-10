@@ -16,6 +16,12 @@ export async function GET(
 
     const registros = await induccionesRepository.listarPorEmpleado(empId);
 
+    // Log para debugging
+    console.log(`[GET /api/inducciones/colaborador/${empId}] Total registros: ${registros.length}`);
+    registros.forEach((r, idx) => {
+      console.log(`  [${idx + 1}] ID: ${r.idInduccion}, Estado: ${r.estado}, Firma: ${r.firmaUrl ? 'SÍ' : 'NO'}`);
+    });
+
     return NextResponse.json({
       success: true,
       data: registros,
