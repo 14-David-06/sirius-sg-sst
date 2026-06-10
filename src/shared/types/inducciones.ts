@@ -37,10 +37,8 @@ export const RegistroInduccionSchema = z.object({
   evaluacionId: z.string().optional().nullable(),
   puntajeEvaluacion: z.number().min(0).max(100).optional().nullable(),
   estadoEvaluacion: EstadoEvaluacionEnum,
-  firmaUrl: z.string().min(1).optional().nullable(), // Firma empleado (cifrada)
-  firmaResponsableSST: z.string().min(1).optional().nullable(), // Firma SST (cifrada)
+  firmaUrl: z.string().url().optional().nullable(),
   certificadoUrl: z.string().url().optional().nullable(),
-  documentoSnapshotUrl: z.string().url().optional().nullable(),
   fechaExportacion: z.string().optional().nullable(), // ISO datetime
   estado: EstadoInduccionEnum,
   observaciones: z.string().optional().nullable(),
@@ -98,10 +96,8 @@ export const ActualizarInduccionDTOSchema = z.object({
   evaluacionId: z.string().optional().nullable(),
   puntajeEvaluacion: z.number().min(0).max(100).optional().nullable(),
   estadoEvaluacion: EstadoEvaluacionEnum.optional(),
-  firmaUrl: z.string().min(1).optional().nullable(),
-  firmaResponsableSST: z.string().min(1).optional().nullable(),
+  firmaUrl: z.string().url().optional().nullable(),
   certificadoUrl: z.string().url().optional().nullable(),
-  documentoSnapshotUrl: z.string().url().optional().nullable(),
   fechaExportacion: z.string().optional().nullable(),
   estado: EstadoInduccionEnum.optional(),
   observaciones: z.string().optional().nullable(),

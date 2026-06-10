@@ -212,7 +212,7 @@ function renderEncabezado(doc: jsPDF, y: number, M: number, CW: number, tituloFo
   doc.setTextColor(...C.NEGRO);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(7.5);
-  doc.text("CODIGO: FT-SST-025", ccx + cC / 2, y + rH / 2 + 1.5, { align: "center" });
+  doc.text("CODIGO: F-SST-IND-001", ccx + cC / 2, y + rH / 2 + 1.5, { align: "center" });
   doc.setFont("helvetica", "normal");
   doc.text("VERSION: 1", ccx + cC / 2, y + rH + rH / 2 + 1.5, { align: "center" });
   doc.text("FECHA EDICION: 2026-01-01", ccx + cC / 2, y + 2 * rH + rH / 2 + 1.5, { align: "center" });
@@ -507,8 +507,8 @@ function dibujarCertificado(
   const CW = PW - M * 2;
 
   let y = M;
-  y = renderEncabezado(pdf, y, M, CW, "FORMATO CERTIFICADO DE INDUCCIÓN Y/O REINDUCCIÓN", logo64);
-  y = renderTituloBanda(pdf, y, M, CW, "CERTIFICADO DE INDUCCIÓN Y/O REINDUCCIÓN");
+  y = renderEncabezado(pdf, y, M, CW, "FORMATO CERTIFICADO DE INDUCCIÓN", logo64);
+  y = renderTituloBanda(pdf, y, M, CW, "CERTIFICADO DE INDUCCIÓN");
 
   const tipoTexto = registro.tipo === "Induccion" ? "inducción" : "reinducción";
 

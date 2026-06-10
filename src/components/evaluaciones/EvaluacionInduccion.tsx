@@ -39,26 +39,6 @@ interface PlantillaDetail {
   mostrarRetro: boolean;
 }
 
-// Detalle de cada respuesta del usuario (para el PDF unificado)
-export interface RespuestaDetalle {
-  orden: number;
-  pregunta: string;
-  opciones: string[];
-  respuestaUsuario: string;
-  respuestaCorrecta: string;
-  esCorrecta: boolean;
-  puntajeAsignado: number;
-  puntajeObtenido: number;
-}
-
-export interface ResultadoEvaluacion {
-  puntaje: number;
-  puntajeObtenido: number;
-  puntajeMaximo: number;
-  aprobada: boolean;
-  detalle: RespuestaDetalle[];
-}
-
 // ── Props ────────────────────────────────────────────────
 
 interface EvaluacionInduccionProps {
@@ -67,8 +47,8 @@ interface EvaluacionInduccionProps {
   nombreEmpleado: string;
   numeroDocumento: string;
   cargo?: string;
-  onAprobada: (puntaje: number, resultado?: ResultadoEvaluacion) => void;
-  onReprobada: (resultado?: ResultadoEvaluacion) => void;
+  onAprobada: (puntaje: number) => void;
+  onReprobada: () => void;
 }
 
 // ════════════════════════════════════════════════════════
@@ -204,44 +184,26 @@ export default function EvaluacionInduccion({
       // Calcular puntaje
       let puntaje = 0;
       let max = 0;
-      const detalle: RespuestaDetalle[] = [];
 
       preguntas.forEach((p) => {
         max += p.puntajeAsignado;
         const respuesta = answersToSubmit.get(p.ppId);
 
-        let esCorrecta = false;
+        if (!respuesta) return;
 
-        if (respuesta) {
-          // Para selección múltiple, comparar arrays
-          if (p.tipo === "Selección Múltiple") {
-            const respuestaArray = respuesta.split("|").sort();
-            const correctaArray = p.respuestaCorrecta.split("|").sort();
-            if (JSON.stringify(respuestaArray) === JSON.stringify(correctaArray)) {
-              esCorrecta = true;
-            }
-          } else {
-            // Para selección única, comparar strings
-            if (respuesta.trim() === p.respuestaCorrecta.trim()) {
-              esCorrecta = true;
-            }
+        // Para selección múltiple, comparar arrays
+        if (p.tipo === "Selección Múltiple") {
+          const respuestaArray = respuesta.split("|").sort();
+          const correctaArray = p.respuestaCorrecta.split("|").sort();
+          if (JSON.stringify(respuestaArray) === JSON.stringify(correctaArray)) {
+            puntaje += p.puntajeAsignado;
+          }
+        } else {
+          // Para selección única, comparar strings
+          if (respuesta.trim() === p.respuestaCorrecta.trim()) {
+            puntaje += p.puntajeAsignado;
           }
         }
-
-        if (esCorrecta) {
-          puntaje += p.puntajeAsignado;
-        }
-
-        detalle.push({
-          orden: p.orden,
-          pregunta: p.texto,
-          opciones: p.opciones,
-          respuestaUsuario: respuesta ? respuesta.split("|").join(", ") : "Sin responder",
-          respuestaCorrecta: p.respuestaCorrecta.split("|").join(", "),
-          esCorrecta,
-          puntajeAsignado: p.puntajeAsignado,
-          puntajeObtenido: esCorrecta ? p.puntajeAsignado : 0,
-        });
       });
 
       const porc = max > 0 ? Math.round((puntaje / max) * 100) : 0;
@@ -251,14 +213,6 @@ export default function EvaluacionInduccion({
       setPuntajeMaximo(max);
       setPorcentaje(porc);
       setAprobada(aprobadaResult);
-
-      const resultado: ResultadoEvaluacion = {
-        puntaje: porc,
-        puntajeObtenido: puntaje,
-        puntajeMaximo: max,
-        aprobada: aprobadaResult,
-        detalle,
-      };
 
       // Para evaluaciones de inducción, no guardamos en Airtable
       const esInduccion = induccionId !== undefined;
@@ -292,9 +246,9 @@ export default function EvaluacionInduccion({
 
       // Llamar callback según resultado
       if (aprobadaResult) {
-        setTimeout(() => onAprobada(porc, resultado), 2000);
+        setTimeout(() => onAprobada(porc), 2000);
       } else {
-        setTimeout(() => onReprobada(resultado), 2000);
+        setTimeout(() => onReprobada(), 2000);
       }
     } catch (error: any) {
       console.error("[EvaluacionInduccion] Error:", error);

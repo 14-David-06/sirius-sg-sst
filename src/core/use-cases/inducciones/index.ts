@@ -8,4 +8,3 @@ export { procesarFirma } from "./procesarFirma";
 export { obtenerEstadoColaboradores } from "./obtenerEstadoColaboradores";
 export { crearAlerta } from "./crearAlerta";
 export { generarCertificado } from "./generarCertificado";
-export { generarDocumentoUnificado } from "./generarDocumentoUnificado";

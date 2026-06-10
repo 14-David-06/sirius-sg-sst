@@ -34,7 +34,7 @@ function NuevaInduccionForm() {
   const [fechaRealizacion, setFechaRealizacion] = useState<string>(
     new Date().toISOString().split("T")[0]
   );
-  const [responsableSST, setResponsableSST] = useState<string>("");
+  const [responsableSST, setResponsableSST] = useState<string>("Sirius");
   const [observaciones, setObservaciones] = useState<string>("");
 
   const [loading, setLoading] = useState(false);
@@ -44,6 +44,7 @@ function NuevaInduccionForm() {
 
   useEffect(() => {
     cargarEmpleados();
+    cargarResponsableSST();
   }, []);
 
   useEffect(() => {
@@ -73,6 +74,21 @@ function NuevaInduccionForm() {
       setError("Error al cargar la lista de empleados");
     } finally {
       setLoadingEmpleados(false);
+    }
+  };
+
+  const cargarResponsableSST = async () => {
+    try {
+      const response = await fetch("/api/inducciones/responsable-sst");
+      const data = await response.json();
+
+      if (data.success && data.data?.nombre) {
+        setResponsableSST(data.data.nombre);
+      }
+      // Si falla, mantiene el valor por defecto "Sirius"
+    } catch (error) {
+      console.error("Error cargando responsable SST:", error);
+      // Silencioso: mantiene el fallback "Sirius"
     }
   };
 

@@ -139,37 +139,6 @@ export async function deleteFromS3(key: string): Promise<void> {
 }
 
 /**
- * Extrae la key de S3 a partir de una URL completa del bucket.
- */
-export function extractS3KeyFromUrl(url: string): string {
-  const prefix = `https://${s3Config.bucketName}.s3.${s3Config.region}.amazonaws.com/`;
-  if (url.startsWith(prefix)) {
-    return url.slice(prefix.length);
-  }
-  throw new Error("URL de S3 inválida para este bucket/región");
-}
-
-/**
- * Lee y parsea un JSON almacenado en S3.
- */
-export async function readJsonFromS3<T>(key: string): Promise<T> {
-  const client = getS3Client();
-  const command = new GetObjectCommand({
-    Bucket: s3Config.bucketName,
-    Key: key,
-  });
-
-  const response = await client.send(command);
-  const raw = await response.Body?.transformToString("utf-8");
-
-  if (!raw) {
-    throw new Error("Archivo vacío o no encontrado en S3");
-  }
-
-  return JSON.parse(raw) as T;
-}
-
-/**
  * Genera el Content-Type basado en la extensión del archivo
  */
 export function getContentType(filename: string): string {
