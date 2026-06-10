@@ -861,6 +861,7 @@ function FirmarInduccionContent() {
               idEmpleadoCore={induccion.idEmpleadoCore}
               nombreEmpleado={induccion.nombreEmpleado}
               numeroDocumento={induccion.numeroDocumento}
+              cargo={induccion.cargo}
               onAprobada={(puntaje) => {
                 setPuntajeEvaluacion(puntaje);
                 setStep("sign");

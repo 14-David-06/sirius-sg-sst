@@ -46,6 +46,7 @@ interface EvaluacionInduccionProps {
   idEmpleadoCore: string;
   nombreEmpleado: string;
   numeroDocumento: string;
+  cargo?: string;
   onAprobada: (puntaje: number) => void;
   onReprobada: () => void;
 }
@@ -59,6 +60,7 @@ export default function EvaluacionInduccion({
   idEmpleadoCore,
   nombreEmpleado,
   numeroDocumento,
+  cargo = "",
   onAprobada,
   onReprobada,
 }: EvaluacionInduccionProps) {
@@ -213,6 +215,9 @@ export default function EvaluacionInduccion({
         body: JSON.stringify({
           plantillaId: plantilla?.id,
           idEmpleadoCore,
+          nombres: nombreEmpleado,
+          cedula: numeroDocumento,
+          cargo: cargo,
           respuestas: Array.from(answers.entries()).map(([ppId, respuesta]) => ({
             ppId,
             respuesta,
