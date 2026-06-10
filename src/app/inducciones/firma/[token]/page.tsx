@@ -185,6 +185,42 @@ function FirmarInduccionContent() {
     observaciones: "",
   });
 
+  // Estado para los temas de la constancia (checkboxes)
+  const [temasConstancia, setTemasConstancia] = useState({
+    // Administrativo
+    responsabilidadEmpleado: false,
+    reglamentoInterno: false,
+    afiliacionSeguridad: false,
+    protocoloActividades: false,
+    pqrs: false,
+    deberesDerechos: false,
+    // SST
+    reglamentoHigiene: false,
+    descripcionSGSST: false,
+    epp: false,
+    politicasObjetivos: false,
+    politicaNoAlcohol: false,
+    politicaVial: false,
+    politicaAmbiental: false,
+    politicaAcoso: false,
+    politicaEPP: false,
+    matrizIPVRDC: false,
+    identificacionRiesgos: false,
+    copasst: false,
+    cocolab: false,
+    definicionAcoso: false,
+    riesgosHerramientas: false,
+    planEmergencia: false,
+    brigadas: false,
+    procedimientoAccidente: false,
+    reporteActos: false,
+    procedimientoEmergencia: false,
+    // Medio Ambiente
+    aspectosAmbientales: false,
+    controlDerrames: false,
+    reporteIncendios: false,
+  });
+
   // Cargar datos de la inducción
   useEffect(() => {
     if (!token) {
@@ -323,140 +359,187 @@ function FirmarInduccionContent() {
   // STEP: Constancia (Nuevo paso)
   // ════════════════════════════════════════════════════════
   if (step === "constancia" && induccion) {
+    const temas = [
+      {
+        area: "Administrativo",
+        items: [
+          { key: "responsabilidadEmpleado", tema: "Responsabilidad con el empleado" },
+          { key: "reglamentoInterno", tema: "Reglamento Interno de Trabajo" },
+          { key: "afiliacionSeguridad", tema: "Afiliación al Sistema de Seguridad Social" },
+          { key: "protocoloActividades", tema: "Protocolo sobre las actividades agrícolas a desarrollar" },
+          { key: "pqrs", tema: "Socialización del procedimiento de PQRS" },
+          { key: "deberesDerechos", tema: "Deberes y derechos de los trabajadores" },
+        ],
+      },
+      {
+        area: "Seguridad y Salud en el Trabajo",
+        items: [
+          { key: "reglamentoHigiene", tema: "Reglamento de Higiene y Seguridad industrial" },
+          { key: "descripcionSGSST", tema: "Descripción del SG-SST" },
+          { key: "epp", tema: "EPP (Elementos de protección personal)" },
+          { key: "politicasObjetivos", tema: "Políticas del SG-SST y Objetivos del SG-SST" },
+          { key: "politicaNoAlcohol", tema: "Política de NO alcohol, drogas y tabaco" },
+          { key: "politicaVial", tema: "Política de Seguridad Vial" },
+          { key: "politicaAmbiental", tema: "Política Ambiental" },
+          { key: "politicaAcoso", tema: "Política de Acoso Laboral" },
+          { key: "politicaEPP", tema: "Política de EPP" },
+          { key: "matrizIPVRDC", tema: "Matriz de IPVRDC. Factores de riesgo al cargo" },
+          { key: "identificacionRiesgos", tema: "Identificación y clasificación de Riesgos y Peligros" },
+          { key: "copasst", tema: "COPASST – Integrantes, Responsabilidades" },
+          { key: "cocolab", tema: "COCOLAB (Comité de convivencia laboral)" },
+          { key: "definicionAcoso", tema: "Definición de Acoso Laboral y qué hacer" },
+          { key: "riesgosHerramientas", tema: "Riesgos asociados a herramientas mecánicas" },
+          { key: "planEmergencia", tema: "Plan de emergencia (Puntos de Encuentro y Rutas)" },
+          { key: "brigadas", tema: "Brigadas de Emergencia" },
+          { key: "procedimientoAccidente", tema: "Procedimiento en caso de accidente de trabajo" },
+          { key: "reporteActos", tema: "Reporte de Actos y Condiciones Inseguras" },
+          { key: "procedimientoEmergencia", tema: "Procedimiento en caso de emergencia" },
+        ],
+      },
+      {
+        area: "Medio Ambiente",
+        items: [
+          { key: "aspectosAmbientales", tema: "Aspectos e Impactos Ambientales" },
+          { key: "controlDerrames", tema: "Atención y Control de Derrames" },
+          { key: "reporteIncendios", tema: "Reporte de Incendios Forestales" },
+        ],
+      },
+    ];
+
     return (
       <InduccionesBackdrop>
-        <div className="min-h-screen flex items-center justify-center p-4">
-          <div className="max-w-3xl w-full bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-8 space-y-6">
+        <div className="min-h-screen p-4">
+          <div className="max-w-5xl mx-auto space-y-6">
           {/* Header */}
-          <div className="flex items-center gap-4 pb-6 border-b border-white/10">
-            <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center">
-              <FileText className="w-6 h-6 text-blue-400" />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-white">Constancia de Inducción</h2>
-              <p className="text-sm text-slate-400">Completa los datos de la constancia</p>
-            </div>
-          </div>
-
-          {/* Información del empleado (readonly) */}
-          <div className="bg-white/5 rounded-xl p-6 space-y-3">
-            <h3 className="text-white font-semibold mb-3">Información del Empleado</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm text-slate-400">Nombre Completo</label>
-                <input
-                  type="text"
-                  value={induccion.nombreEmpleado}
-                  disabled
-                  className="w-full mt-1 px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
-                />
+          <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                <FileText className="w-6 h-6 text-blue-400" />
               </div>
-              <div>
-                <label className="text-sm text-slate-400">Documento</label>
-                <input
-                  type="text"
-                  value={induccion.numeroDocumento}
-                  disabled
-                  className="w-full mt-1 px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
-                />
-              </div>
-              <div>
-                <label className="text-sm text-slate-400">Cargo</label>
-                <input
-                  type="text"
-                  value={induccion.cargo}
-                  disabled
-                  className="w-full mt-1 px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
-                />
-              </div>
-              <div>
-                <label className="text-sm text-slate-400">Tipo</label>
-                <input
-                  type="text"
-                  value={induccion.tipo}
-                  disabled
-                  className="w-full mt-1 px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
-                />
+              <div className="flex-1">
+                <h2 className="text-2xl font-bold text-white">Certificación de Inducción y/o Reinducción del Personal</h2>
+                <p className="text-sm text-slate-400 mt-1">SIRIUS REGENERATIVE SOLUTIONS S.A.S. ZOMAC - NIT: 901.377.064-8</p>
               </div>
             </div>
           </div>
 
-          {/* Formulario de constancia */}
-          <div className="bg-white/5 rounded-xl p-6 space-y-4">
-            <h3 className="text-white font-semibold mb-3">Datos de Realización</h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Información del empleado */}
+          <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="text-sm text-slate-400">Fecha de Realización *</label>
+                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Nombre</label>
+                <p className="text-white font-semibold mt-1">{induccion.nombreEmpleado}</p>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Fecha de Inducción</label>
+                <p className="text-white font-semibold mt-1">{formatFechaColombia(new Date(induccion.fechaRealizacion))}</p>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Cargo</label>
+                <p className="text-white font-semibold mt-1">{induccion.cargo}</p>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Fecha de Ingreso</label>
                 <input
                   type="date"
                   value={constanciaData.fechaRealizacion}
                   onChange={(e) => setConstanciaData({...constanciaData, fechaRealizacion: e.target.value})}
-                  className="w-full mt-1 px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:border-blue-500 focus:outline-none"
+                  className="w-full mt-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:border-blue-500 focus:outline-none"
                 />
               </div>
-
               <div>
-                <label className="text-sm text-slate-400">Lugar de Realización *</label>
+                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Lugar</label>
                 <input
                   type="text"
                   value={constanciaData.lugarRealizacion}
                   onChange={(e) => setConstanciaData({...constanciaData, lugarRealizacion: e.target.value})}
-                  placeholder="Ej: Oficina Principal"
-                  className="w-full mt-1 px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                  placeholder="Lugar de realización"
+                  className="w-full mt-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
                 />
               </div>
-
               <div>
-                <label className="text-sm text-slate-400">Hora Inicio *</label>
-                <input
-                  type="time"
-                  value={constanciaData.horaInicio}
-                  onChange={(e) => setConstanciaData({...constanciaData, horaInicio: e.target.value})}
-                  className="w-full mt-1 px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:border-blue-500 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-sm text-slate-400">Hora Fin *</label>
-                <input
-                  type="time"
-                  value={constanciaData.horaFin}
-                  onChange={(e) => setConstanciaData({...constanciaData, horaFin: e.target.value})}
-                  className="w-full mt-1 px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:border-blue-500 focus:outline-none"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="text-sm text-slate-400">Responsable SST *</label>
-                <input
-                  type="text"
-                  value={constanciaData.responsableSST}
-                  onChange={(e) => setConstanciaData({...constanciaData, responsableSST: e.target.value})}
-                  placeholder="Nombre del responsable SST"
-                  className="w-full mt-1 px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="text-sm text-slate-400">Observaciones (Opcional)</label>
-                <textarea
-                  value={constanciaData.observaciones}
-                  onChange={(e) => setConstanciaData({...constanciaData, observaciones: e.target.value})}
-                  placeholder="Observaciones adicionales..."
-                  rows={3}
-                  className="w-full mt-1 px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none resize-none"
-                />
+                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Tipo</label>
+                <div className="flex gap-4 mt-2">
+                  <label className="flex items-center gap-2 text-white cursor-not-allowed">
+                    <input type="radio" checked={induccion.tipo === "Induccion"} readOnly className="w-4 h-4" />
+                    <span className="text-sm">Inducción</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-white cursor-not-allowed">
+                    <input type="radio" checked={induccion.tipo === "Reinduccion"} readOnly className="w-4 h-4" />
+                    <span className="text-sm">Reinducción</span>
+                  </label>
+                </div>
               </div>
             </div>
           </div>
 
+          {/* Declaración */}
+          <div className="bg-blue-500/10 border border-blue-500/20 rounded-2xl p-6">
+            <p className="text-white text-sm leading-relaxed">
+              Certifico haber recibido capacitación de la empresa <strong>SIRIUS REGENERATIVE SOLUTIONS S.A.S. ZOMAC</strong>,
+              con Nit: <strong>901.377.064-8</strong> en aspectos de Seguridad y salud en el trabajo y todos los lineamientos,
+              estándares, procedimientos, legislación aplicable y políticas relacionadas con la ejecución segura de mi labor.
+            </p>
+          </div>
+
+          {/* Tabla de temas */}
+          <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-white/10 border-b border-white/10">
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-white w-16">N.º</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-white">Área</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-white">Tema</th>
+                    <th className="px-4 py-3 text-center text-sm font-semibold text-white w-16">Sí</th>
+                    <th className="px-4 py-3 text-center text-sm font-semibold text-white w-16">No</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {temas.map((seccion, idx) => (
+                    seccion.items.map((item, itemIdx) => (
+                      <tr key={item.key} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                        <td className="px-4 py-3 text-sm text-slate-400 font-mono">{idx + 1}.{itemIdx + 1}</td>
+                        <td className="px-4 py-3 text-sm text-white font-medium">{itemIdx === 0 ? seccion.area : ""}</td>
+                        <td className="px-4 py-3 text-sm text-slate-300">{item.tema}</td>
+                        <td className="px-4 py-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={temasConstancia[item.key as keyof typeof temasConstancia]}
+                            onChange={(e) => setTemasConstancia({ ...temasConstancia, [item.key]: e.target.checked })}
+                            className="w-5 h-5 rounded border-slate-500 bg-white/10 cursor-pointer"
+                          />
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={!temasConstancia[item.key as keyof typeof temasConstancia]}
+                            onChange={(e) => setTemasConstancia({ ...temasConstancia, [item.key]: !e.target.checked })}
+                            className="w-5 h-5 rounded border-slate-500 bg-white/10 cursor-pointer"
+                          />
+                        </td>
+                      </tr>
+                    ))
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Nota y confirmación */}
+          <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-6">
+            <p className="text-amber-200 text-sm font-semibold mb-2">NOTA:</p>
+            <p className="text-white text-sm leading-relaxed">
+              Certifico que he comprendido todos los temas expuestos en la inducción de SST,
+              logrando así comprender los peligros y comprometiéndome a implementar los controles respectivos.
+            </p>
+          </div>
+
           {/* Botones */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 pb-8">
             <button
               type="button"
-              onClick={() => setStep("sign")}
-              disabled={loading}
+              onClick={() => setStep("evaluacion")}
               className="px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-medium transition-colors"
             >
               ← Volver
@@ -464,25 +547,14 @@ function FirmarInduccionContent() {
 
             <button
               type="button"
-              onClick={handleSubmitConstancia}
-              disabled={loading || !constanciaData.fechaRealizacion || !constanciaData.lugarRealizacion || !constanciaData.horaInicio || !constanciaData.horaFin || !constanciaData.responsableSST}
-              className="flex-1 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-xl transition-all"
+              onClick={() => setStep("sign")}
+              disabled={!constanciaData.lugarRealizacion || !constanciaData.fechaRealizacion}
+              className="flex-1 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-xl transition-all flex items-center justify-center gap-2"
             >
-              {loading ? (
-                <div className="flex items-center justify-center gap-2">
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Guardando...
-                </div>
-              ) : (
-                <div className="flex items-center justify-center gap-2">
-                  <Check className="w-5 h-5" />
-                  Guardar y Finalizar
-                </div>
-              )}
+              <PenTool className="w-5 h-5" />
+              Continuar a Firma
             </button>
           </div>
-
-          <p className="text-xs text-slate-500 text-center">* Campos requeridos</p>
           </div>
         </div>
       </InduccionesBackdrop>
@@ -864,7 +936,7 @@ function FirmarInduccionContent() {
               cargo={induccion.cargo}
               onAprobada={(puntaje) => {
                 setPuntajeEvaluacion(puntaje);
-                setStep("sign");
+                setStep("constancia"); // Cambiar a constancia primero
               }}
               onReprobada={() => {
                 setPuntajeEvaluacion(0);
