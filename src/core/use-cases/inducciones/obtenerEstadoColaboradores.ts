@@ -6,12 +6,22 @@
 import { induccionesRepository } from "@/infrastructure/repositories/airtableInduccionesRepository";
 import { induccionesModuleConfig } from "@/infrastructure/config/airtableInducciones";
 import type { EstadoColaborador, RegistroInduccion } from "@/shared/types/inducciones";
+import { getTodayColombia } from "@/shared/utils";
 
 export interface Colaborador {
   idEmpleadoCore: string;
   nombreCompleto: string;
   numeroDocumento: string;
   cargo: string;
+}
+
+function parseFechaCalendario(fecha: string): Date {
+  // Interpretar fechas YYYY-MM-DD como fecha de calendario (mediodia) evita desfases por UTC.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+    return new Date(`${fecha}T12:00:00`);
+  }
+
+  return new Date(fecha);
 }
 
 export async function obtenerEstadoColaboradores(
@@ -28,15 +38,13 @@ export async function obtenerEstadoColaboradores(
   for (const induccion of todasInducciones) {
     const existente = induccionesPorEmpleado.get(induccion.idEmpleadoCore);
 
-    if (!existente || new Date(induccion.fechaRealizacion) > new Date(existente.fechaRealizacion)) {
+    if (!existente || parseFechaCalendario(induccion.fechaRealizacion) > parseFechaCalendario(existente.fechaRealizacion)) {
       induccionesPorEmpleado.set(induccion.idEmpleadoCore, induccion);
     }
   }
 
   // Calcular estado para cada colaborador
-  // Usar fecha sin hora para evitar problemas de timezone
-  const hoy = new Date();
-  hoy.setHours(0, 0, 0, 0);
+  const hoy = parseFechaCalendario(getTodayColombia());
   const diasAlerta = induccionesModuleConfig.alertaDiasAnticipacion;
 
   for (const colaborador of colaboradores) {
@@ -58,14 +66,8 @@ export async function obtenerEstadoColaboradores(
       continue;
     }
 
-    // Calcular días para vencimiento usando fechas sin timezone
-    // Parse manual para evitar offset UTC
-    const fechaVencParts = ultimaInduccion.fechaVencimiento.split('-');
-    const fechaVencimiento = new Date(
-      parseInt(fechaVencParts[0]),
-      parseInt(fechaVencParts[1]) - 1,
-      parseInt(fechaVencParts[2])
-    );
+    // Calcular días para vencimiento
+    const fechaVencimiento = parseFechaCalendario(ultimaInduccion.fechaVencimiento);
     const diffTime = fechaVencimiento.getTime() - hoy.getTime();
     const diasParaVencimiento = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 

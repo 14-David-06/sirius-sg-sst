@@ -16,7 +16,7 @@ import {
   AlertCircle,
   Award,
 } from "lucide-react";
-import { formatFechaColombia } from "@/shared/utils";
+import { formatFechaColombia, getTodayColombia } from "@/shared/utils";
 
 interface RegistroInduccion {
   id: string;
@@ -36,6 +36,14 @@ interface RegistroInduccion {
   certificadoUrl?: string;
   estado: string;
   observaciones?: string;
+}
+
+function parseFechaCalendario(fecha: string): Date {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+    return new Date(`${fecha}T12:00:00`);
+  }
+
+  return new Date(fecha);
 }
 
 // ══════════════════════════════════════════════════════════
@@ -96,11 +104,8 @@ function RegistroCard({ registro }: { registro: RegistroInduccion }) {
       setGenerandoToken(false);
     }
   };
-  // Calcular días para vencer usando fechas sin timezone
-  const fechaVencParts = registro.fechaVencimiento.split('-');
-  const fechaVenc = new Date(parseInt(fechaVencParts[0]), parseInt(fechaVencParts[1]) - 1, parseInt(fechaVencParts[2]));
-  const hoy = new Date();
-  hoy.setHours(0, 0, 0, 0);
+  const fechaVenc = parseFechaCalendario(registro.fechaVencimiento);
+  const hoy = parseFechaCalendario(getTodayColombia());
   const diasParaVencer = Math.ceil(
     (fechaVenc.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24)
   );
@@ -139,7 +144,7 @@ function RegistroCard({ registro }: { registro: RegistroInduccion }) {
           <div>
             <p className="text-xs text-white/60">Fecha Realización</p>
             <p className="text-sm text-white font-medium">
-              {formatFechaColombia(new Date(registro.fechaRealizacion))}
+              {formatFechaColombia(registro.fechaRealizacion)}
             </p>
           </div>
         </div>
@@ -150,7 +155,7 @@ function RegistroCard({ registro }: { registro: RegistroInduccion }) {
             <p className="text-xs text-white/60">Fecha Vencimiento</p>
             <div className="flex items-center gap-2">
               <p className="text-sm text-white font-medium">
-                {formatFechaColombia(fechaVenc)}
+                {formatFechaColombia(registro.fechaVencimiento)}
               </p>
               <div className={`w-2 h-2 rounded-full ${semaforoColor}`} title={semaforoLabel} />
             </div>
@@ -248,19 +253,6 @@ function RegistroCard({ registro }: { registro: RegistroInduccion }) {
           >
             <Download className="w-4 h-4" />
             Descargar Certificado
-          </a>
-        )}
-
-        {/* Firma */}
-        {registro.firmaUrl && (
-          <a
-            href={registro.firmaUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 text-sm font-medium transition-colors"
-          >
-            <FileText className="w-4 h-4" />
-            Ver Firma
           </a>
         )}
 
