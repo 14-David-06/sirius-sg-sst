@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import { formatFechaColombia } from "@/shared/utils";
-import EvaluacionInduccion from "@/components/evaluaciones/EvaluacionInduccion";
+import EvaluacionInduccion, { type ResultadoEvaluacion } from "@/components/evaluaciones/EvaluacionInduccion";
 
 // ══════════════════════════════════════════════════════════
 // Canvas de Firma
@@ -160,6 +160,7 @@ interface InduccionFirmaData {
   cargo: string;
   tipo: string;
   fechaRealizacion: string;
+  responsableSST?: string;
   fechaIngreso?: string; // De tabla Personal (Nómina)
 }
 
@@ -175,6 +176,7 @@ function FirmarInduccionContent() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [puntajeEvaluacion, setPuntajeEvaluacion] = useState<number | null>(null);
+  const [evaluacionResultado, setEvaluacionResultado] = useState<ResultadoEvaluacion | null>(null);
 
   // Estado para los campos de la constancia
   const [constanciaData, setConstanciaData] = useState({
@@ -246,6 +248,14 @@ function FirmarInduccionContent() {
         }
 
         setInduccion(data.data);
+
+        // Pre-poblar datos de la constancia con la información del registro
+        setConstanciaData((prev) => ({
+          ...prev,
+          fechaRealizacion: prev.fechaRealizacion || data.data.fechaRealizacion || "",
+          responsableSST: prev.responsableSST || data.data.responsableSST || "",
+        }));
+
         setStep("data");
       } catch (err: unknown) {
         console.error("Error cargando inducción:", err);
@@ -260,6 +270,13 @@ function FirmarInduccionContent() {
   const handleConfirmSignature = async (signatureDataUrl: string) => {
     setLoading(true);
     try {
+      if (!induccion) {
+        setError("Error: datos de inducción no disponibles");
+        setStep("error");
+        return;
+      }
+
+      // 1. Procesar y guardar la firma
       const res = await fetch(`/api/inducciones/firma/${token}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -274,33 +291,16 @@ function FirmarInduccionContent() {
         return;
       }
 
-      // Después de firmar, ir a llenar la constancia
-      setStep("constancia");
-    } catch (err: unknown) {
-      console.error("Error procesando firma:", err);
-      setError("Error al procesar la firma");
-      setStep("error");
-    } finally {
-      setLoading(false);
-    }
-  };
+      // 2. Guardar la constancia (datos ya recolectados antes de firmar)
+      const lugarFinal = constanciaData.lugarRealizacion === "Otro" ? constanciaData.lugarOtro : constanciaData.lugarRealizacion;
 
-  const handleSubmitConstancia = async () => {
-    if (!induccion) {
-      setError("Error: datos de inducción no disponibles");
-      setStep("error");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const res = await fetch("/api/inducciones/constancia", {
+      const resConstancia = await fetch("/api/inducciones/constancia", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           induccionId: induccion.idInduccion,
           fechaRealizacion: constanciaData.fechaRealizacion,
-          lugarRealizacion: constanciaData.lugarRealizacion,
+          lugarRealizacion: lugarFinal,
           horaInicio: constanciaData.horaInicio,
           horaFin: constanciaData.horaFin,
           responsableSST: constanciaData.responsableSST,
@@ -308,18 +308,44 @@ function FirmarInduccionContent() {
         }),
       });
 
-      const data = await res.json();
+      const dataConstancia = await resConstancia.json();
 
-      if (!data.success) {
-        setError(data.message || "Error al guardar la constancia");
+      if (!dataConstancia.success) {
+        setError(dataConstancia.message || "Error al guardar la constancia");
         setStep("error");
         return;
       }
 
+      // 3. Generar documento unificado (constancia + evaluación + certificado)
+      try {
+        await fetch("/api/inducciones/documento-unificado", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            induccionId: induccion.idInduccion,
+            constancia: {
+              fechaRealizacion: constanciaData.fechaRealizacion,
+              lugarRealizacion: lugarFinal,
+              horaInicio: constanciaData.horaInicio,
+              horaFin: constanciaData.horaFin,
+              responsableSST: constanciaData.responsableSST,
+              observaciones: constanciaData.observaciones,
+              temas: temasConstancia,
+            },
+            evaluacion: evaluacionResultado,
+            firmaEmpleadoDataUrl: signatureDataUrl,
+          }),
+        });
+      } catch (errDoc) {
+        // No bloquear el flujo si la generación del PDF falla; se puede regenerar luego
+        console.error("Error generando documento unificado:", errDoc);
+      }
+
+      // 4. Proceso completado
       setStep("success");
     } catch (err: unknown) {
-      console.error("Error guardando constancia:", err);
-      setError("Error al guardar la constancia");
+      console.error("Error procesando firma:", err);
+      setError("Error al procesar la firma");
       setStep("error");
     } finally {
       setLoading(false);
@@ -443,7 +469,7 @@ function FirmarInduccionContent() {
               </div>
               <div>
                 <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Fecha de Inducción</label>
-                <p className="text-white font-semibold mt-1">{formatFechaColombia(new Date(induccion.fechaRealizacion))}</p>
+                <p className="text-white font-semibold mt-1">{formatFechaColombia(induccion.fechaRealizacion)}</p>
               </div>
               <div>
                 <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Cargo</label>
@@ -452,9 +478,42 @@ function FirmarInduccionContent() {
               <div>
                 <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Fecha de Ingreso</label>
                 <p className="text-white font-semibold mt-1">
-                  {induccion.fechaIngreso ? formatFechaColombia(new Date(induccion.fechaIngreso)) : "Sin información"}
+                  {induccion.fechaIngreso ? formatFechaColombia(induccion.fechaIngreso) : "Sin información"}
                 </p>
               </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2 block">Fecha de Realización *</label>
+                <input
+                  type="date"
+                  value={constanciaData.fechaRealizacion}
+                  onChange={(e) => setConstanciaData({...constanciaData, fechaRealizacion: e.target.value})}
+                  className="w-full px-3 py-2.5 rounded-lg bg-slate-800 border border-white/20 text-white focus:border-blue-500 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2 block">Hora de Inicio *</label>
+                <input
+                  type="time"
+                  value={constanciaData.horaInicio}
+                  onChange={(e) => setConstanciaData({...constanciaData, horaInicio: e.target.value})}
+                  className="w-full px-3 py-2.5 rounded-lg bg-slate-800 border border-white/20 text-white focus:border-blue-500 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2 block">Hora de Fin *</label>
+                <input
+                  type="time"
+                  value={constanciaData.horaFin}
+                  onChange={(e) => setConstanciaData({...constanciaData, horaFin: e.target.value})}
+                  className="w-full px-3 py-2.5 rounded-lg bg-slate-800 border border-white/20 text-white focus:border-blue-500 focus:outline-none"
+                  required
+                />
+              </div>
+
               <div className="md:col-span-2">
                 <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2 block">Lugar *</label>
                 <select
@@ -478,6 +537,17 @@ function FirmarInduccionContent() {
                     required
                   />
                 )}
+              </div>
+              <div className="md:col-span-2">
+                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2 block">Responsable SST *</label>
+                <input
+                  type="text"
+                  value={constanciaData.responsableSST}
+                  onChange={(e) => setConstanciaData({...constanciaData, responsableSST: e.target.value})}
+                  placeholder="Nombre del responsable de SST"
+                  className="w-full px-3 py-2.5 rounded-lg bg-slate-800 border border-white/20 text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                  required
+                />
               </div>
               <div className="md:col-span-2">
                 <label className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Tipo</label>
@@ -580,8 +650,12 @@ function FirmarInduccionContent() {
               type="button"
               onClick={() => setStep("sign")}
               disabled={
+                !constanciaData.fechaRealizacion ||
+                !constanciaData.horaInicio ||
+                !constanciaData.horaFin ||
                 !constanciaData.lugarRealizacion ||
                 (constanciaData.lugarRealizacion === "Otro" && !constanciaData.lugarOtro) ||
+                !constanciaData.responsableSST ||
                 !notaConfirmada
               }
               className="flex-1 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-xl transition-all flex items-center justify-center gap-2"
@@ -619,7 +693,7 @@ function FirmarInduccionContent() {
           <div className="text-center space-y-4">
             <h2 className="text-3xl font-bold text-white">¡Proceso Completado! 🎉</h2>
             <p className="text-slate-300 text-lg">
-              Has finalizado exitosamente el proceso de {induccion?.tipo || "Inducción"}
+              Has finalizado exitosamente el proceso de {induccion?.tipo || "inducción"}
             </p>
 
             {/* Resumen del proceso */}
@@ -658,26 +732,6 @@ function FirmarInduccionContent() {
                 </div>
               </div>
             </div>
-
-            {/* Información adicional */}
-            <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
-              <p className="text-blue-300 text-sm">
-                <strong>ID Inducción:</strong> <span className="font-mono">{induccion?.idInduccion}</span>
-              </p>
-              <p className="text-blue-300 text-sm mt-2">
-                Tu certificado estará disponible en el dashboard del sistema.
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            {/* Botón para cerrar */}
-            <button
-              onClick={() => window.close()}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-semibold shadow-lg hover:shadow-xl transition-all"
-            >
-              Cerrar Ventana
-            </button>
           </div>
 
           <div className="pt-4 border-t border-white/10">
@@ -740,7 +794,7 @@ function FirmarInduccionContent() {
               <div>
                 <p className="text-sm text-slate-400">Fecha de Realización</p>
                 <p className="text-white font-semibold">
-                  {formatFechaColombia(new Date(induccion.fechaRealizacion))}
+                  {formatFechaColombia(induccion.fechaRealizacion)}
                 </p>
               </div>
             </div>
@@ -975,8 +1029,9 @@ function FirmarInduccionContent() {
               nombreEmpleado={induccion.nombreEmpleado}
               numeroDocumento={induccion.numeroDocumento}
               cargo={induccion.cargo}
-              onAprobada={(puntaje) => {
+              onAprobada={(puntaje, resultado) => {
                 setPuntajeEvaluacion(puntaje);
+                if (resultado) setEvaluacionResultado(resultado);
                 setStep("constancia"); // Cambiar a constancia primero
               }}
               onReprobada={() => {

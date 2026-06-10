@@ -688,10 +688,16 @@ export async function regenerarDocumentoConFirmaResponsable(
     ? extractS3KeyFromUrl(registro.documentoSnapshotUrl)
     : snapshotS3Key(registro.idInduccion);
 
-  let snapshot: DocumentoUnificadoSnapshot;
+  let snapshot: DocumentoUnificadoSnapshot | null;
   try {
     snapshot = await readJsonFromS3<DocumentoUnificadoSnapshot>(snapshotKey);
   } catch {
+    throw new Error(
+      "No se encontró el snapshot del documento para regenerar el PDF. El colaborador debe firmar primero."
+    );
+  }
+
+  if (!snapshot) {
     throw new Error(
       "No se encontró el snapshot del documento para regenerar el PDF. El colaborador debe firmar primero."
     );
