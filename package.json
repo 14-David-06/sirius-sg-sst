@@ -12,6 +12,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.995.0",
     "@aws-sdk/s3-request-presigner": "^3.995.0",
+    "airtable": "^0.12.2",
     "bcryptjs": "^3.0.3",
     "exceljs": "^4.4.0",
     "jspdf": "^4.2.0",
