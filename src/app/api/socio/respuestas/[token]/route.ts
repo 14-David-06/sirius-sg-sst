@@ -112,11 +112,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       data: { id: respuesta.id },
       message: "Encuesta enviada exitosamente. Gracias por su participación.",
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[POST /api/socio/respuestas/:token] Error:", error);
 
+    const mensaje = error instanceof Error ? error.message : "";
+
     // Errores conocidos
-    if (error.message === "Token inválido") {
+    if (mensaje === "Token inválido") {
       return NextResponse.json(
         {
           success: false,
@@ -126,7 +128,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       );
     }
 
-    if (error.message === "Esta encuesta ya fue respondida") {
+    if (mensaje === "Esta encuesta ya fue respondida") {
       return NextResponse.json(
         {
           success: false,
@@ -136,7 +138,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       );
     }
 
-    if (error.message === "Esta campaña ya está cerrada") {
+    if (mensaje === "Esta campaña ya está cerrada") {
       return NextResponse.json(
         {
           success: false,
@@ -150,7 +152,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Error al guardar la encuesta",
+        error: error instanceof Error ? error.message : "Error al guardar la encuesta",
       },
       { status: 500 }
     );

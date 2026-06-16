@@ -20,31 +20,20 @@ const campanasRepo = new AirtableCampanaRepository();
  */
 export async function GET() {
   try {
+    // tokensGenerados y respuestasCompletadas ya vienen calculados
+    // desde los back-links de cada registro (sin queries adicionales)
     const campanas = await campanasRepo.listar();
-
-    // Obtener estadísticas para cada campaña
-    const campanasConStats = await Promise.all(
-      campanas.map(async (c) => {
-        const stats = await campanasRepo.obtenerEstadisticas(c.id);
-        return {
-          ...c,
-          totalColaboradores: stats.totalTokens,
-          totalRespuestas: stats.totalRespuestas,
-          porcentajeCompletado: stats.porcentajeCompletado,
-        };
-      })
-    );
 
     return NextResponse.json({
       success: true,
-      data: campanasConStats,
+      data: campanas,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[GET /api/socio/campanas] Error:", error);
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Error al listar campañas",
+        error: error instanceof Error ? error.message : "Error al listar campañas",
       },
       { status: 500 }
     );
@@ -87,12 +76,12 @@ export async function POST(request: NextRequest) {
       success: true,
       data: campana,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[POST /api/socio/campanas] Error:", error);
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Error al crear campaña",
+        error: error instanceof Error ? error.message : "Error al crear campaña",
       },
       { status: 500 }
     );

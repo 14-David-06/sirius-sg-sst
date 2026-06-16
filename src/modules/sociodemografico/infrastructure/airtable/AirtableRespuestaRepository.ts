@@ -7,6 +7,7 @@ import type {
 } from "../../domain/entities";
 import type { IRespuestaRepository } from "../../domain/repositories";
 import { SOCIO_CONFIG } from "./config";
+import { encontrarPorId, listarPorIds } from "./airtableUtils";
 
 export class AirtableRespuestaRepository implements IRespuestaRepository {
   private base: Airtable.Base;
@@ -29,6 +30,7 @@ export class AirtableRespuestaRepository implements IRespuestaRepository {
       .select({
         filterByFormula: `{${TF.TOKEN}} = '${dto.token}'`,
         maxRecords: 1,
+        returnFieldsByFieldId: true,
       })
       .firstPage();
 
@@ -48,7 +50,11 @@ export class AirtableRespuestaRepository implements IRespuestaRepository {
     const campanasTable = this.base(SOCIO_CONFIG.campanas.tableId);
     const CF = SOCIO_CONFIG.campanas.fields;
 
-    const campanaRecord = await campanasTable.find(campanaId);
+    const campanaRecord = await encontrarPorId(campanasTable, campanaId);
+    if (!campanaRecord) {
+      throw new Error("La campaña asociada al token no existe");
+    }
+
     const estadoCampana = campanaRecord.get(CF.ESTADO);
 
     if (estadoCampana === "Cerrada") {
@@ -65,12 +71,14 @@ export class AirtableRespuestaRepository implements IRespuestaRepository {
     }
 
     // 4. Crear registro de respuesta
-    const personalId = (tokenRecord.get(TF.PERSONAL) as string[])?.[0];
+    // Personal es un campo de texto plano (no un link), llega como string
+    const personalId = (tokenRecord.get(TF.PERSONAL) as string) || "";
 
     const record = await this.table.create({
       [F.TOKEN]: [tokenRecord.id],
       [F.CAMPANA]: [campanaId],
-      [F.PERSONAL]: [personalId],
+      // Personal es un campo de texto (el colaborador vive en otra base, no se puede vincular)
+      [F.PERSONAL]: personalId,
       // Sección 1
       [F.NOMBRE_COMPLETO]: dto.nombreCompleto,
       [F.NUMERO_DOCUMENTO]: dto.numeroDocumento,
@@ -121,27 +129,30 @@ export class AirtableRespuestaRepository implements IRespuestaRepository {
       [TF.FECHA_USO]: new Date().toISOString(),
     });
 
-    return this.mapToDomain(record);
+    // Re-leer: el registro devuelto por create() viene indexado por nombre de campo
+    const creada = await this.obtenerPorId(record.id);
+    if (!creada) throw new Error("No se pudo leer la respuesta recién creada");
+    return creada;
   }
 
   async obtenerPorId(id: string): Promise<Respuesta | null> {
-    try {
-      const record = await this.table.find(id);
-      return this.mapToDomain(record);
-    } catch {
-      return null;
-    }
+    const record = await encontrarPorId(this.table, id);
+    return record ? this.mapToDomain(record) : null;
   }
 
   async listarPorCampana(campanaId: string): Promise<Respuesta[]> {
-    const F = SOCIO_CONFIG.respuestas.fields;
+    // FIND(recordId, {link}) no funciona (los links se renderizan con su campo primario),
+    // así que se usan los record IDs del back-link de la campaña.
+    const CF = SOCIO_CONFIG.campanas.fields;
+    const campanasTable = this.base(SOCIO_CONFIG.campanas.tableId);
 
-    const records = await this.table
-      .select({
-        filterByFormula: `FIND("${campanaId}", {${F.CAMPANA}})`,
-      })
-      .all();
+    const campanaRecord = await encontrarPorId(campanasTable, campanaId);
+    if (!campanaRecord) return [];
 
+    const respuestaIds = (campanaRecord.get(CF.RESPUESTAS_LINK) as string[]) || [];
+    if (respuestaIds.length === 0) return [];
+
+    const records = await listarPorIds(this.table, respuestaIds);
     return records.map((r) => this.mapToDomain(r));
   }
 
@@ -194,10 +205,14 @@ export class AirtableRespuestaRepository implements IRespuestaRepository {
   async obtenerPiramidePoblacional(campanaId: string): Promise<PiramidePoblacional> {
     const respuestas = await this.listarPorCampana(campanaId);
 
-    // Calcular edades
+    // Calcular edades (ajustando si aún no ha cumplido años este año)
     const ahora = new Date();
     const datosConEdad = respuestas.map((r) => {
-      const edad = ahora.getFullYear() - r.fechaNacimiento.getFullYear();
+      let edad = ahora.getFullYear() - r.fechaNacimiento.getFullYear();
+      const cumplio =
+        ahora.getMonth() > r.fechaNacimiento.getMonth() ||
+        (ahora.getMonth() === r.fechaNacimiento.getMonth() && ahora.getDate() >= r.fechaNacimiento.getDate());
+      if (!cumplio) edad--;
       return { edad, genero: r.genero };
     });
 
@@ -224,16 +239,15 @@ export class AirtableRespuestaRepository implements IRespuestaRepository {
   }
 
   async existeRespuestaParaToken(tokenId: string): Promise<boolean> {
-    const F = SOCIO_CONFIG.respuestas.fields;
+    // El back-link del token contiene los record IDs de sus respuestas
+    const TF = SOCIO_CONFIG.tokens.fields;
+    const tokensTable = this.base(SOCIO_CONFIG.tokens.tableId);
 
-    const records = await this.table
-      .select({
-        filterByFormula: `FIND("${tokenId}", {${F.TOKEN}})`,
-        maxRecords: 1,
-      })
-      .firstPage();
+    const tokenRecord = await encontrarPorId(tokensTable, tokenId);
+    if (!tokenRecord) return false;
 
-    return records.length > 0;
+    const respuestas = (tokenRecord.get(TF.RESPUESTAS_LINK) as string[]) || [];
+    return respuestas.length > 0;
   }
 
   private mapToDomain(record: Airtable.Record<any>): Respuesta {
@@ -243,7 +257,8 @@ export class AirtableRespuestaRepository implements IRespuestaRepository {
       id: record.id,
       tokenId: (record.get(F.TOKEN) as string[])?.[0] || "",
       campanaId: (record.get(F.CAMPANA) as string[])?.[0] || "",
-      personalId: (record.get(F.PERSONAL) as string[])?.[0] || "",
+      // Personal es texto plano con el record ID del colaborador
+      personalId: (record.get(F.PERSONAL) as string) || "",
       // Sección 1
       nombreCompleto: record.get(F.NOMBRE_COMPLETO) as string,
       numeroDocumento: record.get(F.NUMERO_DOCUMENTO) as string,
@@ -286,7 +301,7 @@ export class AirtableRespuestaRepository implements IRespuestaRepository {
       // Consentimiento
       aceptaPoliticaDatos: record.get(F.ACEPTA_POLITICA_DATOS) === true,
       firmaVeracidad: record.get(F.FIRMA_VERACIDAD) === true,
-      createdTime: new Date(record.get("Created") as string),
+      createdTime: new Date(record._rawJson.createdTime),
     };
   }
 }

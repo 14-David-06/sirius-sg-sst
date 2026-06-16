@@ -44,10 +44,14 @@ export interface TokenGenerado {
 }
 
 /**
- * Token con información del colaborador para envío
+ * Token con información del colaborador para envío y prellenado de encuesta
  */
 export interface TokenConPersonal extends Token {
   nombreCompleto: string;
   correo: string;
   numeroDocumento: string;
+  /** Fecha de nacimiento en formato YYYY-MM-DD (de Nómina Core) */
+  fechaNacimiento?: string;
+  /** Fecha de incorporación a Sirius en formato YYYY-MM-DD (de Nómina Core) */
+  fechaIncorporacion?: string;
 }

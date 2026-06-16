@@ -17,12 +17,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       success: true,
       data: estadisticas,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[GET /api/socio/campanas/:id/estadisticas] Error:", error);
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Error al obtener estadísticas",
+        error: error instanceof Error ? error.message : "Error al obtener estadísticas",
       },
       { status: 500 }
     );

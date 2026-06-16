@@ -3,17 +3,53 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import type { GuardarRespuestaDTO } from "@/modules/sociodemografico/domain/entities";
+import { Loader2 } from "lucide-react";
+import type { GuardarRespuestaDTO, TiempoLibre } from "@/modules/sociodemografico/domain/entities";
+import { DEPARTAMENTOS_COLOMBIA, obtenerMunicipiosPorDepartamento } from "@/shared/data/departamentosMunicipios";
 
 type SeccionActual = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8; // 8 = confirmación
+
+interface CampanaInfo {
+  id: string;
+  nombre: string;
+  periodo: string;
+  año: number;
+}
+
+// Fondo corporativo estándar de la aplicación
+function FondoApp() {
+  return (
+    <div className="fixed inset-0 -z-10">
+      <Image
+        src="/20032025-DSC_3717.jpg"
+        alt=""
+        fill
+        className="object-cover"
+        priority
+        quality={85}
+      />
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" />
+    </div>
+  );
+}
 
 export default function EncuestaSocioPage({ params }: { params: Promise<{ token: string }> }) {
   const router = useRouter();
   const [token, setToken] = useState<string>("");
   const [loading, setLoading] = useState(true);
+  // Error fatal de acceso (token inválido/usado/campaña cerrada) — pantalla completa
+  const [errorToken, setErrorToken] = useState<string | null>(null);
+  const [errorTipo, setErrorTipo] = useState<string | null>(null);
+  // Error de validación del formulario — banner inline dentro de la sección
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [seccionActual, setSeccionActual] = useState<SeccionActual>(1);
+  const [campanaInfo, setCampanaInfo] = useState<CampanaInfo | null>(null);
+  const [prellenado, setPrellenado] = useState(false);
+
+  // Estados para selector de departamento y municipio
+  const [departamentoSeleccionado, setDepartamentoSeleccionado] = useState<string>("");
+  const [municipiosDisponibles, setMunicipiosDisponibles] = useState<Array<{ codigo: string; nombre: string }>>([]);
 
   // Estado del formulario
   const [formData, setFormData] = useState<Partial<GuardarRespuestaDTO>>({
@@ -21,19 +57,140 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
   });
 
   useEffect(() => {
-    params.then((p) => {
+    params.then(async (p) => {
       setToken(p.token);
-      // TODO: Validar token con la API
-      setLoading(false);
+      await validarToken(p.token);
     });
   }, [params]);
 
-  const actualizarCampo = (campo: keyof GuardarRespuestaDTO, valor: any) => {
+  const validarToken = async (tokenValue: string) => {
+    try {
+      const response = await fetch(`/api/socio/tokens/validar/${tokenValue}`);
+      const data = await response.json();
+
+      if (!data.valido) {
+        setErrorToken(data.error || "Token inválido");
+        setErrorTipo(data.codigo);
+        setLoading(false);
+        return;
+      }
+
+      // Token válido, guardar info de la campaña
+      setCampanaInfo(data.campana);
+
+      // Prellenar datos del colaborador desde Nómina Core (editables)
+      if (data.colaborador) {
+        setFormData((prev) => ({
+          ...prev,
+          nombreCompleto: data.colaborador.nombreCompleto || prev.nombreCompleto,
+          numeroDocumento: data.colaborador.numeroDocumento || prev.numeroDocumento,
+          fechaNacimiento: data.colaborador.fechaNacimiento || prev.fechaNacimiento,
+          fechaIngresoSirius: data.colaborador.fechaIncorporacion || prev.fechaIngresoSirius,
+        }));
+        setPrellenado(true);
+      }
+
+      setLoading(false);
+    } catch {
+      setErrorToken("Error al validar el token. Por favor, intente nuevamente.");
+      setErrorTipo("ERROR_RED");
+      setLoading(false);
+    }
+  };
+
+  const actualizarCampo = (campo: keyof GuardarRespuestaDTO, valor: unknown) => {
     setFormData((prev) => ({ ...prev, [campo]: valor }));
+    // Limpiar error al modificar un campo
+    if (error) setError(null);
+  };
+
+  const manejarCambioDepartamento = (codigoDepartamento: string) => {
+    setDepartamentoSeleccionado(codigoDepartamento);
+    const municipios = obtenerMunicipiosPorDepartamento(codigoDepartamento);
+    setMunicipiosDisponibles(municipios);
+    // Limpiar municipio seleccionado cuando cambia el departamento
+    actualizarCampo("municipioResidencia", "");
+  };
+
+  const manejarCambioMunicipio = (nombreMunicipio: string) => {
+    actualizarCampo("municipioResidencia", nombreMunicipio);
+  };
+
+  const validarSeccion = (seccion: SeccionActual): { valido: boolean; mensaje?: string } => {
+    switch (seccion) {
+      case 1:
+        if (!formData.nombreCompleto) return { valido: false, mensaje: "El nombre completo es obligatorio" };
+        if (!formData.numeroDocumento) return { valido: false, mensaje: "El número de documento es obligatorio" };
+        if (!formData.fechaNacimiento) return { valido: false, mensaje: "La fecha de nacimiento es obligatoria" };
+        if (!formData.genero) return { valido: false, mensaje: "El género es obligatorio" };
+        if (!formData.estadoCivil) return { valido: false, mensaje: "El estado civil es obligatorio" };
+        return { valido: true };
+
+      case 2:
+        if (!formData.municipioResidencia)
+          return { valido: false, mensaje: "El municipio de residencia es obligatorio" };
+        if (!formData.estrato) return { valido: false, mensaje: "El estrato es obligatorio" };
+        if (!formData.tipoVivienda) return { valido: false, mensaje: "El tipo de vivienda es obligatorio" };
+        if (!formData.personasACargo) return { valido: false, mensaje: "El campo personas a cargo es obligatorio" };
+        return { valido: true };
+
+      case 3:
+        if (!formData.escolaridad) return { valido: false, mensaje: "El nivel de escolaridad es obligatorio" };
+        if (formData.estudiandoActualmente && !formData.carreraActual)
+          return { valido: false, mensaje: "Indique qué está estudiando actualmente" };
+        return { valido: true };
+
+      case 4:
+        if (!formData.areaTrabajo) return { valido: false, mensaje: "El área de trabajo es obligatoria" };
+        if (!formData.cargo) return { valido: false, mensaje: "El cargo es obligatorio" };
+        if (!formData.tipoContrato) return { valido: false, mensaje: "El tipo de contrato es obligatorio" };
+        if (!formData.fechaIngresoSirius)
+          return { valido: false, mensaje: "La fecha de ingreso a Sirius es obligatoria" };
+        if (!formData.turnoTrabajo) return { valido: false, mensaje: "El turno de trabajo es obligatorio" };
+        return { valido: true };
+
+      case 5:
+        if (formData.enfermedadCronica && !formData.cualEnfermedadCronica)
+          return { valido: false, mensaje: "Indique cuál enfermedad crónica tiene" };
+        if (formData.discapacidad && !formData.cualDiscapacidad)
+          return { valido: false, mensaje: "Indique cuál discapacidad tiene" };
+        return { valido: true };
+
+      case 6:
+        if (!formData.fuma) return { valido: false, mensaje: "Indique si fuma" };
+        if (!formData.alcohol) return { valido: false, mensaje: "Indique su consumo de alcohol" };
+        if (formData.practicaDeporte && !formData.cualDeporte)
+          return { valido: false, mensaje: "Indique cuál deporte practica" };
+        if (!formData.tiempoLibre || formData.tiempoLibre.length === 0)
+          return { valido: false, mensaje: "Seleccione al menos una actividad de tiempo libre" };
+        return { valido: true };
+
+      case 7:
+        if (!formData.medioTransporte) return { valido: false, mensaje: "El medio de transporte es obligatorio" };
+        if (!formData.tiempoDesplazamiento)
+          return { valido: false, mensaje: "El tiempo de desplazamiento es obligatorio" };
+        if (!formData.aceptaPoliticaDatos)
+          return { valido: false, mensaje: "Debe aceptar la política de tratamiento de datos personales" };
+        if (!formData.firmaVeracidad)
+          return { valido: false, mensaje: "Debe declarar que la información es veraz" };
+        return { valido: true };
+
+      default:
+        return { valido: true };
+    }
   };
 
   const siguientSeccion = () => {
+    // Validar sección actual antes de avanzar
+    const validacion = validarSeccion(seccionActual);
+    if (!validacion.valido) {
+      setError(validacion.mensaje || "Complete todos los campos obligatorios");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
     if (seccionActual < 8) {
+      setError(null);
       setSeccionActual((prev) => (prev + 1) as SeccionActual);
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
@@ -65,8 +222,8 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
 
       // Ir a página de confirmación
       setSeccionActual(8);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Error al enviar la encuesta");
     } finally {
       setEnviando(false);
     }
@@ -74,10 +231,91 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
+        <FondoApp />
         <div className="text-white text-center">
-          <div className="w-16 h-16 border-4 border-violet-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p>Cargando encuesta...</p>
+          <Loader2 className="w-8 h-8 text-violet-400 animate-spin mx-auto mb-4" />
+          <p className="text-white/70 text-sm">Validando acceso...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Pantalla de error si el token es inválido
+  if (errorToken && !loading) {
+    const getErrorIcon = () => {
+      if (errorTipo === "TOKEN_YA_USADO") {
+        return (
+          <svg className="w-12 h-12 text-emerald-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+          </svg>
+        );
+      }
+      return (
+        <svg className="w-12 h-12 text-red-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+        </svg>
+      );
+    };
+
+    // Clases estáticas por tipo de error (Tailwind no genera clases dinámicas)
+    const colores = {
+      emerald: {
+        circulo: "bg-emerald-500/20",
+        texto: "text-emerald-200/80",
+        caja: "bg-emerald-500/10 border border-emerald-500/30",
+        mensaje: "text-emerald-300",
+      },
+      amber: {
+        circulo: "bg-amber-500/20",
+        texto: "text-amber-200/80",
+        caja: "bg-amber-500/10 border border-amber-500/30",
+        mensaje: "text-amber-300",
+      },
+      red: {
+        circulo: "bg-red-500/20",
+        texto: "text-red-200/80",
+        caja: "bg-red-500/10 border border-red-500/30",
+        mensaje: "text-red-300",
+      },
+    } as const;
+
+    const color =
+      errorTipo === "TOKEN_YA_USADO" ? colores.emerald : errorTipo === "CAMPANA_CERRADA" ? colores.amber : colores.red;
+
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <FondoApp />
+        <div className="max-w-2xl w-full">
+          <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-8 text-center">
+            <div className={`w-20 h-20 ${color.circulo} rounded-full flex items-center justify-center mx-auto mb-6`}>
+              {getErrorIcon()}
+            </div>
+            <h1 className="text-3xl font-bold text-white mb-4">
+              {errorTipo === "TOKEN_YA_USADO" ? "Encuesta Ya Completada" : "Token Inválido"}
+            </h1>
+            <p className={`${color.texto} text-lg mb-8`}>{errorToken}</p>
+            <div className={`${color.caja} rounded-xl p-4 mb-6`}>
+              <p className={`${color.mensaje} text-sm`}>
+                {errorTipo === "TOKEN_YA_USADO" &&
+                  "Esta encuesta ya fue respondida. Si necesita actualizar información, por favor contacte al área de SST."}
+                {errorTipo === "TOKEN_NO_ENCONTRADO" &&
+                  "El enlace que utilizó no es válido. Verifique que copió la URL completa."}
+                {errorTipo === "CAMPANA_CERRADA" &&
+                  "Esta campaña de recolección de datos ya finalizó. Consulte con el área de SST si hay una nueva campaña disponible."}
+                {errorTipo === "ERROR_RED" &&
+                  "No se pudo verificar el token. Revise su conexión a internet e intente nuevamente."}
+                {!errorTipo &&
+                  "Si cree que esto es un error, contacte al área de Seguridad y Salud en el Trabajo."}
+              </p>
+            </div>
+            <button
+              onClick={() => router.push("/")}
+              className="px-6 py-3 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-lg transition-all"
+            >
+              Volver al inicio
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -85,7 +323,8 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
 
   if (seccionActual === 8) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center p-4">
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <FondoApp />
         <div className="max-w-2xl w-full">
           <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-8 text-center">
             <div className="w-20 h-20 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -119,12 +358,20 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
   const progreso = ((seccionActual - 1) / 7) * 100;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+    <div className="min-h-screen">
+      <FondoApp />
       {/* Header */}
-      <div className="bg-white/5 backdrop-blur-xl border-b border-white/10 sticky top-0 z-10">
+      <header className="sticky top-0 z-30 bg-white/10 backdrop-blur-xl border-b border-white/10">
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between mb-3">
-            <Image src="/logo.png" alt="Sirius" width={180} height={48} className="h-12 w-auto" priority />
+            <div>
+              <Image src="/logo.png" alt="Sirius" width={180} height={48} className="h-12 w-auto" priority />
+              {campanaInfo && (
+                <p className="text-xs text-white/50 mt-1">
+                  {campanaInfo.nombre} · {campanaInfo.periodo.replace("_", " ")} {campanaInfo.año}
+                </p>
+              )}
+            </div>
             <div className="text-right">
               <p className="text-xs text-white/50">Sección</p>
               <p className="text-lg font-bold text-white">
@@ -140,7 +387,7 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
             />
           </div>
         </div>
-      </div>
+      </header>
 
       {/* Contenido */}
       <div className="max-w-4xl mx-auto px-4 py-8">
@@ -152,6 +399,15 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
                 <h2 className="text-2xl font-bold text-white mb-2">Datos Personales</h2>
                 <p className="text-white/60">Información básica del colaborador</p>
               </div>
+
+              {prellenado && (
+                <div className="bg-violet-500/10 border border-violet-400/30 rounded-xl p-3">
+                  <p className="text-violet-200/90 text-sm">
+                    Sus datos fueron precargados desde la base de personal de Sirius.
+                    Verifíquelos y corríjalos si es necesario.
+                  </p>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-white/80 mb-2">Nombre completo *</label>
@@ -183,7 +439,7 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
                   type="date"
                   value={formData.fechaNacimiento || ""}
                   onChange={(e) => actualizarCampo("fechaNacimiento", e.target.value)}
-                  className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500 [&>option]:bg-slate-800 [&>option]:text-white"
                   required
                 />
               </div>
@@ -193,7 +449,7 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
                 <select
                   value={formData.genero || ""}
                   onChange={(e) => actualizarCampo("genero", e.target.value)}
-                  className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500 [&>option]:bg-slate-800 [&>option]:text-white"
                   required
                 >
                   <option value="">Seleccione...</option>
@@ -209,7 +465,7 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
                 <select
                   value={formData.estadoCivil || ""}
                   onChange={(e) => actualizarCampo("estadoCivil", e.target.value)}
-                  className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500 [&>option]:bg-slate-800 [&>option]:text-white"
                   required
                 >
                   <option value="">Seleccione...</option>
@@ -232,15 +488,40 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-white/80 mb-2">Municipio de residencia *</label>
-                <input
-                  type="text"
-                  value={formData.municipioResidencia || ""}
-                  onChange={(e) => actualizarCampo("municipioResidencia", e.target.value)}
-                  className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-violet-500"
-                  placeholder="Ej: Bogotá"
+                <label className="block text-sm font-medium text-white/80 mb-2">Departamento *</label>
+                <select
+                  value={departamentoSeleccionado}
+                  onChange={(e) => manejarCambioDepartamento(e.target.value)}
+                  className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500 [&>option]:bg-slate-800 [&>option]:text-white"
                   required
-                />
+                >
+                  <option value="">Seleccione un departamento...</option>
+                  {DEPARTAMENTOS_COLOMBIA.map((departamento) => (
+                    <option key={departamento.codigo} value={departamento.codigo}>
+                      {departamento.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-white/80 mb-2">Municipio de residencia *</label>
+                <select
+                  value={formData.municipioResidencia || ""}
+                  onChange={(e) => manejarCambioMunicipio(e.target.value)}
+                  disabled={!departamentoSeleccionado}
+                  className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500 disabled:opacity-50 disabled:cursor-not-allowed [&>option]:bg-slate-800 [&>option]:text-white"
+                  required
+                >
+                  <option value="">
+                    {departamentoSeleccionado ? "Seleccione un municipio..." : "Primero seleccione un departamento"}
+                  </option>
+                  {municipiosDisponibles.map((municipio) => (
+                    <option key={municipio.codigo} value={municipio.nombre}>
+                      {municipio.nombre}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -248,7 +529,7 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
                 <select
                   value={formData.estrato || ""}
                   onChange={(e) => actualizarCampo("estrato", e.target.value)}
-                  className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500 [&>option]:bg-slate-800 [&>option]:text-white"
                   required
                 >
                   <option value="">Seleccione...</option>
@@ -266,7 +547,7 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
                 <select
                   value={formData.tipoVivienda || ""}
                   onChange={(e) => actualizarCampo("tipoVivienda", e.target.value)}
-                  className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500 [&>option]:bg-slate-800 [&>option]:text-white"
                   required
                 >
                   <option value="">Seleccione...</option>
@@ -281,7 +562,7 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
                 <select
                   value={formData.personasACargo || ""}
                   onChange={(e) => actualizarCampo("personasACargo", e.target.value)}
-                  className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500 [&>option]:bg-slate-800 [&>option]:text-white"
                   required
                 >
                   <option value="">Seleccione...</option>
@@ -308,20 +589,15 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
                 <select
                   value={formData.escolaridad || ""}
                   onChange={(e) => actualizarCampo("escolaridad", e.target.value)}
-                  className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500 [&>option]:bg-slate-800 [&>option]:text-white"
                   required
                 >
                   <option value="">Seleccione...</option>
-                  <option value="Primaria_incompleta">Primaria incompleta</option>
-                  <option value="Primaria_completa">Primaria completa</option>
-                  <option value="Bachillerato_incompleto">Bachillerato incompleto</option>
-                  <option value="Bachillerato_completo">Bachillerato completo</option>
-                  <option value="Tecnico">Técnico</option>
-                  <option value="Tecnologo">Tecnólogo</option>
+                  <option value="Primaria">Primaria</option>
+                  <option value="Bachillerato">Bachillerato</option>
+                  <option value="Tecnico_Tecnologo">Técnico / Tecnólogo</option>
                   <option value="Profesional">Profesional</option>
-                  <option value="Especializacion">Especialización</option>
-                  <option value="Maestria">Maestría</option>
-                  <option value="Doctorado">Doctorado</option>
+                  <option value="Posgrado">Posgrado (especialización, maestría, doctorado)</option>
                 </select>
               </div>
 
@@ -330,7 +606,12 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
                   <input
                     type="checkbox"
                     checked={formData.estudiandoActualmente || false}
-                    onChange={(e) => actualizarCampo("estudiandoActualmente", e.target.checked)}
+                    onChange={(e) => {
+                      actualizarCampo("estudiandoActualmente", e.target.checked);
+                      if (!e.target.checked) {
+                        actualizarCampo("carreraActual", undefined);
+                      }
+                    }}
                     className="w-5 h-5 rounded border-white/20 bg-white/5 text-violet-600 focus:ring-2 focus:ring-violet-500"
                   />
                   <span className="text-white">¿Estudia actualmente?</span>
@@ -366,7 +647,7 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
                 <select
                   value={formData.areaTrabajo || ""}
                   onChange={(e) => actualizarCampo("areaTrabajo", e.target.value)}
-                  className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500 [&>option]:bg-slate-800 [&>option]:text-white"
                   required
                 >
                   <option value="">Seleccione...</option>
@@ -394,7 +675,7 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
                 <select
                   value={formData.tipoContrato || ""}
                   onChange={(e) => actualizarCampo("tipoContrato", e.target.value)}
-                  className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500 [&>option]:bg-slate-800 [&>option]:text-white"
                   required
                 >
                   <option value="">Seleccione...</option>
@@ -411,7 +692,7 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
                   type="date"
                   value={formData.fechaIngresoSirius || ""}
                   onChange={(e) => actualizarCampo("fechaIngresoSirius", e.target.value)}
-                  className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500 [&>option]:bg-slate-800 [&>option]:text-white"
                   required
                 />
               </div>
@@ -421,7 +702,7 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
                 <select
                   value={formData.turnoTrabajo || ""}
                   onChange={(e) => actualizarCampo("turnoTrabajo", e.target.value)}
-                  className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500 [&>option]:bg-slate-800 [&>option]:text-white"
                   required
                 >
                   <option value="">Seleccione...</option>
@@ -459,7 +740,12 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
                   <input
                     type="checkbox"
                     checked={formData.enfermedadCronica || false}
-                    onChange={(e) => actualizarCampo("enfermedadCronica", e.target.checked)}
+                    onChange={(e) => {
+                      actualizarCampo("enfermedadCronica", e.target.checked);
+                      if (!e.target.checked) {
+                        actualizarCampo("cualEnfermedadCronica", undefined);
+                      }
+                    }}
                     className="w-5 h-5 rounded border-white/20 bg-white/5 text-violet-600 focus:ring-2 focus:ring-violet-500"
                   />
                   <span className="text-white">¿Tiene alguna enfermedad crónica diagnosticada?</span>
@@ -485,7 +771,12 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
                   <input
                     type="checkbox"
                     checked={formData.discapacidad || false}
-                    onChange={(e) => actualizarCampo("discapacidad", e.target.checked)}
+                    onChange={(e) => {
+                      actualizarCampo("discapacidad", e.target.checked);
+                      if (!e.target.checked) {
+                        actualizarCampo("cualDiscapacidad", undefined);
+                      }
+                    }}
                     className="w-5 h-5 rounded border-white/20 bg-white/5 text-violet-600 focus:ring-2 focus:ring-violet-500"
                   />
                   <span className="text-white">¿Tiene alguna discapacidad?</span>
@@ -557,7 +848,7 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
                 <select
                   value={formData.fuma || ""}
                   onChange={(e) => actualizarCampo("fuma", e.target.value)}
-                  className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500 [&>option]:bg-slate-800 [&>option]:text-white"
                   required
                 >
                   <option value="">Seleccione...</option>
@@ -572,7 +863,7 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
                 <select
                   value={formData.alcohol || ""}
                   onChange={(e) => actualizarCampo("alcohol", e.target.value)}
-                  className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500 [&>option]:bg-slate-800 [&>option]:text-white"
                   required
                 >
                   <option value="">Seleccione...</option>
@@ -587,7 +878,12 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
                   <input
                     type="checkbox"
                     checked={formData.practicaDeporte || false}
-                    onChange={(e) => actualizarCampo("practicaDeporte", e.target.checked)}
+                    onChange={(e) => {
+                      actualizarCampo("practicaDeporte", e.target.checked);
+                      if (!e.target.checked) {
+                        actualizarCampo("cualDeporte", undefined);
+                      }
+                    }}
                     className="w-5 h-5 rounded border-white/20 bg-white/5 text-violet-600 focus:ring-2 focus:ring-violet-500"
                   />
                   <span className="text-white">¿Practica algún deporte o ejercicio físico?</span>
@@ -626,7 +922,7 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
                     <label key={opcion.value} className="flex items-center gap-3 cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={formData.tiempoLibre?.includes(opcion.value as any) || false}
+                        checked={formData.tiempoLibre?.includes(opcion.value as TiempoLibre) || false}
                         onChange={(e) => {
                           const actual = formData.tiempoLibre || [];
                           if (e.target.checked) {
@@ -661,7 +957,7 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
                 <select
                   value={formData.medioTransporte || ""}
                   onChange={(e) => actualizarCampo("medioTransporte", e.target.value)}
-                  className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500 [&>option]:bg-slate-800 [&>option]:text-white"
                   required
                 >
                   <option value="">Seleccione...</option>
@@ -681,7 +977,7 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
                 <select
                   value={formData.tiempoDesplazamiento || ""}
                   onChange={(e) => actualizarCampo("tiempoDesplazamiento", e.target.value)}
-                  className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500 [&>option]:bg-slate-800 [&>option]:text-white"
                   required
                 >
                   <option value="">Seleccione...</option>
@@ -756,6 +1052,19 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
             </div>
           )}
 
+          {/* Mensaje de error de validación */}
+          {error && seccionActual < 8 && (
+            <div className="mb-4 p-4 bg-red-500/10 border border-red-500/30 rounded-lg flex items-start gap-3">
+              <svg className="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+              </svg>
+              <div>
+                <p className="text-red-300 font-semibold text-sm">Campo obligatorio faltante</p>
+                <p className="text-red-200/80 text-sm mt-1">{error}</p>
+              </div>
+            </div>
+          )}
+
           {/* Botones de navegación */}
           <div className="flex items-center justify-between mt-8 pt-6 border-t border-white/10">
             <button
@@ -783,12 +1092,6 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
               </button>
             )}
           </div>
-
-          {error && (
-            <div className="mt-4 p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
-              <p className="text-red-300 text-sm">{error}</p>
-            </div>
-          )}
         </div>
       </div>
     </div>

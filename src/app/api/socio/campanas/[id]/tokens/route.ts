@@ -47,12 +47,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       data: tokensConUrl,
       message: `${tokens.length} token(es) generado(s)`,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[POST /api/socio/campanas/:id/tokens] Error:", error);
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Error al generar tokens",
+        error: error instanceof Error ? error.message : "Error al generar tokens",
       },
       { status: 500 }
     );
@@ -73,12 +73,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       success: true,
       data: tokens,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[GET /api/socio/campanas/:id/tokens] Error:", error);
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Error al listar tokens",
+        error: error instanceof Error ? error.message : "Error al listar tokens",
       },
       { status: 500 }
     );

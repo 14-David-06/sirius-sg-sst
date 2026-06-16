@@ -17,12 +17,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       success: true,
       data: piramide,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[GET /api/socio/campanas/:id/piramide] Error:", error);
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Error al obtener pirámide poblacional",
+        error: error instanceof Error ? error.message : "Error al obtener pirámide poblacional",
       },
       { status: 500 }
     );
