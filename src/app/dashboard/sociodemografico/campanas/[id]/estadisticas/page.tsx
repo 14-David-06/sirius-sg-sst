@@ -190,6 +190,7 @@ export default function EstadisticasCampanaPage({ params }: { params: Promise<{ 
   const [exportandoPDF, setExportandoPDF] = useState(false);
   const [mostrarTabla, setMostrarTabla] = useState(false);
   const [cargandoRespuestas, setCargandoRespuestas] = useState(false);
+  const [filaExpandida, setFilaExpandida] = useState<string | null>(null);
 
   const cargarDatos = useCallback(async (id: string) => {
     setLoading(true);
@@ -569,64 +570,291 @@ export default function EstadisticasCampanaPage({ params }: { params: Promise<{ 
               </div>
 
               {mostrarTabla && respuestasDetalladas.length > 0 && (
-                <div className="overflow-x-auto -mx-6 px-6">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-white/10">
-                        <th className="text-left text-white/60 font-medium py-3 px-4 sticky left-0 bg-white/5 backdrop-blur-xl">
-                          Nombre
-                        </th>
-                        <th className="text-left text-white/60 font-medium py-3 px-4">Documento</th>
-                        <th className="text-left text-white/60 font-medium py-3 px-4">Edad</th>
-                        <th className="text-left text-white/60 font-medium py-3 px-4">Género</th>
-                        <th className="text-left text-white/60 font-medium py-3 px-4">Estado Civil</th>
-                        <th className="text-left text-white/60 font-medium py-3 px-4">Municipio</th>
-                        <th className="text-left text-white/60 font-medium py-3 px-4">Estrato</th>
-                        <th className="text-left text-white/60 font-medium py-3 px-4">Escolaridad</th>
-                        <th className="text-left text-white/60 font-medium py-3 px-4">Área</th>
-                        <th className="text-left text-white/60 font-medium py-3 px-4">Cargo</th>
-                        <th className="text-left text-white/60 font-medium py-3 px-4">Antigüedad</th>
-                        <th className="text-left text-white/60 font-medium py-3 px-4">Jornada</th>
-                        <th className="text-left text-white/60 font-medium py-3 px-4">Salud</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/5">
-                      {respuestasDetalladas.map((resp) => (
-                        <tr key={resp.id} className="hover:bg-white/5 transition-colors">
-                          <td className="py-3 px-4 text-white font-medium sticky left-0 bg-slate-950/90 backdrop-blur-xl">
-                            {resp.nombreCompleto}
-                          </td>
-                          <td className="py-3 px-4 text-white/80">{resp.numeroDocumento}</td>
-                          <td className="py-3 px-4 text-white/80">{resp.edad} años</td>
-                          <td className="py-3 px-4 text-white/80">{etiqueta(resp.genero)}</td>
-                          <td className="py-3 px-4 text-white/80">{etiqueta(resp.estadoCivil)}</td>
-                          <td className="py-3 px-4 text-white/80">{resp.municipio}</td>
-                          <td className="py-3 px-4 text-white/80">{resp.estrato}</td>
-                          <td className="py-3 px-4 text-white/80">{etiqueta(resp.escolaridad)}</td>
-                          <td className="py-3 px-4 text-white/80">{etiqueta(resp.areaTrabajo)}</td>
-                          <td className="py-3 px-4 text-white/80">{resp.cargo}</td>
-                          <td className="py-3 px-4 text-white/80">{resp.antiguedad}</td>
-                          <td className="py-3 px-4 text-white/80">{etiqueta(resp.turnoTrabajo)}</td>
-                          <td className="py-3 px-4">
-                            <div className="flex flex-col gap-1 text-xs">
+                <div className="space-y-4">
+                  {respuestasDetalladas.map((resp, index) => (
+                    <div
+                      key={resp.id}
+                      className="border border-white/10 rounded-xl overflow-hidden bg-white/5 backdrop-blur-xl hover:border-violet-500/30 transition-all"
+                    >
+                      {/* Fila principal */}
+                      <div
+                        onClick={() => setFilaExpandida(filaExpandida === resp.id ? null : resp.id)}
+                        className="cursor-pointer"
+                      >
+                        <div className="grid grid-cols-12 gap-4 p-4 items-center">
+                          <div className="col-span-3">
+                            <div className="text-xs text-white/50 mb-1">Colaborador #{index + 1}</div>
+                            <div className="text-white font-semibold">{resp.nombreCompleto}</div>
+                            <div className="text-xs text-white/60">{resp.numeroDocumento}</div>
+                          </div>
+                          <div className="col-span-2">
+                            <div className="text-xs text-white/50 mb-1">Datos básicos</div>
+                            <div className="text-white text-sm">{resp.edad} años</div>
+                            <div className="text-xs text-white/60">{etiqueta(resp.genero)} · {etiqueta(resp.estadoCivil)}</div>
+                          </div>
+                          <div className="col-span-2">
+                            <div className="text-xs text-white/50 mb-1">Residencia</div>
+                            <div className="text-white text-sm">{resp.municipio}</div>
+                            <div className="text-xs text-white/60">Estrato {resp.estrato}</div>
+                          </div>
+                          <div className="col-span-2">
+                            <div className="text-xs text-white/50 mb-1">Laboral</div>
+                            <div className="text-white text-sm">{etiqueta(resp.areaTrabajo)}</div>
+                            <div className="text-xs text-white/60">{resp.cargo}</div>
+                          </div>
+                          <div className="col-span-2">
+                            <div className="text-xs text-white/50 mb-1">Salud</div>
+                            <div className="flex flex-col gap-0.5">
                               {resp.enfermedadCronica && (
-                                <span className="text-orange-400">⚕️ {resp.cualEnfermedadCronica}</span>
+                                <span className="text-xs text-orange-400">⚕️ Enfermedad crónica</span>
                               )}
                               {resp.discapacidad && (
-                                <span className="text-blue-400">♿ {resp.cualDiscapacidad}</span>
+                                <span className="text-xs text-blue-400">♿ Discapacidad</span>
                               )}
                               {resp.tratamientoMedico && (
-                                <span className="text-purple-400">💊 En tratamiento</span>
+                                <span className="text-xs text-purple-400">💊 Tratamiento médico</span>
                               )}
                               {!resp.enfermedadCronica && !resp.discapacidad && !resp.tratamientoMedico && (
-                                <span className="text-green-400">✓ Sin novedad</span>
+                                <span className="text-xs text-green-400">✓ Sin novedad</span>
                               )}
                             </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                          </div>
+                          <div className="col-span-1 flex justify-end">
+                            <div className="text-violet-400">
+                              {filaExpandida === resp.id ? "▼" : "▶"}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Panel expandido con TODA la información */}
+                      {filaExpandida === resp.id && (
+                        <div className="border-t border-white/10 bg-white/5 p-6">
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {/* SECCIÓN 1: DATOS PERSONALES */}
+                            <div className="space-y-3">
+                              <h4 className="text-sm font-semibold text-violet-400 uppercase tracking-wide">
+                                Datos Personales
+                              </h4>
+                              <div className="space-y-2 text-sm">
+                                <div>
+                                  <div className="text-white/50 text-xs">Género</div>
+                                  <div className="text-white">{etiqueta(resp.genero)}</div>
+                                </div>
+                                <div>
+                                  <div className="text-white/50 text-xs">Estado Civil</div>
+                                  <div className="text-white">{etiqueta(resp.estadoCivil)}</div>
+                                </div>
+                                <div>
+                                  <div className="text-white/50 text-xs">Edad</div>
+                                  <div className="text-white">{resp.edad} años</div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* SECCIÓN 2: VIVIENDA */}
+                            <div className="space-y-3">
+                              <h4 className="text-sm font-semibold text-green-400 uppercase tracking-wide">
+                                Vivienda
+                              </h4>
+                              <div className="space-y-2 text-sm">
+                                <div>
+                                  <div className="text-white/50 text-xs">Municipio</div>
+                                  <div className="text-white">{resp.municipio}</div>
+                                </div>
+                                <div>
+                                  <div className="text-white/50 text-xs">Estrato</div>
+                                  <div className="text-white">Estrato {resp.estrato}</div>
+                                </div>
+                                <div>
+                                  <div className="text-white/50 text-xs">Tipo de Vivienda</div>
+                                  <div className="text-white">{etiqueta(resp.tipoVivienda)}</div>
+                                </div>
+                                <div>
+                                  <div className="text-white/50 text-xs">Personas a Cargo</div>
+                                  <div className="text-white">{etiqueta(resp.personasACargo)}</div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* SECCIÓN 3: EDUCACIÓN */}
+                            <div className="space-y-3">
+                              <h4 className="text-sm font-semibold text-blue-400 uppercase tracking-wide">
+                                Educación
+                              </h4>
+                              <div className="space-y-2 text-sm">
+                                <div>
+                                  <div className="text-white/50 text-xs">Nivel de Escolaridad</div>
+                                  <div className="text-white">{etiqueta(resp.escolaridad)}</div>
+                                </div>
+                                <div>
+                                  <div className="text-white/50 text-xs">Estudia Actualmente</div>
+                                  <div className="text-white">{resp.estudiandoActualmente ? "Sí" : "No"}</div>
+                                </div>
+                                {resp.estudiandoActualmente && resp.carreraActual && (
+                                  <div>
+                                    <div className="text-white/50 text-xs">Programa</div>
+                                    <div className="text-white">{resp.carreraActual}</div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* SECCIÓN 4: INFORMACIÓN LABORAL */}
+                            <div className="space-y-3">
+                              <h4 className="text-sm font-semibold text-amber-400 uppercase tracking-wide">
+                                Información Laboral
+                              </h4>
+                              <div className="space-y-2 text-sm">
+                                <div>
+                                  <div className="text-white/50 text-xs">Área de Trabajo</div>
+                                  <div className="text-white">{etiqueta(resp.areaTrabajo)}</div>
+                                </div>
+                                <div>
+                                  <div className="text-white/50 text-xs">Cargo</div>
+                                  <div className="text-white">{resp.cargo}</div>
+                                </div>
+                                <div>
+                                  <div className="text-white/50 text-xs">Tipo de Contrato</div>
+                                  <div className="text-white">{etiqueta(resp.tipoContrato)}</div>
+                                </div>
+                                <div>
+                                  <div className="text-white/50 text-xs">Antigüedad</div>
+                                  <div className="text-white">{resp.antiguedad}</div>
+                                </div>
+                                <div>
+                                  <div className="text-white/50 text-xs">Jornada</div>
+                                  <div className="text-white">{etiqueta(resp.turnoTrabajo)}</div>
+                                </div>
+                                <div>
+                                  <div className="text-white/50 text-xs">Otro Empleo</div>
+                                  <div className="text-white">{resp.otroEmpleo ? "Sí" : "No"}</div>
+                                </div>
+                                {resp.otroEmpleo && resp.descripcionOtroEmpleo && (
+                                  <div>
+                                    <div className="text-white/50 text-xs">Descripción</div>
+                                    <div className="text-white">{resp.descripcionOtroEmpleo}</div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* SECCIÓN 5: CONDICIONES DE SALUD */}
+                            <div className="space-y-3">
+                              <h4 className="text-sm font-semibold text-red-400 uppercase tracking-wide">
+                                Condiciones de Salud
+                              </h4>
+                              <div className="space-y-2 text-sm">
+                                <div>
+                                  <div className="text-white/50 text-xs">Enfermedad Crónica</div>
+                                  <div className="text-white">{resp.enfermedadCronica ? "Sí" : "No"}</div>
+                                  {resp.enfermedadCronica && resp.cualEnfermedadCronica && (
+                                    <div className="text-orange-300 text-xs mt-1">⚕️ {resp.cualEnfermedadCronica}</div>
+                                  )}
+                                </div>
+                                <div>
+                                  <div className="text-white/50 text-xs">Discapacidad</div>
+                                  <div className="text-white">{resp.discapacidad ? "Sí" : "No"}</div>
+                                  {resp.discapacidad && resp.cualDiscapacidad && (
+                                    <div className="text-blue-300 text-xs mt-1">♿ {resp.cualDiscapacidad}</div>
+                                  )}
+                                </div>
+                                <div>
+                                  <div className="text-white/50 text-xs">Tratamiento Médico</div>
+                                  <div className="text-white">{resp.tratamientoMedico ? "Sí" : "No"}</div>
+                                  {resp.tratamientoMedico && resp.descripcionTratamiento && (
+                                    <div className="text-purple-300 text-xs mt-1">💊 {resp.descripcionTratamiento}</div>
+                                  )}
+                                </div>
+                                <div>
+                                  <div className="text-white/50 text-xs">Accidentes Laborales Previos</div>
+                                  <div className="text-white">{resp.accidentesTrabajoPrevios ? "Sí" : "No"}</div>
+                                  {resp.accidentesTrabajoPrevios && resp.descripcionAccidentes && (
+                                    <div className="text-yellow-300 text-xs mt-1">⚠️ {resp.descripcionAccidentes}</div>
+                                  )}
+                                </div>
+                                <div>
+                                  <div className="text-white/50 text-xs">Enfermedad Laboral Previa</div>
+                                  <div className="text-white">{resp.enfermedadLaboralPrevia ? "Sí" : "No"}</div>
+                                  {resp.enfermedadLaboralPrevia && resp.descripcionEnfLaboral && (
+                                    <div className="text-red-300 text-xs mt-1">🩺 {resp.descripcionEnfLaboral}</div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* SECCIÓN 6: HÁBITOS */}
+                            <div className="space-y-3">
+                              <h4 className="text-sm font-semibold text-cyan-400 uppercase tracking-wide">
+                                Hábitos y Estilo de Vida
+                              </h4>
+                              <div className="space-y-2 text-sm">
+                                <div>
+                                  <div className="text-white/50 text-xs">Fuma</div>
+                                  <div className="text-white">{etiqueta(resp.fuma)}</div>
+                                </div>
+                                <div>
+                                  <div className="text-white/50 text-xs">Consumo de Alcohol</div>
+                                  <div className="text-white">{etiqueta(resp.alcohol)}</div>
+                                </div>
+                                <div>
+                                  <div className="text-white/50 text-xs">Practica Deporte</div>
+                                  <div className="text-white">{resp.practicaDeporte ? "Sí" : "No"}</div>
+                                  {resp.practicaDeporte && resp.cualDeporte && (
+                                    <div className="text-cyan-300 text-xs mt-1">🏃 {resp.cualDeporte}</div>
+                                  )}
+                                </div>
+                                <div>
+                                  <div className="text-white/50 text-xs">Actividades Tiempo Libre</div>
+                                  <div className="text-white text-xs">{resp.tiempoLibre?.map((t: string) => etiqueta(t)).join(", ") || "—"}</div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* SECCIÓN 7: TRANSPORTE */}
+                            <div className="space-y-3">
+                              <h4 className="text-sm font-semibold text-pink-400 uppercase tracking-wide">
+                                Transporte y Movilidad
+                              </h4>
+                              <div className="space-y-2 text-sm">
+                                <div>
+                                  <div className="text-white/50 text-xs">Medio de Transporte</div>
+                                  <div className="text-white">{etiqueta(resp.medioTransporte)}</div>
+                                </div>
+                                <div>
+                                  <div className="text-white/50 text-xs">Tiempo de Desplazamiento</div>
+                                  <div className="text-white">{etiqueta(resp.tiempoDesplazamiento)}</div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* SECCIÓN 8: CONSENTIMIENTOS */}
+                            <div className="space-y-3">
+                              <h4 className="text-sm font-semibold text-emerald-400 uppercase tracking-wide">
+                                Consentimientos
+                              </h4>
+                              <div className="space-y-2 text-sm">
+                                <div>
+                                  <div className="text-white/50 text-xs">Política de Datos</div>
+                                  <div className="text-white">{resp.aceptaPoliticaDatos ? "✓ Aceptado" : "✗ No aceptado"}</div>
+                                </div>
+                                <div>
+                                  <div className="text-white/50 text-xs">Declara Veracidad</div>
+                                  <div className="text-white">{resp.firmaVeracidad ? "✓ Declarado" : "✗ No declarado"}</div>
+                                </div>
+                                {resp.createdTime && (
+                                  <div>
+                                    <div className="text-white/50 text-xs">Fecha de Respuesta</div>
+                                    <div className="text-white text-xs">{new Date(resp.createdTime).toLocaleString("es-CO")}</div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
 
