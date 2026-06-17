@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { AirtableRespuestaRepository } from "@/modules/sociodemografico/infrastructure/airtable/AirtableRespuestaRepository";
 import type { GuardarRespuestaDTO } from "@/modules/sociodemografico/domain/entities";
+import {
+  MEDIOS_TRANSPORTE_VALIDOS,
+  TIEMPOS_DESPLAZAMIENTO_VALIDOS,
+} from "@/modules/sociodemografico/domain/entities";
+import { encryptAES } from "@/lib/firmaCrypto";
 
 // ─── Schema de validación ───
 
@@ -29,8 +34,9 @@ const guardarRespuestaSchema = z.object({
   cargo: z.string().min(3),
   tipoContrato: z.enum(["Termino_fijo", "Termino_indefinido", "Prestacion_servicios", "Aprendiz"]),
   fechaIngresoSirius: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  turnoTrabajo: z.enum(["Mañana", "Tarde", "Noche", "Rotativo"]),
+  turnoTrabajo: z.enum(["Jornada_completa", "Media_jornada", "Rotativo", "Por_turnos"]),
   otroEmpleo: z.boolean(),
+  descripcionOtroEmpleo: z.string().optional(),
 
   // Sección 5: Salud
   enfermedadCronica: z.boolean(),
@@ -38,8 +44,11 @@ const guardarRespuestaSchema = z.object({
   discapacidad: z.boolean(),
   cualDiscapacidad: z.string().optional(),
   tratamientoMedico: z.boolean(),
+  descripcionTratamiento: z.string().optional(),
   accidentesTrabajoPrevios: z.boolean(),
+  descripcionAccidentes: z.string().optional(),
   enfermedadLaboralPrevia: z.boolean(),
+  descripcionEnfLaboral: z.string().optional(),
 
   // Sección 6: Hábitos
   fuma: z.enum(["Si", "No", "Exfumador"]),
@@ -58,10 +67,21 @@ const guardarRespuestaSchema = z.object({
       "Otro",
     ])
   ),
+  descripcionOtroTiempoLibre: z.string().optional(),
 
   // Sección 7: Transporte
-  medioTransporte: z.enum(["A_pie", "Bus_Transmilenio", "Bicicleta", "Moto", "Carro_particular", "Ruta_empresa"]),
-  tiempoDesplazamiento: z.enum(["Menos_30min", "30_60min", "1_2horas", "Mas_2horas"]),
+  medioTransporte: z
+    .string()
+    .min(1, "El medio de transporte es obligatorio")
+    .refine((val) => MEDIOS_TRANSPORTE_VALIDOS.includes(val as any), {
+      message: "Seleccione un medio de transporte válido de la lista",
+    }),
+  tiempoDesplazamiento: z
+    .string()
+    .min(1, "El tiempo de desplazamiento es obligatorio")
+    .refine((val) => TIEMPOS_DESPLAZAMIENTO_VALIDOS.includes(val as any), {
+      message: "Seleccione un tiempo de desplazamiento válido de la lista",
+    }),
 
   // Consentimiento
   aceptaPoliticaDatos: z.boolean().refine((val) => val === true, {
@@ -70,6 +90,9 @@ const guardarRespuestaSchema = z.object({
   firmaVeracidad: z.boolean().refine((val) => val === true, {
     message: "Debe firmar la veracidad de la información",
   }),
+
+  // Firma digital (sin cifrar - se cifrará en el servidor)
+  firmaDataUrl: z.string().min(10),
 });
 
 const respuestasRepo = new AirtableRespuestaRepository();
@@ -83,9 +106,25 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { token } = await params;
     const body = await request.json();
 
+    // DEBUG: Imprimir los valores problemáticos
+    console.log("[DEBUG] medioTransporte recibido:", body.medioTransporte, "| tipo:", typeof body.medioTransporte);
+    console.log("[DEBUG] tiempoDesplazamiento recibido:", body.tiempoDesplazamiento, "| tipo:", typeof body.tiempoDesplazamiento);
+
+    // Verificar si son exactamente los valores esperados
+    if (body.medioTransporte && !MEDIOS_TRANSPORTE_VALIDOS.includes(body.medioTransporte)) {
+      console.error("[DEBUG] medioTransporte NO válido. Esperado uno de:", MEDIOS_TRANSPORTE_VALIDOS);
+      console.error("[DEBUG] Valor recibido:", JSON.stringify(body.medioTransporte));
+    }
+    if (body.tiempoDesplazamiento && !TIEMPOS_DESPLAZAMIENTO_VALIDOS.includes(body.tiempoDesplazamiento)) {
+      console.error("[DEBUG] tiempoDesplazamiento NO válido. Esperado uno de:", TIEMPOS_DESPLAZAMIENTO_VALIDOS);
+      console.error("[DEBUG] Valor recibido:", JSON.stringify(body.tiempoDesplazamiento));
+    }
+
     // Validar datos
     const validacion = guardarRespuestaSchema.safeParse(body);
     if (!validacion.success) {
+      console.error("[POST /api/socio/respuestas/:token] Validación fallida:", validacion.error.issues);
+      console.error("[DEBUG] Body completo:", JSON.stringify(body, null, 2));
       return NextResponse.json(
         {
           success: false,
@@ -96,13 +135,21 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       );
     }
 
-    const datos = validacion.data;
+    const { firmaDataUrl, ...datosFormulario } = validacion.data;
 
-    // Preparar DTO
+    // Cifrar la firma antes de guardar
+    const firmaPayload = JSON.stringify({
+      signature: firmaDataUrl,
+      timestamp: new Date().toISOString(),
+    });
+    const firmaCifrada = encryptAES(firmaPayload);
+
+    // Preparar DTO con cast seguro (ya validado por Zod)
     const dto: GuardarRespuestaDTO = {
       token,
-      ...datos,
-    };
+      ...datosFormulario,
+      firma: firmaCifrada,
+    } as GuardarRespuestaDTO;
 
     // Guardar respuesta
     const respuesta = await respuestasRepo.guardar(dto);

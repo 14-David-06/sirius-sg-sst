@@ -12,7 +12,7 @@ export type PersonasACargo = "Ninguna" | "1" | "2" | "3" | "4_o_mas";
 export type Escolaridad = "Primaria" | "Bachillerato" | "Tecnico_Tecnologo" | "Profesional" | "Posgrado";
 export type AreaTrabajo = "Pirolisis" | "Laboratorio" | "Bodega" | "Administrativo";
 export type TipoContrato = "Termino_fijo" | "Termino_indefinido" | "Prestacion_servicios" | "Aprendiz";
-export type TurnoTrabajo = "Mañana" | "Tarde" | "Noche" | "Rotativo";
+export type JornadaTrabajo = "Jornada_completa" | "Media_jornada" | "Rotativo" | "Por_turnos";
 export type Fuma = "Si" | "No" | "Exfumador";
 export type Alcohol = "Nunca" | "Ocasionalmente" | "Frecuentemente";
 export type TiempoLibre =
@@ -32,6 +32,23 @@ export type MedioTransporte =
   | "Carro_particular"
   | "Ruta_empresa";
 export type TiempoDesplazamiento = "Menos_30min" | "30_60min" | "1_2horas" | "Mas_2horas";
+
+// Arrays de valores válidos para validación
+export const MEDIOS_TRANSPORTE_VALIDOS: MedioTransporte[] = [
+  "A_pie",
+  "Bus_Transmilenio",
+  "Bicicleta",
+  "Moto",
+  "Carro_particular",
+  "Ruta_empresa",
+];
+
+export const TIEMPOS_DESPLAZAMIENTO_VALIDOS: TiempoDesplazamiento[] = [
+  "Menos_30min",
+  "30_60min",
+  "1_2horas",
+  "Mas_2horas",
+];
 
 export interface Respuesta {
   /** Record ID de Airtable */
@@ -69,8 +86,9 @@ export interface Respuesta {
   cargo: string;
   tipoContrato: TipoContrato;
   fechaIngresoSirius: Date;
-  turnoTrabajo: TurnoTrabajo;
+  turnoTrabajo: JornadaTrabajo;
   otroEmpleo: boolean;
+  descripcionOtroEmpleo?: string;
 
   // ── Sección 5: Salud ──
   enfermedadCronica: boolean;
@@ -78,8 +96,11 @@ export interface Respuesta {
   discapacidad: boolean;
   cualDiscapacidad?: string;
   tratamientoMedico: boolean;
+  descripcionTratamiento?: string;
   accidentesTrabajoPrevios: boolean;
+  descripcionAccidentes?: string;
   enfermedadLaboralPrevia: boolean;
+  descripcionEnfLaboral?: string;
 
   // ── Sección 6: Hábitos ──
   fuma: Fuma;
@@ -87,6 +108,7 @@ export interface Respuesta {
   practicaDeporte: boolean;
   cualDeporte?: string;
   tiempoLibre: TiempoLibre[];
+  descripcionOtroTiempoLibre?: string;
 
   // ── Sección 7: Transporte ──
   medioTransporte: MedioTransporte;
@@ -95,6 +117,10 @@ export interface Respuesta {
   // ── Consentimiento (Ley 1581/2012) ──
   aceptaPoliticaDatos: boolean;
   firmaVeracidad: boolean;
+
+  // ── Firma Digital ──
+  /** Firma cifrada (AES) con formato: {signature: dataUrl, timestamp: ISO} */
+  firma?: string;
 
   /** Timestamps */
   createdTime?: Date;
@@ -129,8 +155,9 @@ export interface GuardarRespuestaDTO {
   cargo: string;
   tipoContrato: TipoContrato;
   fechaIngresoSirius: string; // ISO date string
-  turnoTrabajo: TurnoTrabajo;
+  turnoTrabajo: JornadaTrabajo;
   otroEmpleo: boolean;
+  descripcionOtroEmpleo?: string;
 
   // Sección 5
   enfermedadCronica: boolean;
@@ -138,8 +165,11 @@ export interface GuardarRespuestaDTO {
   discapacidad: boolean;
   cualDiscapacidad?: string;
   tratamientoMedico: boolean;
+  descripcionTratamiento?: string;
   accidentesTrabajoPrevios: boolean;
+  descripcionAccidentes?: string;
   enfermedadLaboralPrevia: boolean;
+  descripcionEnfLaboral?: string;
 
   // Sección 6
   fuma: Fuma;
@@ -147,6 +177,7 @@ export interface GuardarRespuestaDTO {
   practicaDeporte: boolean;
   cualDeporte?: string;
   tiempoLibre: TiempoLibre[];
+  descripcionOtroTiempoLibre?: string;
 
   // Sección 7
   medioTransporte: MedioTransporte;
@@ -155,4 +186,7 @@ export interface GuardarRespuestaDTO {
   // Consentimiento
   aceptaPoliticaDatos: boolean;
   firmaVeracidad: boolean;
+
+  // Firma digital cifrada (formato AES: iv:encrypted)
+  firma: string;
 }

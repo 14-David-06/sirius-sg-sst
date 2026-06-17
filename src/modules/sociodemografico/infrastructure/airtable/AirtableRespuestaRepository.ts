@@ -70,15 +70,34 @@ export class AirtableRespuestaRepository implements IRespuestaRepository {
       throw new Error("Debe firmar la veracidad de la información");
     }
 
-    // 4. Crear registro de respuesta
-    // Personal es un campo de texto plano (no un link), llega como string
-    const personalId = (tokenRecord.get(TF.PERSONAL) as string) || "";
+    // 4. Obtener código de empleado desde la tabla Personal
+    const personalRecordId = (tokenRecord.get(TF.PERSONAL) as string) || "";
+    let codigoEmpleado = "";
+
+    if (personalRecordId) {
+      try {
+        const personalBase = new Airtable({ apiKey: process.env.AIRTABLE_API_TOKEN! }).base(
+          process.env.AIRTABLE_BASE_ID!
+        );
+        const personalTable = personalBase(process.env.AIRTABLE_PERSONAL_TABLE_ID!);
+        const personalRecord = await encontrarPorId(personalTable, personalRecordId);
+
+        if (personalRecord) {
+          codigoEmpleado = (personalRecord.get(process.env.AIRTABLE_PF_ID_EMPLEADO!) as string) || "";
+        }
+      } catch (e) {
+        console.warn("[guardar respuesta] No se pudo obtener código de empleado, usando record ID", e);
+        codigoEmpleado = personalRecordId; // Fallback al record ID si falla
+      }
+    }
+
+    // 5. Crear registro de respuesta
 
     const record = await this.table.create({
       [F.TOKEN]: [tokenRecord.id],
       [F.CAMPANA]: [campanaId],
-      // Personal es un campo de texto (el colaborador vive en otra base, no se puede vincular)
-      [F.PERSONAL]: personalId,
+      // Personal: código de empleado SIRIUS-PER-XXXX (texto plano, no link)
+      [F.PERSONAL]: codigoEmpleado,
       // Sección 1
       [F.NOMBRE_COMPLETO]: dto.nombreCompleto,
       [F.NUMERO_DOCUMENTO]: dto.numeroDocumento,
@@ -101,29 +120,36 @@ export class AirtableRespuestaRepository implements IRespuestaRepository {
       [F.FECHA_INGRESO_SIRIUS]: dto.fechaIngresoSirius,
       [F.TURNO_TRABAJO]: dto.turnoTrabajo,
       [F.OTRO_EMPLEO]: dto.otroEmpleo,
+      ...(F.DESC_OTRO_EMPLEO && { [F.DESC_OTRO_EMPLEO]: dto.descripcionOtroEmpleo || "" }),
       // Sección 5
       [F.ENFERMEDAD_CRONICA]: dto.enfermedadCronica,
       [F.CUAL_ENFERMEDAD_CRONICA]: dto.cualEnfermedadCronica || "",
       [F.DISCAPACIDAD]: dto.discapacidad,
       [F.CUAL_DISCAPACIDAD]: dto.cualDiscapacidad || "",
       [F.TRATAMIENTO_MEDICO]: dto.tratamientoMedico,
+      ...(F.DESC_TRATAMIENTO && { [F.DESC_TRATAMIENTO]: dto.descripcionTratamiento || "" }),
       [F.ACCIDENTES_TRABAJO_PREVIOS]: dto.accidentesTrabajoPrevios,
+      ...(F.DESC_ACCIDENTES && { [F.DESC_ACCIDENTES]: dto.descripcionAccidentes || "" }),
       [F.ENFERMEDAD_LABORAL_PREVIA]: dto.enfermedadLaboralPrevia,
+      ...(F.DESC_ENF_LABORAL && { [F.DESC_ENF_LABORAL]: dto.descripcionEnfLaboral || "" }),
       // Sección 6
       [F.FUMA]: dto.fuma,
       [F.ALCOHOL]: dto.alcohol,
       [F.PRACTICA_DEPORTE]: dto.practicaDeporte,
       [F.CUAL_DEPORTE]: dto.cualDeporte || "",
       [F.TIEMPO_LIBRE]: dto.tiempoLibre,
+      ...(F.DESC_OTRO_TIEMPO_LIBRE && { [F.DESC_OTRO_TIEMPO_LIBRE]: dto.descripcionOtroTiempoLibre || "" }),
       // Sección 7
       [F.MEDIO_TRANSPORTE]: dto.medioTransporte,
       [F.TIEMPO_DESPLAZAMIENTO]: dto.tiempoDesplazamiento,
       // Consentimiento
       [F.ACEPTA_POLITICA_DATOS]: dto.aceptaPoliticaDatos,
       [F.FIRMA_VERACIDAD]: dto.firmaVeracidad,
+      // Firma digital cifrada
+      [F.FIRMA]: dto.firma,
     });
 
-    // 5. Marcar token como usado
+    // 6. Marcar token como usado
     await tokensTable.update(tokenRecord.id, {
       [TF.USADO]: true,
       [TF.FECHA_USO]: new Date().toISOString(),
@@ -281,20 +307,25 @@ export class AirtableRespuestaRepository implements IRespuestaRepository {
       fechaIngresoSirius: new Date(record.get(F.FECHA_INGRESO_SIRIUS) as string),
       turnoTrabajo: record.get(F.TURNO_TRABAJO) as any,
       otroEmpleo: record.get(F.OTRO_EMPLEO) === true,
+      descripcionOtroEmpleo: F.DESC_OTRO_EMPLEO ? (record.get(F.DESC_OTRO_EMPLEO) as string | undefined) : undefined,
       // Sección 5
       enfermedadCronica: record.get(F.ENFERMEDAD_CRONICA) === true,
       cualEnfermedadCronica: record.get(F.CUAL_ENFERMEDAD_CRONICA) as string | undefined,
       discapacidad: record.get(F.DISCAPACIDAD) === true,
       cualDiscapacidad: record.get(F.CUAL_DISCAPACIDAD) as string | undefined,
       tratamientoMedico: record.get(F.TRATAMIENTO_MEDICO) === true,
+      descripcionTratamiento: F.DESC_TRATAMIENTO ? (record.get(F.DESC_TRATAMIENTO) as string | undefined) : undefined,
       accidentesTrabajoPrevios: record.get(F.ACCIDENTES_TRABAJO_PREVIOS) === true,
+      descripcionAccidentes: F.DESC_ACCIDENTES ? (record.get(F.DESC_ACCIDENTES) as string | undefined) : undefined,
       enfermedadLaboralPrevia: record.get(F.ENFERMEDAD_LABORAL_PREVIA) === true,
+      descripcionEnfLaboral: F.DESC_ENF_LABORAL ? (record.get(F.DESC_ENF_LABORAL) as string | undefined) : undefined,
       // Sección 6
       fuma: record.get(F.FUMA) as any,
       alcohol: record.get(F.ALCOHOL) as any,
       practicaDeporte: record.get(F.PRACTICA_DEPORTE) === true,
       cualDeporte: record.get(F.CUAL_DEPORTE) as string | undefined,
       tiempoLibre: (record.get(F.TIEMPO_LIBRE) as any[]) || [],
+      descripcionOtroTiempoLibre: F.DESC_OTRO_TIEMPO_LIBRE ? (record.get(F.DESC_OTRO_TIEMPO_LIBRE) as string | undefined) : undefined,
       // Sección 7
       medioTransporte: record.get(F.MEDIO_TRANSPORTE) as any,
       tiempoDesplazamiento: record.get(F.TIEMPO_DESPLAZAMIENTO) as any,

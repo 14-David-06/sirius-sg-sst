@@ -84,27 +84,54 @@ export class AirtableTokenRepository implements ITokenRepository {
       NOMBRE_COMPLETO: process.env.AIRTABLE_PF_NOMBRE_COMPLETO!,
       CORREO: process.env.AIRTABLE_PF_CORREO!,
       NUMERO_DOCUMENTO: process.env.AIRTABLE_PF_NUMERO_DOCUMENTO!,
+      CODIGO_EMPLEADO: process.env.AIRTABLE_PF_ID_EMPLEADO!,
       // Opcionales: si no están configurados, simplemente no se prellena
       FECHA_NACIMIENTO: process.env.AIRTABLE_PF_FECHA_NACIMIENTO,
       FECHA_INCORPORACION: process.env.AIRTABLE_PF_FECHA_INCORPORACION,
+      AREA_TRABAJO: process.env.AIRTABLE_PF_AREAS, // Nota: es AREAS (plural)
+      ROL_LOOKUP: process.env.AIRTABLE_PF_ROL_LOOKUP, // "Rol (from Rol)" - lookup field
     };
 
     try {
       const personalRecord = await encontrarPorId(personalTable, tokenData.personalId);
       if (!personalRecord) return null;
 
-      return {
+      // Rol (from Rol) es un lookup array, tomamos el primer elemento
+      const rolArray = PF.ROL_LOOKUP
+        ? (personalRecord.get(PF.ROL_LOOKUP) as string[] | undefined)
+        : undefined;
+      const cargo = rolArray && rolArray.length > 0 ? rolArray[0] : undefined;
+
+      // Areas es un Link to another record (array de record IDs), necesitamos buscar el nombre del área
+      // Por ahora, devolvemos el ID del área para que el frontend pueda usarlo
+      const areasArray = PF.AREA_TRABAJO
+        ? (personalRecord.get(PF.AREA_TRABAJO) as string[] | undefined)
+        : undefined;
+      const areaId = areasArray && areasArray.length > 0 ? areasArray[0] : undefined;
+
+      // TODO: Necesitamos obtener el nombre del área desde la tabla Areas
+      // Por ahora devolvemos el ID, el frontend debería tener un mapeo
+
+      const resultado = {
         ...tokenData,
         nombreCompleto: personalRecord.get(PF.NOMBRE_COMPLETO) as string,
         correo: personalRecord.get(PF.CORREO) as string,
         numeroDocumento: personalRecord.get(PF.NUMERO_DOCUMENTO) as string,
+        codigoEmpleado: personalRecord.get(PF.CODIGO_EMPLEADO) as string,
         fechaNacimiento: PF.FECHA_NACIMIENTO
           ? (personalRecord.get(PF.FECHA_NACIMIENTO) as string | undefined)
           : undefined,
         fechaIncorporacion: PF.FECHA_INCORPORACION
           ? (personalRecord.get(PF.FECHA_INCORPORACION) as string | undefined)
           : undefined,
+        areaTrabajo: areaId, // Ahora es un string (record ID) en lugar de array
+        cargo,
       };
+
+      console.log("[obtenerConPersonal] Área de trabajo:", resultado.areaTrabajo, "Field ID:", PF.AREA_TRABAJO);
+      console.log("[obtenerConPersonal] Cargo (Rol from Rol):", resultado.cargo, "Field ID:", PF.ROL_LOOKUP);
+
+      return resultado;
     } catch {
       return null;
     }

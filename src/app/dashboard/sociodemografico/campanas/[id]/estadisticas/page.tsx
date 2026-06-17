@@ -12,13 +12,16 @@ import {
   Check,
   AlertCircle,
   RefreshCw,
-  FileSpreadsheet,
   HeartPulse,
   Briefcase,
   Home,
   GraduationCap,
   Bus,
   Activity,
+  Table as TableIcon,
+  Eye,
+  EyeOff,
+  FileText,
 } from "lucide-react";
 import type { Campana, EstadisticasCampana, PiramidePoblacional } from "@/modules/sociodemografico/domain/entities";
 
@@ -33,6 +36,9 @@ const ETIQUETAS: Record<string, string> = {
   Termino_indefinido: "Término indefinido",
   Prestacion_servicios: "Prestación de servicios",
   Pirolisis: "Pirólisis",
+  Jornada_completa: "Jornada completa",
+  Media_jornada: "Media jornada",
+  Por_turnos: "Por turnos",
   A_pie: "A pie",
   Bus_Transmilenio: "Bus / Transmilenio",
   Carro_particular: "Carro particular",
@@ -178,9 +184,12 @@ export default function EstadisticasCampanaPage({ params }: { params: Promise<{ 
   const [campana, setCampana] = useState<Campana | null>(null);
   const [estadisticas, setEstadisticas] = useState<EstadisticasCampana | null>(null);
   const [piramide, setPiramide] = useState<PiramidePoblacional | null>(null);
+  const [respuestasDetalladas, setRespuestasDetalladas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [exportando, setExportando] = useState(false);
+  const [exportandoPDF, setExportandoPDF] = useState(false);
+  const [mostrarTabla, setMostrarTabla] = useState(false);
+  const [cargandoRespuestas, setCargandoRespuestas] = useState(false);
 
   const cargarDatos = useCallback(async (id: string) => {
     setLoading(true);
@@ -216,27 +225,50 @@ export default function EstadisticasCampanaPage({ params }: { params: Promise<{ 
     });
   }, [params, cargarDatos]);
 
-  const exportarExcel = async () => {
-    setExportando(true);
+  const exportarPDF = async () => {
+    setExportandoPDF(true);
     try {
-      const res = await fetch(`/api/socio/campanas/${campanaId}/exportar`);
+      const res = await fetch(`/api/socio/campanas/${campanaId}/exportar-pdf`);
       if (!res.ok) {
         const json = await res.json().catch(() => null);
-        throw new Error(json?.error || "Error al exportar");
+        throw new Error(json?.error || "Error al generar PDF");
       }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `respuestas_sociodemografico_${campana?.nombre?.replace(/\s+/g, "_") || campanaId}.xlsx`;
+      a.download = `Informe_Sociodemografico_${campana?.nombre?.replace(/\s+/g, "_") || campanaId}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Error al exportar");
+      setError(err instanceof Error ? err.message : "Error al exportar PDF");
     } finally {
-      setExportando(false);
+      setExportandoPDF(false);
+    }
+  };
+
+  const cargarRespuestasDetalladas = async () => {
+    if (respuestasDetalladas.length > 0) {
+      setMostrarTabla(!mostrarTabla);
+      return;
+    }
+
+    setCargandoRespuestas(true);
+    try {
+      const res = await fetch(`/api/socio/campanas/${campanaId}/respuestas`);
+      const data = await res.json();
+      if (data.success) {
+        setRespuestasDetalladas(data.data);
+        setMostrarTabla(true);
+      } else {
+        throw new Error(data.error || "Error al cargar respuestas");
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Error al cargar respuestas detalladas");
+    } finally {
+      setCargandoRespuestas(false);
     }
   };
 
@@ -321,12 +353,12 @@ export default function EstadisticasCampanaPage({ params }: { params: Promise<{ 
                 <span className="hidden sm:inline">Actualizar</span>
               </button>
               <button
-                onClick={exportarExcel}
-                disabled={exportando || total === 0}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-500/15 border border-green-400/25 text-green-300 text-sm font-semibold hover:bg-green-500/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                onClick={exportarPDF}
+                disabled={exportandoPDF || total === 0}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/15 border border-red-400/25 text-red-300 text-sm font-semibold hover:bg-red-500/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
-                <FileSpreadsheet className="w-4 h-4" />
-                <span className="hidden sm:inline">{exportando ? "Exportando..." : "Excel"}</span>
+                <FileText className="w-4 h-4" />
+                <span className="hidden sm:inline">{exportandoPDF ? "Generando..." : "PDF"}</span>
               </button>
             </div>
           </div>
@@ -456,7 +488,7 @@ export default function EstadisticasCampanaPage({ params }: { params: Promise<{ 
                 total={total}
               />
               <GraficoDistribucion
-                titulo="Turno de Trabajo"
+                titulo="Jornada de Trabajo"
                 icono={<Briefcase className="w-5 h-5 text-violet-400" />}
                 datos={estadisticas.turnoTrabajo}
                 total={total}
@@ -503,6 +535,104 @@ export default function EstadisticasCampanaPage({ params }: { params: Promise<{ 
                 <IndicadorBooleano titulo="Accidentes laborales previos" datos={estadisticas.accidentesTrabajoPrevios} />
                 <IndicadorBooleano titulo="Enfermedad laboral previa" datos={estadisticas.enfermedadLaboralPrevia} />
               </div>
+            </div>
+
+            {/* Tabla de respuestas detalladas */}
+            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                  <TableIcon className="w-5 h-5 text-violet-400" />
+                  Respuestas Individuales ({total})
+                </h3>
+                <button
+                  onClick={cargarRespuestasDetalladas}
+                  disabled={cargandoRespuestas}
+                  className="flex items-center gap-2 rounded-lg bg-violet-500 hover:bg-violet-600 disabled:bg-violet-500/50 border border-violet-400/20 px-4 py-2 text-sm font-semibold text-white transition-all cursor-pointer disabled:cursor-not-allowed"
+                >
+                  {cargandoRespuestas ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Cargando...
+                    </>
+                  ) : mostrarTabla ? (
+                    <>
+                      <EyeOff className="w-4 h-4" />
+                      Ocultar Tabla
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="w-4 h-4" />
+                      Ver Detalle
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {mostrarTabla && respuestasDetalladas.length > 0 && (
+                <div className="overflow-x-auto -mx-6 px-6">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-white/10">
+                        <th className="text-left text-white/60 font-medium py-3 px-4 sticky left-0 bg-white/5 backdrop-blur-xl">
+                          Nombre
+                        </th>
+                        <th className="text-left text-white/60 font-medium py-3 px-4">Documento</th>
+                        <th className="text-left text-white/60 font-medium py-3 px-4">Edad</th>
+                        <th className="text-left text-white/60 font-medium py-3 px-4">Género</th>
+                        <th className="text-left text-white/60 font-medium py-3 px-4">Estado Civil</th>
+                        <th className="text-left text-white/60 font-medium py-3 px-4">Municipio</th>
+                        <th className="text-left text-white/60 font-medium py-3 px-4">Estrato</th>
+                        <th className="text-left text-white/60 font-medium py-3 px-4">Escolaridad</th>
+                        <th className="text-left text-white/60 font-medium py-3 px-4">Área</th>
+                        <th className="text-left text-white/60 font-medium py-3 px-4">Cargo</th>
+                        <th className="text-left text-white/60 font-medium py-3 px-4">Antigüedad</th>
+                        <th className="text-left text-white/60 font-medium py-3 px-4">Jornada</th>
+                        <th className="text-left text-white/60 font-medium py-3 px-4">Salud</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {respuestasDetalladas.map((resp) => (
+                        <tr key={resp.id} className="hover:bg-white/5 transition-colors">
+                          <td className="py-3 px-4 text-white font-medium sticky left-0 bg-slate-950/90 backdrop-blur-xl">
+                            {resp.nombreCompleto}
+                          </td>
+                          <td className="py-3 px-4 text-white/80">{resp.numeroDocumento}</td>
+                          <td className="py-3 px-4 text-white/80">{resp.edad} años</td>
+                          <td className="py-3 px-4 text-white/80">{etiqueta(resp.genero)}</td>
+                          <td className="py-3 px-4 text-white/80">{etiqueta(resp.estadoCivil)}</td>
+                          <td className="py-3 px-4 text-white/80">{resp.municipio}</td>
+                          <td className="py-3 px-4 text-white/80">{resp.estrato}</td>
+                          <td className="py-3 px-4 text-white/80">{etiqueta(resp.escolaridad)}</td>
+                          <td className="py-3 px-4 text-white/80">{etiqueta(resp.areaTrabajo)}</td>
+                          <td className="py-3 px-4 text-white/80">{resp.cargo}</td>
+                          <td className="py-3 px-4 text-white/80">{resp.antiguedad}</td>
+                          <td className="py-3 px-4 text-white/80">{etiqueta(resp.turnoTrabajo)}</td>
+                          <td className="py-3 px-4">
+                            <div className="flex flex-col gap-1 text-xs">
+                              {resp.enfermedadCronica && (
+                                <span className="text-orange-400">⚕️ {resp.cualEnfermedadCronica}</span>
+                              )}
+                              {resp.discapacidad && (
+                                <span className="text-blue-400">♿ {resp.cualDiscapacidad}</span>
+                              )}
+                              {resp.tratamientoMedico && (
+                                <span className="text-purple-400">💊 En tratamiento</span>
+                              )}
+                              {!resp.enfermedadCronica && !resp.discapacidad && !resp.tratamientoMedico && (
+                                <span className="text-green-400">✓ Sin novedad</span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {mostrarTabla && respuestasDetalladas.length === 0 && (
+                <p className="text-center text-white/40 py-8">No hay respuestas para mostrar</p>
+              )}
             </div>
           </div>
         )}

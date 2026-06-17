@@ -74,8 +74,11 @@ export async function GET(
     let colaborador: {
       nombreCompleto: string;
       numeroDocumento: string;
+      codigoEmpleado: string;
       fechaNacimiento?: string;
       fechaIncorporacion?: string;
+      areaTrabajo?: string;
+      cargo?: string;
     } | null = null;
     try {
       const conPersonal = await tokensRepo.obtenerConPersonal(token);
@@ -83,8 +86,11 @@ export async function GET(
         colaborador = {
           nombreCompleto: conPersonal.nombreCompleto,
           numeroDocumento: conPersonal.numeroDocumento || "",
+          codigoEmpleado: conPersonal.codigoEmpleado,
           fechaNacimiento: conPersonal.fechaNacimiento,
           fechaIncorporacion: conPersonal.fechaIncorporacion,
+          areaTrabajo: conPersonal.areaTrabajo,
+          cargo: conPersonal.cargo,
         };
       }
     } catch (e) {

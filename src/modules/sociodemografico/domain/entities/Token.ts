@@ -50,8 +50,14 @@ export interface TokenConPersonal extends Token {
   nombreCompleto: string;
   correo: string;
   numeroDocumento: string;
+  /** Código de empleado SIRIUS-PER-XXXX */
+  codigoEmpleado: string;
   /** Fecha de nacimiento en formato YYYY-MM-DD (de Nómina Core) */
   fechaNacimiento?: string;
   /** Fecha de incorporación a Sirius en formato YYYY-MM-DD (de Nómina Core) */
   fechaIncorporacion?: string;
+  /** Área de trabajo (Pirólisis, Laboratorio, Bodega, Administrativo) */
+  areaTrabajo?: string;
+  /** Cargo actual */
+  cargo?: string;
 }

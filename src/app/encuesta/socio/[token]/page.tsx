@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Loader2 } from "lucide-react";
-import type { GuardarRespuestaDTO, TiempoLibre } from "@/modules/sociodemografico/domain/entities";
+import { Loader2, PenTool, Eraser } from "lucide-react";
+import type { GuardarRespuestaDTO, TiempoLibre, JornadaTrabajo } from "@/modules/sociodemografico/domain/entities";
 import { DEPARTAMENTOS_COLOMBIA, obtenerMunicipiosPorDepartamento } from "@/shared/data/departamentosMunicipios";
 
 type SeccionActual = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8; // 8 = confirmación
@@ -14,6 +14,7 @@ interface CampanaInfo {
   nombre: string;
   periodo: string;
   año: number;
+  codigoEmpleado?: string; // Código SIRIUS-PER-XXXX del empleado
 }
 
 // Fondo corporativo estándar de la aplicación
@@ -51,9 +52,28 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
   const [departamentoSeleccionado, setDepartamentoSeleccionado] = useState<string>("");
   const [municipiosDisponibles, setMunicipiosDisponibles] = useState<Array<{ codigo: string; nombre: string }>>([]);
 
-  // Estado del formulario
-  const [formData, setFormData] = useState<Partial<GuardarRespuestaDTO>>({
+  // Estados para firma digital
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const isDrawing = useRef(false);
+  const lastPos = useRef({ x: 0, y: 0 });
+  const hasStrokes = useRef(false);
+  const [firmaVacia, setFirmaVacia] = useState(true);
+  const [firmaDataUrl, setFirmaDataUrl] = useState<string | null>(null);
+
+  // Estado del formulario (usando Record<string, any> para flexibilidad del formulario)
+  const [formData, setFormData] = useState<Partial<Record<keyof GuardarRespuestaDTO, any>>>({
     tiempoLibre: [],
+    // Inicializar todos los campos booleanos con false
+    estudiandoActualmente: false,
+    otroEmpleo: false,
+    enfermedadCronica: false,
+    discapacidad: false,
+    tratamientoMedico: false,
+    accidentesTrabajoPrevios: false,
+    enfermedadLaboralPrevia: false,
+    practicaDeporte: false,
+    aceptaPoliticaDatos: false,
+    firmaVeracidad: false,
   });
 
   useEffect(() => {
@@ -80,13 +100,20 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
 
       // Prellenar datos del colaborador desde Nómina Core (editables)
       if (data.colaborador) {
+        console.log("📋 Datos del colaborador:", data.colaborador);
+        console.log("🏢 Área de trabajo:", data.colaborador.areaTrabajo);
+        console.log("💼 Cargo:", data.colaborador.cargo);
+
         setFormData((prev) => ({
           ...prev,
           nombreCompleto: data.colaborador.nombreCompleto || prev.nombreCompleto,
           numeroDocumento: data.colaborador.numeroDocumento || prev.numeroDocumento,
           fechaNacimiento: data.colaborador.fechaNacimiento || prev.fechaNacimiento,
           fechaIngresoSirius: data.colaborador.fechaIncorporacion || prev.fechaIngresoSirius,
+          areaTrabajo: data.colaborador.areaTrabajo || prev.areaTrabajo,
+          cargo: data.colaborador.cargo || prev.cargo,
         }));
+        setCampanaInfo({ ...data.campana, codigoEmpleado: data.colaborador.codigoEmpleado });
         setPrellenado(true);
       }
 
@@ -114,6 +141,63 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
 
   const manejarCambioMunicipio = (nombreMunicipio: string) => {
     actualizarCampo("municipioResidencia", nombreMunicipio);
+  };
+
+  // Funciones del canvas de firma
+  const getPos = (e: React.MouseEvent | React.TouchEvent) => {
+    const canvas = canvasRef.current!;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    if ("touches" in e) {
+      const touch = e.touches[0];
+      return { x: (touch.clientX - rect.left) * scaleX, y: (touch.clientY - rect.top) * scaleY };
+    }
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+  };
+
+  const startDraw = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    isDrawing.current = true;
+    lastPos.current = getPos(e);
+    hasStrokes.current = true;
+    setFirmaVacia(false);
+  };
+
+  const draw = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!isDrawing.current) return;
+    e.preventDefault();
+    const ctx = canvasRef.current?.getContext("2d");
+    if (!ctx) return;
+    const pos = getPos(e);
+    ctx.beginPath();
+    ctx.moveTo(lastPos.current.x, lastPos.current.y);
+    ctx.lineTo(pos.x, pos.y);
+    ctx.strokeStyle = "#1a1a33";
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.stroke();
+    lastPos.current = pos;
+  };
+
+  const stopDraw = () => {
+    isDrawing.current = false;
+  };
+
+  const limpiarFirma = () => {
+    const ctx = canvasRef.current?.getContext("2d");
+    if (!ctx || !canvasRef.current) return;
+    ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+    hasStrokes.current = false;
+    setFirmaVacia(true);
+    setFirmaDataUrl(null);
+  };
+
+  const confirmarFirma = () => {
+    if (!canvasRef.current || !hasStrokes.current) return;
+    const dataUrl = canvasRef.current.toDataURL("image/png");
+    setFirmaDataUrl(dataUrl);
   };
 
   const validarSeccion = (seccion: SeccionActual): { valido: boolean; mensaje?: string } => {
@@ -146,7 +230,9 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
         if (!formData.tipoContrato) return { valido: false, mensaje: "El tipo de contrato es obligatorio" };
         if (!formData.fechaIngresoSirius)
           return { valido: false, mensaje: "La fecha de ingreso a Sirius es obligatoria" };
-        if (!formData.turnoTrabajo) return { valido: false, mensaje: "El turno de trabajo es obligatorio" };
+        if (!formData.turnoTrabajo) return { valido: false, mensaje: "La jornada de trabajo es obligatoria" };
+        if (formData.otroEmpleo && !formData.descripcionOtroEmpleo)
+          return { valido: false, mensaje: "Debe especificar el otro empleo que tiene" };
         return { valido: true };
 
       case 5:
@@ -154,6 +240,12 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
           return { valido: false, mensaje: "Indique cuál enfermedad crónica tiene" };
         if (formData.discapacidad && !formData.cualDiscapacidad)
           return { valido: false, mensaje: "Indique cuál discapacidad tiene" };
+        if (formData.tratamientoMedico && !formData.descripcionTratamiento)
+          return { valido: false, mensaje: "Describa el tratamiento médico que está recibiendo" };
+        if (formData.accidentesTrabajoPrevios && !formData.descripcionAccidentes)
+          return { valido: false, mensaje: "Describa los accidentes de trabajo previos" };
+        if (formData.enfermedadLaboralPrevia && !formData.descripcionEnfLaboral)
+          return { valido: false, mensaje: "Describa la enfermedad laboral diagnosticada" };
         return { valido: true };
 
       case 6:
@@ -163,16 +255,21 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
           return { valido: false, mensaje: "Indique cuál deporte practica" };
         if (!formData.tiempoLibre || formData.tiempoLibre.length === 0)
           return { valido: false, mensaje: "Seleccione al menos una actividad de tiempo libre" };
+        if (formData.tiempoLibre?.includes("Otro") && !formData.descripcionOtroTiempoLibre)
+          return { valido: false, mensaje: "Especifique qué otra actividad realiza en su tiempo libre" };
         return { valido: true };
 
       case 7:
-        if (!formData.medioTransporte) return { valido: false, mensaje: "El medio de transporte es obligatorio" };
+        if (!formData.medioTransporte)
+          return { valido: false, mensaje: "El medio de transporte es obligatorio" };
         if (!formData.tiempoDesplazamiento)
           return { valido: false, mensaje: "El tiempo de desplazamiento es obligatorio" };
         if (!formData.aceptaPoliticaDatos)
           return { valido: false, mensaje: "Debe aceptar la política de tratamiento de datos personales" };
         if (!formData.firmaVeracidad)
           return { valido: false, mensaje: "Debe declarar que la información es veraz" };
+        if (!firmaDataUrl)
+          return { valido: false, mensaje: "Debe firmar el formulario" };
         return { valido: true };
 
       default:
@@ -211,18 +308,28 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
       const response = await fetch(`/api/socio/respuestas/${token}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          // Enviar firma sin cifrar - el backend la cifrará
+          firmaDataUrl: firmaDataUrl,
+        }),
       });
 
       const data = await response.json();
 
       if (!data.success) {
+        // Mostrar detalles del error de validación si existen
+        if (data.detalles && Array.isArray(data.detalles)) {
+          const mensajes = data.detalles.map((d: any) => `${d.path.join('.')}: ${d.message}`).join(', ');
+          throw new Error(`${data.error}: ${mensajes}`);
+        }
         throw new Error(data.error || "Error al enviar la encuesta");
       }
 
       // Ir a página de confirmación
       setSeccionActual(8);
     } catch (err: unknown) {
+      console.error("Error al enviar encuesta:", err);
       setError(err instanceof Error ? err.message : "Error al enviar la encuesta");
     } finally {
       setEnviando(false);
@@ -698,7 +805,7 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-white/80 mb-2">Turno de trabajo *</label>
+                <label className="block text-sm font-medium text-white/80 mb-2">Jornada de trabajo *</label>
                 <select
                   value={formData.turnoTrabajo || ""}
                   onChange={(e) => actualizarCampo("turnoTrabajo", e.target.value)}
@@ -706,23 +813,38 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
                   required
                 >
                   <option value="">Seleccione...</option>
-                  <option value="Mañana">Mañana</option>
-                  <option value="Tarde">Tarde</option>
-                  <option value="Noche">Noche</option>
+                  <option value="Jornada_completa">Jornada completa</option>
+                  <option value="Media_jornada">Media jornada</option>
                   <option value="Rotativo">Rotativo</option>
+                  <option value="Por_turnos">Por turnos</option>
                 </select>
               </div>
 
-              <div>
+              <div className="space-y-3">
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={formData.otroEmpleo || false}
-                    onChange={(e) => actualizarCampo("otroEmpleo", e.target.checked)}
+                    onChange={(e) => {
+                      actualizarCampo("otroEmpleo", e.target.checked);
+                      if (!e.target.checked) {
+                        actualizarCampo("descripcionOtroEmpleo", undefined);
+                      }
+                    }}
                     className="w-5 h-5 rounded border-white/20 bg-white/5 text-violet-600 focus:ring-2 focus:ring-violet-500"
                   />
                   <span className="text-white">¿Tiene otro empleo adicional?</span>
                 </label>
+
+                {formData.otroEmpleo && (
+                  <textarea
+                    value={formData.descripcionOtroEmpleo || ""}
+                    onChange={(e) => actualizarCampo("descripcionOtroEmpleo", e.target.value)}
+                    placeholder="Especifique el otro empleo que tiene..."
+                    rows={3}
+                    className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
+                  />
+                )}
               </div>
             </div>
           )}
@@ -797,40 +919,85 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
                 </div>
               )}
 
-              <div>
+              <div className="space-y-3">
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={formData.tratamientoMedico || false}
-                    onChange={(e) => actualizarCampo("tratamientoMedico", e.target.checked)}
+                    onChange={(e) => {
+                      actualizarCampo("tratamientoMedico", e.target.checked);
+                      if (!e.target.checked) {
+                        actualizarCampo("descripcionTratamiento", undefined);
+                      }
+                    }}
                     className="w-5 h-5 rounded border-white/20 bg-white/5 text-violet-600 focus:ring-2 focus:ring-violet-500"
                   />
                   <span className="text-white">¿Está actualmente en algún tratamiento médico?</span>
                 </label>
+
+                {formData.tratamientoMedico && (
+                  <textarea
+                    value={formData.descripcionTratamiento || ""}
+                    onChange={(e) => actualizarCampo("descripcionTratamiento", e.target.value)}
+                    placeholder="Breve descripción del tratamiento médico..."
+                    rows={3}
+                    className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
+                  />
+                )}
               </div>
 
-              <div>
+              <div className="space-y-3">
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={formData.accidentesTrabajoPrevios || false}
-                    onChange={(e) => actualizarCampo("accidentesTrabajoPrevios", e.target.checked)}
+                    onChange={(e) => {
+                      actualizarCampo("accidentesTrabajoPrevios", e.target.checked);
+                      if (!e.target.checked) {
+                        actualizarCampo("descripcionAccidentes", undefined);
+                      }
+                    }}
                     className="w-5 h-5 rounded border-white/20 bg-white/5 text-violet-600 focus:ring-2 focus:ring-violet-500"
                   />
                   <span className="text-white">¿Ha tenido accidentes de trabajo previos?</span>
                 </label>
+
+                {formData.accidentesTrabajoPrevios && (
+                  <textarea
+                    value={formData.descripcionAccidentes || ""}
+                    onChange={(e) => actualizarCampo("descripcionAccidentes", e.target.value)}
+                    placeholder="Describa brevemente los accidentes de trabajo previos..."
+                    rows={3}
+                    className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
+                  />
+                )}
               </div>
 
-              <div>
+              <div className="space-y-3">
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={formData.enfermedadLaboralPrevia || false}
-                    onChange={(e) => actualizarCampo("enfermedadLaboralPrevia", e.target.checked)}
+                    onChange={(e) => {
+                      actualizarCampo("enfermedadLaboralPrevia", e.target.checked);
+                      if (!e.target.checked) {
+                        actualizarCampo("descripcionEnfLaboral", undefined);
+                      }
+                    }}
                     className="w-5 h-5 rounded border-white/20 bg-white/5 text-violet-600 focus:ring-2 focus:ring-violet-500"
                   />
                   <span className="text-white">¿Ha sido diagnosticado con alguna enfermedad laboral?</span>
                 </label>
+
+                {formData.enfermedadLaboralPrevia && (
+                  <textarea
+                    value={formData.descripcionEnfLaboral || ""}
+                    onChange={(e) => actualizarCampo("descripcionEnfLaboral", e.target.value)}
+                    placeholder="Describa la enfermedad laboral diagnosticada..."
+                    rows={3}
+                    className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
+                  />
+                )}
               </div>
             </div>
           )}
@@ -904,7 +1071,7 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
                 </div>
               )}
 
-              <div>
+              <div className="space-y-3">
                 <label className="block text-sm font-medium text-white/80 mb-3">
                   ¿Qué hace en su tiempo libre? (Puede seleccionar varias opciones) *
                 </label>
@@ -930,8 +1097,12 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
                           } else {
                             actualizarCampo(
                               "tiempoLibre",
-                              actual.filter((v) => v !== opcion.value)
+                              actual.filter((v: string) => v !== opcion.value)
                             );
+                            // Limpiar descripción si desmarca "Otro"
+                            if (opcion.value === "Otro") {
+                              actualizarCampo("descripcionOtroTiempoLibre", undefined);
+                            }
                           }
                         }}
                         className="w-5 h-5 rounded border-white/20 bg-white/5 text-violet-600 focus:ring-2 focus:ring-violet-500"
@@ -940,6 +1111,16 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
                     </label>
                   ))}
                 </div>
+
+                {formData.tiempoLibre?.includes("Otro") && (
+                  <textarea
+                    value={formData.descripcionOtroTiempoLibre || ""}
+                    onChange={(e) => actualizarCampo("descripcionOtroTiempoLibre", e.target.value)}
+                    placeholder="Especifique qué otra actividad realiza en su tiempo libre..."
+                    rows={3}
+                    className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
+                  />
+                )}
               </div>
             </div>
           )}
@@ -1046,6 +1227,82 @@ export default function EncuestaSocioPage({ params }: { params: Promise<{ token:
                     <p className="text-yellow-300 text-xs">
                       ⚠️ Debe aceptar ambas declaraciones para poder enviar el formulario
                     </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-6 border-t border-white/10">
+                <h3 className="text-xl font-bold text-white mb-4">Firma Digital</h3>
+                <p className="text-white/70 text-sm mb-4">
+                  Para validar la autenticidad de la información suministrada, por favor firme en el recuadro a
+                  continuación.
+                </p>
+
+                {!firmaDataUrl ? (
+                  <div className="space-y-3">
+                    <div className="relative rounded-xl overflow-hidden border-2 border-white/20 bg-white shadow-lg">
+                      <canvas
+                        ref={canvasRef}
+                        width={700}
+                        height={220}
+                        className="w-full h-[180px] sm:h-[200px] cursor-crosshair touch-none"
+                        onMouseDown={startDraw}
+                        onMouseMove={draw}
+                        onMouseUp={stopDraw}
+                        onMouseLeave={stopDraw}
+                        onTouchStart={startDraw}
+                        onTouchMove={draw}
+                        onTouchEnd={stopDraw}
+                      />
+                      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-slate-400 text-xs pointer-events-none">
+                        Firme aquí
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={limpiarFirma}
+                        disabled={firmaVacia}
+                        className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 text-white text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Eraser className="w-4 h-4" />
+                        Limpiar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={confirmarFirma}
+                        disabled={firmaVacia}
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white text-sm font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <PenTool className="w-4 h-4" />
+                        Confirmar Firma
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="relative rounded-xl overflow-hidden border-2 border-emerald-400/30 bg-white p-4">
+                      <img src={firmaDataUrl} alt="Firma" className="w-full h-[180px] object-contain" />
+                    </div>
+                    <div className="flex items-center gap-3 p-3 bg-emerald-500/10 border border-emerald-400/30 rounded-lg">
+                      <svg
+                        className="w-5 h-5 text-emerald-400 flex-shrink-0"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        strokeWidth={2}
+                        stroke="currentColor"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                      </svg>
+                      <p className="text-emerald-300 text-sm flex-1">Firma confirmada correctamente</p>
+                      <button
+                        type="button"
+                        onClick={limpiarFirma}
+                        className="text-emerald-300 text-sm font-semibold hover:text-emerald-200 transition-colors"
+                      >
+                        Cambiar firma
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
