@@ -9,7 +9,7 @@ import {
   type ConstanciaInput,
   type EvaluacionInput,
 } from "@/core/use-cases/inducciones/generarDocumentoUnificado";
-import { decryptAES } from "@/lib/firmaCrypto";
+import { obtenerFirmaResponsableSst } from "@/lib/firmaStorage";
 
 // POST /api/inducciones/documento-unificado
 export async function POST(request: NextRequest) {
@@ -36,20 +36,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Usar firma del responsable SST desde variable de entorno si está disponible
-    let firmaResponsableSSTDataUrl: string | null = null;
-
-    if (process.env.IND_FIRMA_RESPONSABLE_SST) {
-      try {
-        // Descifrar la firma almacenada en el archivo .env
-        const decrypted = decryptAES(process.env.IND_FIRMA_RESPONSABLE_SST);
-        const firmaData = JSON.parse(decrypted);
-        firmaResponsableSSTDataUrl = firmaData.signature || null;
-      } catch (error) {
-        console.error("[documento-unificado] Error descifrando firma responsable SST:", error);
-        // Continuar sin firma si hay error
-      }
-    }
+    // Obtener firma del responsable SST (desde S3 o fallback a env)
+    const firmaResponsableSSTDataUrl = await obtenerFirmaResponsableSst();
 
     const { documentoUrl, registro } = await generarDocumentoUnificado(
       induccionId,

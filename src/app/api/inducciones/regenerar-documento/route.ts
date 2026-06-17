@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { regenerarDocumentoConFirmaResponsable } from "@/core/use-cases/inducciones/generarDocumentoUnificado";
-import { decryptAES } from "@/lib/firmaCrypto";
+import { obtenerFirmaResponsableSst } from "@/lib/firmaStorage";
 
 // POST /api/inducciones/regenerar-documento
 export async function POST(request: NextRequest) {
@@ -20,22 +20,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Obtener firma del responsable SST desde variable de entorno
-    let firmaResponsableSSTDataUrl: string | null = null;
-
-    if (process.env.IND_FIRMA_RESPONSABLE_SST) {
-      try {
-        const decrypted = decryptAES(process.env.IND_FIRMA_RESPONSABLE_SST);
-        const firmaData = JSON.parse(decrypted);
-        firmaResponsableSSTDataUrl = firmaData.signature || null;
-      } catch (error) {
-        console.error("[regenerar-documento] Error descifrando firma responsable SST:", error);
-        return NextResponse.json(
-          { success: false, message: "Error descifrando firma del responsable SST" },
-          { status: 500 }
-        );
-      }
-    }
+    // Obtener firma del responsable SST (desde S3 o fallback a env)
+    const firmaResponsableSSTDataUrl = await obtenerFirmaResponsableSst();
 
     if (!firmaResponsableSSTDataUrl) {
       return NextResponse.json(
