@@ -279,6 +279,15 @@ export class AirtableRespuestaRepository implements IRespuestaRepository {
   private mapToDomain(record: Airtable.Record<any>): Respuesta {
     const F = SOCIO_CONFIG.respuestas.fields;
 
+    // DEBUG: Loggear consentimientos para diagnóstico
+    console.log("[DEBUG mapToDomain] Record ID:", record.id);
+    console.log("[DEBUG] Field ID ACEPTA_POLITICA_DATOS:", F.ACEPTA_POLITICA_DATOS);
+    console.log("[DEBUG] Field ID FIRMA_VERACIDAD:", F.FIRMA_VERACIDAD);
+    console.log("[DEBUG] Valor raw ACEPTA_POLITICA_DATOS:", record.get(F.ACEPTA_POLITICA_DATOS));
+    console.log("[DEBUG] Valor raw FIRMA_VERACIDAD:", record.get(F.FIRMA_VERACIDAD));
+    console.log("[DEBUG] Tipo ACEPTA_POLITICA_DATOS:", typeof record.get(F.ACEPTA_POLITICA_DATOS));
+    console.log("[DEBUG] Tipo FIRMA_VERACIDAD:", typeof record.get(F.FIRMA_VERACIDAD));
+
     return {
       id: record.id,
       tokenId: (record.get(F.TOKEN) as string[])?.[0] || "",
