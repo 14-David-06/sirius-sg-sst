@@ -2,7 +2,6 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useSession } from "@/presentation/context/SessionContext";
 import Image from "next/image";
 import {
   ArrowLeft,
@@ -44,7 +43,6 @@ interface Estadisticas {
 function PoliticasFirmasContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, isLoaded } = useSession();
   const politicaId = searchParams.get("id");
 
   const [loading, setLoading] = useState(true);
@@ -57,13 +55,6 @@ function PoliticasFirmasContent() {
 
   const [generandoLinks, setGenerandoLinks] = useState<Set<string>>(new Set());
   const [linksCopied, setLinksCopied] = useState<Set<string>>(new Set());
-
-  // Protección de ruta - redirigir si no hay sesión
-  useEffect(() => {
-    if (isLoaded && !user) {
-      router.push("/login");
-    }
-  }, [isLoaded, user, router]);
 
   useEffect(() => {
     if (!politicaId) {

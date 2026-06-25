@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useSession } from "@/presentation/context/SessionContext";
@@ -382,14 +381,7 @@ const modulesByPhase: Record<Phase, Module[]> = {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user, isLoaded, logout } = useSession();
-
-  // Protección de ruta - redirigir si no hay sesión
-  useEffect(() => {
-    if (isLoaded && !user) {
-      router.push("/login");
-    }
-  }, [isLoaded, user, router]);
+  const { user, logout } = useSession();
 
   const handleLogout = () => {
     logout();

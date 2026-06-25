@@ -42,20 +42,13 @@ const categorias = [
 
 export default function PoliticasPage() {
   const router = useRouter();
-  const { user, isLoaded } = useSession();
+  const { user } = useSession();
   const [categoriaActual, setCategoriaActual] = useState("todas");
   const [politicas, setPoliticas] = useState<Politica[]>([]);
   const [estadoFirma, setEstadoFirma] = useState<EstadoFirma | null>(null);
   const [loading, setLoading] = useState(true);
   const [politicaSeleccionada, setPoliticaSeleccionada] = useState<Politica | null>(null);
   const [mostrarModalFirma, setMostrarModalFirma] = useState(false);
-
-  // Protección de ruta - redirigir si no hay sesión
-  useEffect(() => {
-    if (isLoaded && !user) {
-      router.push("/login");
-    }
-  }, [isLoaded, user, router]);
 
   useEffect(() => {
     if (user?.idEmpleado) {
