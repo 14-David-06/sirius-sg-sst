@@ -35,9 +35,14 @@ export async function GET(req: NextRequest) {
 
     const dataPersonal = await resPersonal.json();
 
-    // 2. Obtener firmas de esta política
-    const filterFirmas = `FIND("${politicaId}", ARRAYJOIN({Política})) > 0`;
-    const urlFirmas = `${getSGSSTUrl(airtableSGSSTConfig.firmasPoliticasTableId)}?filterByFormula=${encodeURIComponent(filterFirmas)}`;
+    // 2. Obtener TODAS las firmas (sin filtro) y filtrar en código
+    // IMPORTANTE: No podemos usar field IDs dentro de filterByFormula, solo para acceder a datos
+    const FP = airtableSGSSTConfig.firmasPoliticasFields;
+    const urlFirmas = `${getSGSSTUrl(airtableSGSSTConfig.firmasPoliticasTableId)}?returnFieldsByFieldId=true`;
+
+    console.log("🔍 [ESTADISTICAS] Consultando todas las firmas para filtrar en código");
+    console.log("📋 [ESTADISTICAS] Política ID buscada:", politicaId);
+    console.log("📋 [ESTADISTICAS] Field ID POLITICA_LINK:", FP.POLITICA_LINK);
 
     const resFirmas = await fetch(urlFirmas, {
       method: "GET",
@@ -47,22 +52,36 @@ export async function GET(req: NextRequest) {
     let dataFirmas = { records: [] };
     if (resFirmas.ok) {
       dataFirmas = await resFirmas.json();
+      console.log("✅ [ESTADISTICAS] Total firmas en tabla:", dataFirmas.records.length);
+    } else {
+      const errorText = await resFirmas.text();
+      console.error("❌ [ESTADISTICAS] Error al obtener firmas:", errorText);
     }
 
-    // 3. Crear mapa de quién ha firmado
+    // 3. Filtrar firmas de esta política y crear mapa de quién ha firmado
     const empleadosFirmaron = new Set<string>();
     const firmasDetalle: Record<string, any> = {};
 
     dataFirmas.records.forEach((firma: any) => {
-      const idEmp = firma.fields["ID Empleado Core"];
-      if (idEmp) {
-        empleadosFirmaron.add(idEmp);
-        firmasDetalle[idEmp] = {
-          fecha: firma.fields["Fecha Firma"],
-          nombre: firma.fields["Nombre Empleado"],
-        };
+      const politicaLinks = firma.fields[FP.POLITICA_LINK];
+
+      // Verificar si esta firma pertenece a la política que buscamos
+      if (politicaLinks && Array.isArray(politicaLinks) && politicaLinks.includes(politicaId)) {
+        const idEmp = firma.fields[FP.ID_EMPLEADO_CORE];
+        console.log("👤 [ESTADISTICAS] Firma encontrada - ID Empleado:", idEmp);
+
+        if (idEmp) {
+          empleadosFirmaron.add(idEmp);
+          firmasDetalle[idEmp] = {
+            fecha: firma.fields[FP.FECHA_FIRMA],
+            nombre: firma.fields[FP.NOMBRE_EMPLEADO],
+          };
+        }
       }
     });
+
+    console.log("📊 [ESTADISTICAS] Total empleados que firmaron esta política:", empleadosFirmaron.size);
+    console.log("📊 [ESTADISTICAS] IDs empleados firmaron:", Array.from(empleadosFirmaron));
 
     // 4. Clasificar empleados
     const firmaron: any[] = [];

@@ -17,19 +17,8 @@ export async function GET(req: NextRequest) {
     const categoria = searchParams.get("categoria");
     const incluirInactivas = searchParams.get("incluirInactivas") === "true";
 
-    let filterFormula = `AND({Visible Colaboradores} = 1`;
-
-    if (!incluirInactivas) {
-      filterFormula += `, {Estado} = "Activa"`;
-    }
-
-    if (categoria) {
-      filterFormula += `, {Categoría} = "${categoria}"`;
-    }
-
-    filterFormula += ")";
-
-    const url = `${getSGSSTUrl(airtableSGSSTConfig.politicasTableId)}?filterByFormula=${encodeURIComponent(filterFormula)}&sort[0][field]=Orden Visualización&sort[0][direction]=asc`;
+    // Obtener TODAS las políticas y filtrar en código (field IDs no funcionan en fórmulas)
+    const url = `${getSGSSTUrl(airtableSGSSTConfig.politicasTableId)}?returnFieldsByFieldId=true`;
 
     const response = await fetch(url, {
       method: "GET",
@@ -47,19 +36,40 @@ export async function GET(req: NextRequest) {
 
     const data = await response.json();
 
-    const politicas = data.records.map((record: any) => ({
+    // Filtrar en código
+    let recordsFiltrados = data.records.filter((record: any) => {
+      // Visible colaboradores = true
+      if (record.fields[F.VISIBLE_COLABORADORES] !== true) return false;
+
+      // Estado = Activa (si no incluir inactivas)
+      if (!incluirInactivas && record.fields[F.ESTADO] !== "Activa") return false;
+
+      // Categoría (si se especificó)
+      if (categoria && record.fields[F.CATEGORIA] !== categoria) return false;
+
+      return true;
+    });
+
+    // Ordenar por ORDEN_VISUALIZACION
+    recordsFiltrados.sort((a: any, b: any) => {
+      const ordenA = a.fields[F.ORDEN_VISUALIZACION] || 0;
+      const ordenB = b.fields[F.ORDEN_VISUALIZACION] || 0;
+      return ordenA - ordenB;
+    });
+
+    const politicas = recordsFiltrados.map((record: any) => ({
       id: record.id,
-      codigo: record.fields["Código"] || "",
-      titulo: record.fields["Título"] || "",
-      descripcion: record.fields["Descripción"] || "",
-      categoria: record.fields["Categoría"] || "",
-      version: record.fields["Versión"] || "1.0",
-      fechaPublicacion: record.fields["Fecha Publicación"] || "",
-      fechaVigencia: record.fields["Fecha Vigencia"] || "",
-      estado: record.fields["Estado"] || "",
-      urlDocumento: record.fields["URL Documento S3"] || "",
-      requiereFirma: record.fields["Requiere Firma"] || false,
-      orden: record.fields["Orden Visualización"] || 0,
+      codigo: record.fields[F.CODIGO] || "",
+      titulo: record.fields[F.TITULO] || "",
+      descripcion: record.fields[F.DESCRIPCION] || "",
+      categoria: record.fields[F.CATEGORIA] || "",
+      version: record.fields[F.VERSION] || "1.0",
+      fechaPublicacion: record.fields[F.FECHA_PUBLICACION] || "",
+      fechaVigencia: record.fields[F.FECHA_VIGENCIA] || "",
+      estado: record.fields[F.ESTADO] || "",
+      urlDocumento: record.fields[F.URL_DOCUMENTO_S3] || "",
+      requiereFirma: record.fields[F.REQUIERE_FIRMA] || false,
+      orden: record.fields[F.ORDEN_VISUALIZACION] || 0,
     }));
 
     return NextResponse.json({ success: true, data: politicas });

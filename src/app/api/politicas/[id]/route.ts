@@ -6,6 +6,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { airtableSGSSTConfig, getSGSSTUrl, getSGSSTHeaders } from "@/infrastructure/config/airtableSGSST";
 
+const F = airtableSGSSTConfig.politicasFields;
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -13,7 +15,7 @@ export async function GET(
   try {
     const { id } = await params;
 
-    const url = `${getSGSSTUrl(airtableSGSSTConfig.politicasTableId)}/${id}`;
+    const url = `${getSGSSTUrl(airtableSGSSTConfig.politicasTableId)}/${id}?returnFieldsByFieldId=true`;
 
     const response = await fetch(url, {
       method: "GET",
@@ -31,17 +33,17 @@ export async function GET(
 
     const politica = {
       id: data.id,
-      codigo: data.fields["Código"] || "",
-      titulo: data.fields["Título"] || "",
-      descripcion: data.fields["Descripción"] || "",
-      categoria: data.fields["Categoría"] || "",
-      version: data.fields["Versión"] || "1.0",
-      fechaPublicacion: data.fields["Fecha Publicación"] || "",
-      fechaVigencia: data.fields["Fecha Vigencia"] || "",
-      estado: data.fields["Estado"] || "",
-      urlDocumento: data.fields["URL Documento S3"] || "",
-      requiereFirma: data.fields["Requiere Firma"] || false,
-      orden: data.fields["Orden Visualización"] || 0,
+      codigo: data.fields[F.CODIGO] || "",
+      titulo: data.fields[F.TITULO] || "",
+      descripcion: data.fields[F.DESCRIPCION] || "",
+      categoria: data.fields[F.CATEGORIA] || "",
+      version: data.fields[F.VERSION] || "1.0",
+      fechaPublicacion: data.fields[F.FECHA_PUBLICACION] || "",
+      fechaVigencia: data.fields[F.FECHA_VIGENCIA] || "",
+      estado: data.fields[F.ESTADO] || "",
+      urlDocumento: data.fields[F.URL_DOCUMENTO_S3] || "",
+      requiereFirma: data.fields[F.REQUIERE_FIRMA] || false,
+      orden: data.fields[F.ORDEN_VISUALIZACION] || 0,
     };
 
     return NextResponse.json({ success: true, data: politica });

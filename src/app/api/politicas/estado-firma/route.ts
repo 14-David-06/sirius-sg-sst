@@ -21,9 +21,9 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // 1. Obtener todas las políticas activas que requieren firma
-    const filterPoliticas = `AND({Estado} = "Activa", {Requiere Firma} = 1, {Visible Colaboradores} = 1)`;
-    const urlPoliticas = `${getSGSSTUrl(airtableSGSSTConfig.politicasTableId)}?filterByFormula=${encodeURIComponent(filterPoliticas)}`;
+    // 1. Obtener TODAS las políticas y filtrar en código
+    // (No podemos usar field IDs en filterByFormula)
+    const urlPoliticas = `${getSGSSTUrl(airtableSGSSTConfig.politicasTableId)}?returnFieldsByFieldId=true`;
 
     const resPoliticas = await fetch(urlPoliticas, {
       method: "GET",
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
     });
 
     if (!resPoliticas.ok) {
-      console.error("Error al obtener políticas");
+      console.error("Error al obtener políticas:", await resPoliticas.text());
       return NextResponse.json(
         { success: false, error: "Error al obtener políticas" },
         { status: resPoliticas.status }
@@ -40,12 +40,19 @@ export async function GET(req: NextRequest) {
 
     const dataPoliticas = await resPoliticas.json();
 
-    // 2. Obtener firmas del empleado (la tabla probablemente no existe aún)
+    // Filtrar políticas activas que requieren firma y son visibles
+    const politicasFiltradas = dataPoliticas.records.filter((pol: any) => {
+      const estado = pol.fields[FP.ESTADO];
+      const requiereFirma = pol.fields[FP.REQUIERE_FIRMA];
+      const visible = pol.fields[FP.VISIBLE_COLABORADORES];
+      return estado === "Activa" && requiereFirma === true && visible === true;
+    });
+
+    // 2. Obtener TODAS las firmas y filtrar en código
     let dataFirmas = { records: [] };
 
     try {
-      const filterFirmas = `{ID Empleado Core} = "${idEmpleado}"`;
-      const urlFirmas = `${getSGSSTUrl(airtableSGSSTConfig.firmasPoliticasTableId)}?filterByFormula=${encodeURIComponent(filterFirmas)}`;
+      const urlFirmas = `${getSGSSTUrl(airtableSGSSTConfig.firmasPoliticasTableId)}?returnFieldsByFieldId=true`;
 
       const resFirmas = await fetch(urlFirmas, {
         method: "GET",
@@ -53,27 +60,33 @@ export async function GET(req: NextRequest) {
       });
 
       if (resFirmas.ok) {
-        dataFirmas = await resFirmas.json();
+        const allFirmas = await resFirmas.json();
+        // Filtrar solo las firmas de este empleado
+        dataFirmas.records = allFirmas.records.filter((firma: any) => {
+          return firma.fields[FF.ID_EMPLEADO_CORE] === idEmpleado;
+        });
+      } else {
+        console.error("Error al obtener firmas:", await resFirmas.text());
       }
     } catch (error) {
-      console.log("Tabla de firmas no disponible aún");
+      console.log("Error consultando firmas:", error);
     }
 
     // Crear mapa de políticas firmadas
     const politicasFirmadas = new Set<string>();
     dataFirmas.records.forEach((firma: any) => {
-      const politicaLinks = firma.fields["Política"];
+      const politicaLinks = firma.fields[FF.POLITICA_LINK];
       if (politicaLinks && politicaLinks.length > 0) {
         politicaLinks.forEach((link: string) => politicasFirmadas.add(link));
       }
     });
 
-    // 3. Procesar resultado
-    const estadoPoliticas = dataPoliticas.records.map((politica: any) => ({
+    // 3. Procesar resultado usando políticas filtradas
+    const estadoPoliticas = politicasFiltradas.map((politica: any) => ({
       id: politica.id,
-      codigo: politica.fields["Código"] || "",
-      titulo: politica.fields["Título"] || "",
-      categoria: politica.fields["Categoría"] || "",
+      codigo: politica.fields[FP.CODIGO] || "",
+      titulo: politica.fields[FP.TITULO] || "",
+      categoria: politica.fields[FP.CATEGORIA] || "",
       firmada: politicasFirmadas.has(politica.id),
     }));
 

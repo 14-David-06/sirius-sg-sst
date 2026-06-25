@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { airtableSGSSTConfig, getSGSSTUrl, getSGSSTHeaders } from "@/infrastructure/config/airtableSGSST";
 import crypto from "crypto";
 
+const TF = airtableSGSSTConfig.tokensFirmaPoliticaFields;
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -29,12 +31,12 @@ export async function POST(req: NextRequest) {
       records: [
         {
           fields: {
-            "Token ID": token,
-            "Política": [politicaId],
-            "ID Empleado Core": idEmpleado,
-            "Fecha Generación": now.toISOString(),
-            "Fecha Expiración": expiration.toISOString(),
-            "Estado": "Activo",
+            [TF.TOKEN_ID]: token,
+            [TF.POLITICA_LINK]: [politicaId],
+            [TF.ID_EMPLEADO_CORE]: idEmpleado,
+            [TF.FECHA_GENERACION]: now.toISOString(),
+            [TF.FECHA_EXPIRACION]: expiration.toISOString(),
+            [TF.ESTADO]: "Activo",
           },
         },
       ],

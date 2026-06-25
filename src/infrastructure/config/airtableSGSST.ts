@@ -809,7 +809,7 @@ export const airtableSGSSTConfig = {
   // ── Tabla "Firmas Políticas" (registro de aceptación) ─────
   firmasPoliticasTableId: process.env.AIRTABLE_FIRMPOL_TABLE_ID!,
   firmasPoliticasFields: {
-    ID:                 process.env.AIRTABLE_FIRMPOL_ID!,
+    ID:                 process.env.AIRTABLE_FIRMPOL_ID || "",            // Campo de ID (opcional)
     POLITICA_LINK:      process.env.AIRTABLE_FIRMPOL_POLITICA_LINK!,     // → Políticas
     ID_EMPLEADO_CORE:   process.env.AIRTABLE_FIRMPOL_ID_EMPLEADO!,
     NOMBRE_EMPLEADO:    process.env.AIRTABLE_FIRMPOL_NOMBRE_EMPLEADO!,

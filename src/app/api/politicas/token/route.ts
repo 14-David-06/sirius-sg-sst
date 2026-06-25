@@ -2,6 +2,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { airtableSGSSTConfig, getSGSSTUrl, getSGSSTHeaders } from "@/infrastructure/config/airtableSGSST";
 
+const TF = airtableSGSSTConfig.tokensFirmaPoliticaFields;
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -14,9 +16,8 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Buscar token en Airtable
-    const filterFormula = `{Token ID} = "${token}"`;
-    const url = `${getSGSSTUrl(airtableSGSSTConfig.tokensFirmaPoliticaTableId)}?filterByFormula=${encodeURIComponent(filterFormula)}`;
+    // Buscar token - obtener todos y filtrar en código
+    const url = `${getSGSSTUrl(airtableSGSSTConfig.tokensFirmaPoliticaTableId)}?returnFieldsByFieldId=true`;
 
     const response = await fetch(url, {
       method: "GET",
@@ -24,7 +25,7 @@ export async function GET(req: NextRequest) {
     });
 
     if (!response.ok) {
-      console.error("Error al buscar token");
+      console.error("Error al buscar token:", await response.text());
       return NextResponse.json(
         { success: false, error: "Error al validar token" },
         { status: response.status }
@@ -33,16 +34,17 @@ export async function GET(req: NextRequest) {
 
     const data = await response.json();
 
-    if (data.records.length === 0) {
+    // Filtrar el token en código
+    const tokenRecord = data.records.find((record: any) => record.fields[TF.TOKEN_ID] === token);
+
+    if (!tokenRecord) {
       return NextResponse.json(
         { success: false, error: "Token no válido" },
         { status: 404 }
       );
     }
-
-    const tokenRecord = data.records[0];
-    const estado = tokenRecord.fields["Estado"];
-    const expiracion = new Date(tokenRecord.fields["Fecha Expiración"]);
+    const estado = tokenRecord.fields[TF.ESTADO];
+    const expiracion = new Date(tokenRecord.fields[TF.FECHA_EXPIRACION]);
     const now = new Date();
 
     // Validar estado
@@ -62,7 +64,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Obtener datos de la política
-    const politicaLinks = tokenRecord.fields["Política"];
+    const politicaLinks = tokenRecord.fields[TF.POLITICA_LINK];
     if (!politicaLinks || politicaLinks.length === 0) {
       return NextResponse.json(
         { success: false, error: "Política no encontrada" },
@@ -71,7 +73,7 @@ export async function GET(req: NextRequest) {
     }
 
     const politicaId = politicaLinks[0];
-    const idEmpleado = tokenRecord.fields["ID Empleado Core"];
+    const idEmpleado = tokenRecord.fields[TF.ID_EMPLEADO_CORE];
 
     console.log("🔐 Token validado:", {
       token,
