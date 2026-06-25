@@ -40,6 +40,9 @@ export async function GET(req: NextRequest) {
     const url = getAirtableUrl(personalTableId);
     const headers = getAirtableHeaders();
 
+    // Parámetro de búsqueda por ID de empleado
+    const idEmpleadoBuscar = req.nextUrl.searchParams.get("idEmpleado");
+
     // Solo excluir miembros SST cuando se solicita explícitamente (contexto de asistencia)
     const excluir = req.nextUrl.searchParams.get("excluir");
     const excludedIds = new Set<string>();
@@ -61,8 +64,16 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Excluir: CEO y Contratistas (el Responsable SST se excluye por checkbox después)
-    const filterFormula = `AND({Estado de Actividad} = 'Activo', {Tipo Personal} != 'Contratista', {Rol (from Rol)} != 'DIRECTOR EJECUTIVO (CEO) (Chief Executive Officer)')`;
+    // Construir filtro
+    let filterFormula: string;
+
+    // Si se busca por ID específico, solo filtrar por ese ID y estado activo
+    if (idEmpleadoBuscar) {
+      filterFormula = `AND({${personalFields.ESTADO_ACTIVIDAD}} = 'Activo', {${personalFields.ID_EMPLEADO}} = '${idEmpleadoBuscar}')`;
+    } else {
+      // Para listados generales, excluir CEO y Contratistas
+      filterFormula = `AND({Estado de Actividad} = 'Activo', {Tipo Personal} != 'Contratista', {Rol (from Rol)} != 'DIRECTOR EJECUTIVO (CEO) (Chief Executive Officer)')`;
+    }
 
     let allRecords: AirtableRecord[] = [];
     let offset: string | undefined;

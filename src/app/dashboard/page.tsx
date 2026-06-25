@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useSession } from "@/presentation/context/SessionContext";
@@ -177,6 +178,15 @@ const modulesByPhase: Record<Phase, Module[]> = {
       href: "#",
       status: "soon",
       estandar: "Estándar 2.1.1 / 2.2.1",
+    },
+    {
+      title: "Políticas Empresariales",
+      description: "Consulta y firma de políticas de seguridad, reglamento interno y recursos humanos.",
+      icon: I.document,
+      color: "bg-indigo-500/15 text-indigo-300",
+      href: "/dashboard/politicas",
+      status: "active",
+      estandar: "Estándar 1.1.1 / 2.1.1",
     },
     {
       title: "Matriz de Peligros y Riesgos",
@@ -372,7 +382,15 @@ const modulesByPhase: Record<Phase, Module[]> = {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user, logout } = useSession();
+  const { user, isLoaded, logout } = useSession();
+
+  // Protección de ruta - redirigir si no hay sesión
+  useEffect(() => {
+    if (isLoaded && !user) {
+      router.push("/login");
+    }
+  }, [isLoaded, user, router]);
+
   const handleLogout = () => {
     logout();
     router.push("/login");

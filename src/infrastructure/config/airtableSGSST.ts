@@ -777,6 +777,58 @@ export const airtableSGSSTConfig = {
     FECHA_FIRMA:            process.env.ASISTENCIA_COMITES_FECHA_FIRMA_FIELD!,   // dateTime
     OBSERVACIONES:          process.env.ASISTENCIA_COMITES_OBSERVACIONES_FIELD || "",
   },
+
+  // ══════════════════════════════════════════════════════════
+  // POLÍTICAS EMPRESARIALES — Sistema de gestión documental
+  // Decreto 1072/2015, Res. 0312/2019
+  // ══════════════════════════════════════════════════════════
+
+  // ── Tabla "Políticas" (catálogo de políticas) ─────────────
+  politicasTableId: process.env.AIRTABLE_POLITICAS_TABLE_ID!,
+  politicasFields: {
+    ID:                    process.env.AIRTABLE_POL_ID!,
+    CODIGO:                process.env.AIRTABLE_POL_CODIGO!,               // P-SST-001
+    TITULO:                process.env.AIRTABLE_POL_TITULO!,
+    DESCRIPCION:           process.env.AIRTABLE_POL_DESCRIPCION!,
+    CATEGORIA:             process.env.AIRTABLE_POL_CATEGORIA!,            // singleSelect: Seguridad y Salud|Reglamento Interno|Recursos Humanos|General
+    VERSION:               process.env.AIRTABLE_POL_VERSION!,              // v001, v002...
+    FECHA_PUBLICACION:     process.env.AIRTABLE_POL_FECHA_PUBLICACION!,
+    FECHA_VIGENCIA:        process.env.AIRTABLE_POL_FECHA_VIGENCIA!,      // Desde cuándo aplica
+    ESTADO:                process.env.AIRTABLE_POL_ESTADO!,               // singleSelect: Activa|En revisión|Obsoleta
+    URL_DOCUMENTO_S3:      process.env.AIRTABLE_POL_URL_DOCUMENTO!,       // URL del PDF en S3
+    REQUIERE_FIRMA:        process.env.AIRTABLE_POL_REQUIERE_FIRMA!,      // checkbox
+    VISIBLE_COLABORADORES: process.env.AIRTABLE_POL_VISIBLE!,             // checkbox
+    FIRMAS_LINK:           process.env.AIRTABLE_POL_FIRMAS_LINK!,         // → Firmas Políticas
+    ORDEN_VISUALIZACION:   process.env.AIRTABLE_POL_ORDEN!,               // number (para ordenar)
+    CREADO_POR:            process.env.AIRTABLE_POL_CREADO_POR!,
+    FECHA_CREACION:        process.env.AIRTABLE_POL_FECHA_CREACION!,
+    MODIFICADO_POR:        process.env.AIRTABLE_POL_MODIFICADO_POR || "",
+    FECHA_MODIFICACION:    process.env.AIRTABLE_POL_FECHA_MODIFICACION || "",
+  },
+
+  // ── Tabla "Firmas Políticas" (registro de aceptación) ─────
+  firmasPoliticasTableId: process.env.AIRTABLE_FIRMPOL_TABLE_ID!,
+  firmasPoliticasFields: {
+    ID:                 process.env.AIRTABLE_FIRMPOL_ID!,
+    POLITICA_LINK:      process.env.AIRTABLE_FIRMPOL_POLITICA_LINK!,     // → Políticas
+    ID_EMPLEADO_CORE:   process.env.AIRTABLE_FIRMPOL_ID_EMPLEADO!,
+    NOMBRE_EMPLEADO:    process.env.AIRTABLE_FIRMPOL_NOMBRE_EMPLEADO!,
+    FECHA_FIRMA:        process.env.AIRTABLE_FIRMPOL_FECHA_FIRMA!,
+    FIRMA:              process.env.AIRTABLE_FIRMPOL_FIRMA!,              // longText: data URL
+    IP_ADDRESS:         process.env.AIRTABLE_FIRMPOL_IP_ADDRESS || "",
+    USER_AGENT:         process.env.AIRTABLE_FIRMPOL_USER_AGENT || "",
+  },
+
+  // ── Tabla "Tokens Firma Política" (para links públicos) ───
+  tokensFirmaPoliticaTableId: process.env.AIRTABLE_TOKPOL_TABLE_ID!,
+  tokensFirmaPoliticaFields: {
+    TOKEN_ID:           process.env.AIRTABLE_TOKPOL_TOKEN_ID!,
+    POLITICA_LINK:      process.env.AIRTABLE_TOKPOL_POLITICA_LINK!,       // → Políticas
+    ID_EMPLEADO_CORE:   process.env.AIRTABLE_TOKPOL_ID_EMPLEADO!,
+    FECHA_GENERACION:   process.env.AIRTABLE_TOKPOL_FECHA_GENERACION!,
+    FECHA_EXPIRACION:   process.env.AIRTABLE_TOKPOL_FECHA_EXPIRACION!,
+    ESTADO:             process.env.AIRTABLE_TOKPOL_ESTADO!,              // singleSelect: Activo|Usado|Expirado
+  },
 };
 
 export function getSGSSTUrl(tableId: string): string {

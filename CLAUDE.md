@@ -241,6 +241,11 @@ src/
 **Comités SST:**
 - Miembros Comités SST
 
+**Políticas Empresariales:**
+- Políticas (catálogo de políticas)
+- Firmas Políticas (registro de aceptación)
+- Tokens Firma Política (para links públicos)
+
 ## Módulos del Sistema
 
 ### Módulos Core (Completados)
@@ -253,6 +258,7 @@ src/
 | **Entregas EPP** | `/api/entregas-epp` | `inventario-epp/entrega` | ✅ |
 | **Inventario EPP** | `/api/insumos` | `inventario-epp` | ✅ |
 | **Plan Anual** | `/api/programacion-capacitaciones` | `plan-anual` | ✅ |
+| **Políticas Empresariales** | `/api/politicas` | `politicas` | ✅ |
 
 ### Módulos de Inspecciones (Completados)
 
