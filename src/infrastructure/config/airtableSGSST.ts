@@ -829,6 +829,70 @@ export const airtableSGSSTConfig = {
     FECHA_EXPIRACION:   process.env.AIRTABLE_TOKPOL_FECHA_EXPIRACION!,
     ESTADO:             process.env.AIRTABLE_TOKPOL_ESTADO!,              // singleSelect: Activo|Usado|Expirado
   },
+
+  // ══════════════════════════════════════════════════════════
+  // MÓDULO VEHICULAR — Seguimiento de vehículos, documentos y licencias
+  // Decreto 1072/2015 — Seguridad vial en transporte de personal
+  // ══════════════════════════════════════════════════════════
+
+  // ── Tabla "veh_vehiculos" (Vehículos de colaboradores) ────
+  vehiculosTableId: process.env.AIRTABLE_VEH_VEHICULOS_TABLE_ID!,
+  vehiculosFields: {
+    ID:                    process.env.AIRTABLE_VEH_VEH_ID!,
+    ID_PERSONAL_CORE:      process.env.AIRTABLE_VEH_VEH_ID_PERSONAL_CORE!,
+    PLACA:                 process.env.AIRTABLE_VEH_VEH_PLACA!,
+    TIPO_VEHICULO:         process.env.AIRTABLE_VEH_VEH_TIPO_VEHICULO!,        // Motocicleta|Automóvil|Camioneta|Camión|Bicicleta|Otro
+    PROPIETARIO_NOMBRE:    process.env.AIRTABLE_VEH_VEH_PROPIETARIO_NOMBRE!,
+    PROPIETARIO_TIPO:      process.env.AIRTABLE_VEH_VEH_PROPIETARIO_TIPO!,     // Colaborador|Tercero|Empresa
+    PROPIETARIO_DOCUMENTO: process.env.AIRTABLE_VEH_VEH_PROPIETARIO_DOCUMENTO!,
+    ACTIVO:                process.env.AIRTABLE_VEH_VEH_ACTIVO!,                // boolean
+    OBSERVACIONES:         process.env.AIRTABLE_VEH_VEH_OBSERVACIONES!,
+    CREATED_AT:            process.env.AIRTABLE_VEH_VEH_CREATED_AT!,
+    UPDATED_AT:            process.env.AIRTABLE_VEH_VEH_UPDATED_AT!,
+    DOCUMENTOS_LINK:       process.env.AIRTABLE_VEH_VEH_DOCUMENTOS_LINK!,       // → veh_documentos
+  },
+
+  // ── Tabla "veh_documentos" (SOAT y Tecnomecánica) ─────────
+  documentosVehicularesTableId: process.env.AIRTABLE_VEH_DOCUMENTOS_TABLE_ID!,
+  documentosVehicularesFields: {
+    ID:                process.env.AIRTABLE_VEH_DOC_ID!,
+    VEHICULO_LINK:     process.env.AIRTABLE_VEH_DOC_VEHICULO_LINK!,            // → veh_vehiculos
+    TIPO_DOCUMENTO:    process.env.AIRTABLE_VEH_DOC_TIPO_DOCUMENTO!,           // SOAT|Tecnomecánica
+    NUMERO_DOCUMENTO:  process.env.AIRTABLE_VEH_DOC_NUMERO_DOCUMENTO!,
+    ENTIDAD_EMISORA:   process.env.AIRTABLE_VEH_DOC_ENTIDAD_EMISORA!,
+    FECHA_EXPEDICION:  process.env.AIRTABLE_VEH_DOC_FECHA_EXPEDICION!,
+    FECHA_VENCIMIENTO: process.env.AIRTABLE_VEH_DOC_FECHA_VENCIMIENTO!,
+    ESTADO:            process.env.AIRTABLE_VEH_DOC_ESTADO!,                    // Vigente|Por vencer|Vencido (fórmula)
+    URL_DOCUMENTO:     process.env.AIRTABLE_VEH_DOC_URL_DOCUMENTO!,
+    CREATED_AT:        process.env.AIRTABLE_VEH_DOC_CREATED_AT!,
+  },
+
+  // ── Tabla "veh_licencias" (Licencias de conducción) ───────
+  licenciasConduccionTableId: process.env.AIRTABLE_VEH_LICENCIAS_TABLE_ID!,
+  licenciasConduccionFields: {
+    ID:                 process.env.AIRTABLE_VEH_LIC_ID!,
+    ID_PERSONAL_CORE:   process.env.AIRTABLE_VEH_LIC_ID_PERSONAL_CORE!,
+    NUMERO_LICENCIA:    process.env.AIRTABLE_VEH_LIC_NUMERO_LICENCIA!,
+    CATEGORIA:          process.env.AIRTABLE_VEH_LIC_CATEGORIA!,                // A1|A2|B1|B2|B3|C1|C2|C3
+    FECHA_EXPEDICION:   process.env.AIRTABLE_VEH_LIC_FECHA_EXPEDICION!,
+    FECHA_VENCIMIENTO:  process.env.AIRTABLE_VEH_LIC_FECHA_VENCIMIENTO!,
+    ESTADO:             process.env.AIRTABLE_VEH_LIC_ESTADO!,                   // Vigente|Por vencer|Vencida (fórmula)
+    ORGANISMO_TRANSITO: process.env.AIRTABLE_VEH_LIC_ORGANISMO_TRANSITO!,
+    URL_LICENCIA:       process.env.AIRTABLE_VEH_LIC_URL_LICENCIA!,
+    CREATED_AT:         process.env.AIRTABLE_VEH_LIC_CREATED_AT!,
+  },
+
+  // ── Tabla "veh_alertas_log" (Historial de alertas enviadas)
+  alertasVehicularesTableId: process.env.AIRTABLE_VEH_ALERTAS_TABLE_ID!,
+  alertasVehicularesFields: {
+    ID:             process.env.AIRTABLE_VEH_ALERT_ID!,
+    ENTIDAD_TIPO:   process.env.AIRTABLE_VEH_ALERT_ENTIDAD_TIPO!,              // documento|licencia
+    ENTIDAD_ID:     process.env.AIRTABLE_VEH_ALERT_ENTIDAD_ID!,                // ID del documento o licencia
+    TIPO_ALERTA:    process.env.AIRTABLE_VEH_ALERT_TIPO_ALERTA!,               // por_vencer|vencido
+    FECHA_ENVIO:    process.env.AIRTABLE_VEH_ALERT_FECHA_ENVIO!,
+    DESTINATARIO:   process.env.AIRTABLE_VEH_ALERT_DESTINATARIO!,
+    ENVIADO:        process.env.AIRTABLE_VEH_ALERT_ENVIADO!,                   // boolean
+  },
 };
 
 export function getSGSSTUrl(tableId: string): string {

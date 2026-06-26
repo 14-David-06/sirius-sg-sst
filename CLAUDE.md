@@ -277,6 +277,38 @@ src/
 | **Inspecciones Camilla** | `/api/inspecciones-camilla` | `inspecciones-emergencia` | 🚧 | Elementos + estado |
 | **Inspecciones Kit Derrames** | `/api/inspecciones-kit-derrames` | `inspecciones-emergencia` | 🚧 | Elementos + verificaciones procedimiento |
 
+### Módulo de Seguimiento Vehicular (Nuevo - Jun 2026)
+
+| Módulo | API | Dashboard | Estado | Características |
+|---|---|---|---|---|
+| **Seguimiento Vehicular** | `/api/sgsst/vehicular` | `sgsst/vehicular` | 🚧 | Vehículos, SOAT, tecnomecánica, licencias + alertas automáticas |
+
+**Endpoints implementados:**
+- `GET /api/sgsst/vehicular` — Listar vehículos con estado consolidado
+- `GET /api/sgsst/vehicular/:id_personal` — Vehículos por colaborador
+- `POST /api/sgsst/vehicular/vehiculos` — Registrar vehículo
+- `PUT/DELETE /api/sgsst/vehicular/vehiculos/:id` — Actualizar/desactivar vehículo
+- `POST/PUT /api/sgsst/vehicular/documentos` — Gestión SOAT y tecnomecánica
+- `GET /api/sgsst/vehicular/documentos/vencimientos` — Documentos por vencer
+- `POST/PUT /api/sgsst/vehicular/licencias` — Gestión de licencias de conducción
+- `GET /api/sgsst/vehicular/licencias/vencimientos` — Licencias por vencer
+- `POST /api/sgsst/vehicular/alertas/trigger` — Cron job de alertas vía SendGrid
+- `GET /api/sgsst/vehicular/alertas` — Historial de alertas enviadas
+
+**Tablas Airtable:**
+- `veh_vehiculos` — Vehículos de colaboradores (12 campos)
+- `veh_documentos` — SOAT y tecnomecánica (10 campos)
+- `veh_licencias` — Licencias de conducción (10 campos)
+- `veh_alertas_log` — Historial de alertas (7 campos)
+
+**Características clave:**
+- Validación de placas colombianas (ABC123 para autos, ABC12D para motos)
+- Cálculo automático de estado: Vigente/Por vencer/Vencido
+- Sistema de alertas anti-spam (no enviar en últimas 24h)
+- Integración con SendGrid para correos HTML responsivos
+- Lookup a Nómina Core para resolver colaboradores
+- Categorías de licencia colombianas: A1, A2, B1, B2, B3, C1, C2, C3
+
 ### Módulos en Desarrollo
 
 | Módulo | API | Dashboard | Estado |
