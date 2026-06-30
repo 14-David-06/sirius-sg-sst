@@ -138,6 +138,11 @@ export async function GET(request: NextRequest) {
       const vehiculoId = veh.id;
       const idPersonalCore = fields[vehConfig.vehiculosFields.ID_PERSONAL_CORE] || "";
 
+      // Debug: log si falta ID_PERSONAL_CORE
+      if (!idPersonalCore) {
+        console.warn(`Vehículo ${vehiculoId} (${fields[vehConfig.vehiculosFields.PLACA]}) no tiene ID_PERSONAL_CORE asignado`);
+      }
+
       // Buscar SOAT
       const soatDoc = documentos.find(
         (d: any) =>
@@ -211,19 +216,25 @@ export async function GET(request: NextRequest) {
 
     // 5. Resolver nombres de colaboradores desde Nómina Core
     // Para cada idPersonalCore único, hacer lookup
-    const idsUnicos = [...new Set(resultado.map((v) => v.idPersonalCore))];
+    const idsUnicos = [...new Set(resultado.map((v) => v.idPersonalCore))].filter(Boolean);
     const personalMap = new Map<string, { nombre: string; area: string }>();
 
-    for (const idCore of idsUnicos) {
-      if (!idCore) continue;
+    if (idsUnicos.length > 0) {
+      console.log(`📋 Resolviendo ${idsUnicos.length} IDs de personal:`, idsUnicos);
 
       try {
         const personalUrl = `${airtableConfig.baseUrl}/${airtableConfig.baseId}/${airtableConfig.personalTableId}`;
         const PF = airtableConfig.personalFields;
-        const filterFormula = `{${PF.ID_EMPLEADO}} = '${idCore}'`;
+
+        // Construir OR formula para obtener todos los registros en una sola consulta
+        const orConditions = idsUnicos.map((id) => `{${PF.ID_EMPLEADO}} = '${id}'`).join(", ");
+        const filterFormula = `OR(${orConditions})`;
+
+        console.log(`🔍 Lookup URL:`, personalUrl);
+        console.log(`🔍 Filter formula:`, filterFormula);
 
         const personalResponse = await fetch(
-          `${personalUrl}?filterByFormula=${encodeURIComponent(filterFormula)}`,
+          `${personalUrl}?filterByFormula=${encodeURIComponent(filterFormula)}&fields[]=${PF.ID_EMPLEADO}&fields[]=${PF.NOMBRE_COMPLETO}&fields[]=${PF.AREAS}`,
           {
             headers: {
               Authorization: `Bearer ${airtableConfig.apiToken}`,
@@ -234,17 +245,31 @@ export async function GET(request: NextRequest) {
 
         if (personalResponse.ok) {
           const personalData = await personalResponse.json();
+          console.log(`✅ Personal encontrado: ${personalData.records?.length || 0} registros`);
+
           if (personalData.records && personalData.records.length > 0) {
-            const record = personalData.records[0].fields;
-            personalMap.set(idCore, {
-              nombre: record[PF.NOMBRE_COMPLETO] || "Sin nombre",
-              area: record[PF.AREAS]?.[0] || "Sin área",
+            personalData.records.forEach((record: any) => {
+              const idEmpleado = record.fields[PF.ID_EMPLEADO];
+              if (idEmpleado) {
+                personalMap.set(idEmpleado, {
+                  nombre: record.fields[PF.NOMBRE_COMPLETO] || "Sin nombre",
+                  area: record.fields[PF.AREAS]?.[0] || record.fields[PF.AREAS] || "Sin área",
+                });
+                console.log(`  ✓ ${idEmpleado} → ${record.fields[PF.NOMBRE_COMPLETO]}`);
+              }
             });
+          } else {
+            console.warn("⚠️ No se encontraron registros de personal para los IDs solicitados");
           }
+        } else {
+          const errorText = await personalResponse.text();
+          console.error("❌ Error en lookup de personal:", personalResponse.status, errorText);
         }
       } catch (error) {
-        console.error(`Error resolviendo personal ${idCore}:`, error);
+        console.error("❌ Excepción resolviendo personal:", error);
       }
+    } else {
+      console.warn("⚠️ No hay IDs de personal para resolver");
     }
 
     // Aplicar nombres resueltos
@@ -253,6 +278,10 @@ export async function GET(request: NextRequest) {
       if (personalInfo) {
         v.nombreColaborador = personalInfo.nombre;
         v.areaColaborador = personalInfo.area;
+      } else {
+        // Si no se encontró el colaborador, usar valores por defecto más descriptivos
+        v.nombreColaborador = `Sin datos (${v.idPersonalCore || "Sin ID"})`;
+        v.areaColaborador = "Sin área registrada";
       }
     });
 

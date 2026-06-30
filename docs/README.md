@@ -13,7 +13,14 @@ docs/
 ├── fixes/           Diagnósticos y correcciones de bugs
 ├── guias/           Guías paso a paso para configuración manual
 ├── implementacion/  Guías de implementación de nuevas funcionalidades
+├── modulos/         🆕 Documentación específica por módulo del sistema
+│   ├── vehicular/           Seguimiento vehicular (SOAT, tecnomecánica, licencias)
+│   ├── politicas/           Políticas empresariales y firmas
+│   ├── sociodemografico/    Perfiles sociodemográficos de colaboradores
+│   ├── inducciones/         Inducciones con certificados y evaluaciones
+│   └── evaluaciones/        Sistema de evaluaciones post-capacitación
 ├── pruebas/         Planes y datos de prueba
+├── scripts-utilidad/ Scripts de testing y utilidad
 └── seguridad/       Auditorías y controles de seguridad
 ```
 
@@ -83,3 +90,63 @@ docs/
 | Archivo | Descripción |
 |---------|-------------|
 | [AUDITORIA_SEGURIDAD.md](seguridad/AUDITORIA_SEGURIDAD.md) | Auditoría OWASP Top 10, controles criptográficos y estado de cumplimiento |
+
+---
+
+## 📦 Módulos del Sistema
+
+### Módulo Vehicular
+| Archivo | Descripción |
+|---------|-------------|
+| [MODULO_VEHICULAR_IMPLEMENTACION.md](modulos/vehicular/MODULO_VEHICULAR_IMPLEMENTACION.md) | Implementación completa del módulo de seguimiento vehicular |
+| [RESUMEN_MODULO_VEHICULAR.md](modulos/vehicular/RESUMEN_MODULO_VEHICULAR.md) | Resumen ejecutivo de funcionalidades y arquitectura |
+| [CONFIGURACION_INICIAL_VEHICULAR.md](modulos/vehicular/CONFIGURACION_INICIAL_VEHICULAR.md) | Guía de configuración de Airtable (53 variables de entorno) |
+| [.env.vehicular.template](modulos/vehicular/.env.vehicular.template) | Template de variables de entorno para el módulo |
+
+### Módulo Políticas Empresariales
+| Archivo | Descripción |
+|---------|-------------|
+| [IMPLEMENTACION_POLITICAS_EMPRESARIALES.md](modulos/politicas/IMPLEMENTACION_POLITICAS_EMPRESARIALES.md) | Implementación de sistema de políticas con firmas digitales |
+| [RESUMEN_MODULO_POLITICAS_COMPLETADO.md](modulos/politicas/RESUMEN_MODULO_POLITICAS_COMPLETADO.md) | Resumen del módulo completado |
+| [PASOS_FINALES_POLITICAS.md](modulos/politicas/PASOS_FINALES_POLITICAS.md) | Últimos pasos de configuración |
+| [CONFIGURACION_POLITICAS_AIRTABLE.md](modulos/politicas/CONFIGURACION_POLITICAS_AIRTABLE.md) | Configuración de tablas en Airtable |
+| [politicas.csv](modulos/politicas/politicas.csv) | Catálogo de políticas base |
+
+### Módulo Sociodemográfico
+| Archivo | Descripción |
+|---------|-------------|
+| [RESUMEN_FINAL_SOCIODEMOGRAFICO.md](modulos/sociodemografico/RESUMEN_FINAL_SOCIODEMOGRAFICO.md) | Resumen completo del módulo |
+| [ESTADO_MODULO_SOCIODEMOGRAFICO.md](modulos/sociodemografico/ESTADO_MODULO_SOCIODEMOGRAFICO.md) | Estado actual de implementación |
+| [MODULO_SOCIODEMOGRAFICO_MANUAL.md](modulos/sociodemografico/MODULO_SOCIODEMOGRAFICO_MANUAL.md) | Manual de uso |
+| [PERFIL_SOCIODEMOGRAFICO_PDF.md](modulos/sociodemografico/PERFIL_SOCIODEMOGRAFICO_PDF.md) | Generación de reportes PDF |
+| [PROGRESO_*.md](modulos/sociodemografico/) | Archivos de progreso de sesiones |
+
+### Módulo Inducciones
+| Archivo | Descripción |
+|---------|-------------|
+| [FIX_INDUCCIONES_FECHAS_RESPONSABLE.md](modulos/inducciones/FIX_INDUCCIONES_FECHAS_RESPONSABLE.md) | Corrección de fechas y responsables |
+| [MIGRACION_FIRMAS_S3.md](modulos/inducciones/MIGRACION_FIRMAS_S3.md) | Migración de firmas a AWS S3 |
+
+### Módulo Evaluaciones
+| Archivo | Descripción |
+|---------|-------------|
+| [CAMBIOS_PREGUNTAS_EVALUACION.md](modulos/evaluaciones/CAMBIOS_PREGUNTAS_EVALUACION.md) | Historial de cambios en preguntas |
+| [FIXES_EVALUACION_INDUCCIONES.md](modulos/evaluaciones/FIXES_EVALUACION_INDUCCIONES.md) | Correcciones del sistema de evaluación |
+| [RESUMEN_BOTONES_TEST.md](modulos/evaluaciones/RESUMEN_BOTONES_TEST.md) | Testing de botones de evaluación |
+| [RESUMEN_CAMBIOS_PREGUNTAS.md](modulos/evaluaciones/RESUMEN_CAMBIOS_PREGUNTAS.md) | Resumen de cambios en preguntas |
+
+---
+
+## 🔧 Scripts y Utilidades
+
+| Archivo | Descripción |
+|---------|-------------|
+| [test-inspecciones-areas.js](scripts-utilidad/test-inspecciones-areas.js) | Script Node.js para testing de inspecciones de áreas |
+
+---
+
+## 📚 Documentación Complementaria
+
+- **Documentación principal del proyecto:** `../CLAUDE.md`
+- **Informe de organización:** `../INFORME_ORGANIZACION_PROYECTO.md`
+- **README del proyecto:** `../README.md`

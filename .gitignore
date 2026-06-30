@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# script outputs (pueden contener datos sensibles)
+scripts/output/
+scripts/*.log
+scripts/*-output.txt
+scripts/*-diagnostico.txt
+*-field-ids.json

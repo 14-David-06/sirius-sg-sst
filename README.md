@@ -235,12 +235,48 @@ Este es un proyecto privado. Para contribuir:
 
 Ver `CLAUDE.md` para reglas completas de desarrollo.
 
-## Documentación Adicional
+## Documentación
 
-- **CLAUDE.md**: Documentación completa para agentes de desarrollo IA
-- **DIAGNOSTICO_INSPECCIONES_AREAS.md**: Análisis y corrección de reportes vacíos
-- **DIAGNOSTICO_EVALUACIONES.md**: Problemas y soluciones del módulo de evaluaciones
-- **.env.example**: Plantilla de todas las variables de entorno requeridas
+### 📚 Documentación Principal
+- **[CLAUDE.md](CLAUDE.md)**: Documentación completa del proyecto para agentes de desarrollo IA
+- **[INFORME_ORGANIZACION_PROYECTO.md](INFORME_ORGANIZACION_PROYECTO.md)**: Organización de archivos, carpetas vacías y limpieza
+- **[.env.example](.env.example)**: Plantilla de todas las variables de entorno requeridas (300+ variables)
+
+### 📁 Documentación Organizada en `docs/`
+
+Toda la documentación técnica está organizada en la carpeta `docs/`:
+
+- **[docs/README.md](docs/README.md)**: Índice completo de documentación
+- **docs/modulos/**: Documentación específica por módulo
+  - `vehicular/` - Seguimiento vehicular (SOAT, tecnomecánica, licencias)
+  - `politicas/` - Políticas empresariales y firmas
+  - `sociodemografico/` - Perfiles sociodemográficos
+  - `inducciones/` - Inducciones con certificados
+  - `evaluaciones/` - Sistema de evaluaciones
+- **docs/fixes/**: Diagnósticos y correcciones de bugs
+- **docs/implementacion/**: Guías de implementación
+- **docs/analisis/**: Análisis técnicos
+- **docs/estado/**: Estado del proyecto y changelogs
+- **docs/guias/**: Guías paso a paso
+- **docs/pruebas/**: Planes de prueba
+- **docs/seguridad/**: Auditorías de seguridad
+
+### 🧹 Mantenimiento del Proyecto
+
+**Script de limpieza de archivos sin uso:**
+```bash
+# Modo dry-run (ver qué se eliminaría)
+bash scripts/limpieza-proyecto.sh --dry-run
+
+# Ejecutar limpieza real
+bash scripts/limpieza-proyecto.sh
+```
+
+Este script elimina:
+- Carpetas vacías en `src/app/api/`
+- Carpetas de configuración sin uso
+- Archivos de prueba en `public/`
+- Defaults de Next.js/Vercel sin uso
 
 ## Problemas Conocidos
 

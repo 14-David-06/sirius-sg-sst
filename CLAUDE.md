@@ -512,15 +512,35 @@ JWT_SECRET                   # Secreto para tokens JWT
 - ✅ Endpoint de migración de equipos
 - ✅ Mejoras en sistema de evaluaciones (validación de respuestas)
 
-### Archivos de Diagnóstico
+### Documentación del Proyecto
 
-El proyecto incluye documentación de diagnósticos y fixes:
-- `DIAGNOSTICO_INSPECCIONES_AREAS.md` - Problema de reportes vacíos (RESUELTO)
-- `DIAGNOSTICO_EVALUACIONES.md` - Problemas de validación evaluaciones
-- `ANALISIS_INSPECCIONES_AREAS.md` - Análisis técnico completo
-- `IMPLEMENTACION_INSPECCIONES_AREAS.md` - Guía de implementación
-- `FIX_VALIDACION_RESPUESTAS.md` - Fix de validación de respuestas
-- `RESUMEN_FIX_EVALUACIONES.md` - Resumen de correcciones
+**IMPORTANTE:** Toda la documentación técnica está organizada en la carpeta `docs/` con la siguiente estructura:
+
+```
+docs/
+├── README.md              # Índice completo de documentación
+├── modulos/               # Documentación por módulo
+│   ├── vehicular/         # Seguimiento vehicular
+│   ├── politicas/         # Políticas empresariales
+│   ├── sociodemografico/  # Perfiles sociodemográficos
+│   ├── inducciones/       # Inducciones y certificados
+│   └── evaluaciones/      # Sistema de evaluaciones
+├── fixes/                 # Diagnósticos y correcciones
+├── implementacion/        # Guías de implementación
+├── analisis/              # Análisis técnicos
+├── estado/                # Estado del proyecto
+├── guias/                 # Guías paso a paso
+├── pruebas/               # Planes de prueba
+└── seguridad/             # Auditorías de seguridad
+```
+
+**Archivos de referencia en raíz:**
+- `CLAUDE.md` - Este archivo (documentación principal)
+- `README.md` - Documentación del proyecto
+- `INFORME_ORGANIZACION_PROYECTO.md` - Organización y limpieza del proyecto
+- `RESUMEN_ORGANIZACION.md` - Resumen ejecutivo de organización
+
+**Ver índice completo:** `docs/README.md`
 
 ## Reglas para Agentes de Desarrollo
 

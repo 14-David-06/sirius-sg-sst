@@ -1,0 +1,18 @@
+# Git attributes para el proyecto Sirius SG-SST
+
+# Archivos de configuración con datos sensibles - revisar antes de commit
+docs/modulos/**/CONFIGURACION*.md diff=sensitive
+docs/implementacion/IMPLEMENTACION*.md diff=sensitive
+docs/guias/GUIA_CREAR*.md diff=sensitive
+
+# Scripts que manejan datos sensibles
+scripts/diagnostico*.js diff=sensitive
+scripts/descubrir*.js diff=sensitive
+scripts/*-field-ids*.js diff=sensitive
+
+# Archivos de análisis que pueden contener datos reales
+docs/analisis/*.md diff=sensitive
+
+# Marcar .env files como binarios para evitar diffs accidentales
+.env* binary
+.env*.local binary
