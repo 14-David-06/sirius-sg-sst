@@ -507,7 +507,7 @@ export class AirtableInduccionesRepository {
         original: id,
         numero: parseInt(id.split('-')[1] || '0', 10)
       }))
-      .sort((a, b) => b.numero - a.numero); // DESC
+      .sort((a: { original: string; numero: number }, b: { original: string; numero: number }) => b.numero - a.numero); // DESC
 
     const lastId = ids.length > 0 ? ids[0].original : null;
     console.log(`[obtenerUltimoIdInduccion] Último ID encontrado: ${lastId || 'NINGUNO (primera inducción)'}`);
@@ -551,7 +551,7 @@ export class AirtableInduccionesRepository {
         original: id,
         numero: parseInt(id.split('-')[1] || '0', 10)
       }))
-      .sort((a, b) => b.numero - a.numero); // DESC
+      .sort((a: { original: string; numero: number }, b: { original: string; numero: number }) => b.numero - a.numero); // DESC
 
     const lastId = ids.length > 0 ? ids[0].original : null;
     console.log(`[obtenerUltimoIdToken] Último Token_ID encontrado: ${lastId || 'NINGUNO'}`);
@@ -594,7 +594,7 @@ export class AirtableInduccionesRepository {
         original: id,
         numero: parseInt(id.split('-').pop() || '0', 10) // Último segmento después del guion
       }))
-      .sort((a, b) => b.numero - a.numero); // DESC
+      .sort((a: { original: string; numero: number }, b: { original: string; numero: number }) => b.numero - a.numero); // DESC
 
     const lastId = ids.length > 0 ? ids[0].original : null;
     console.log(`[obtenerUltimoIdAlerta] Último ID_Alerta encontrado: ${lastId || 'NINGUNO'}`);
