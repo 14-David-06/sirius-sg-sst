@@ -178,12 +178,42 @@ function FirmarInduccionContent() {
   const [puntajeEvaluacion, setPuntajeEvaluacion] = useState<number | null>(null);
   const [evaluacionResultado, setEvaluacionResultado] = useState<ResultadoEvaluacion | null>(null);
 
-  // Estado para los campos de la constancia
+  // Helper: Obtener fecha/hora actual en zona horaria de Bogotá
+  const getFechaBogota = (): string => {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Bogota",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(new Date());
+
+    const year = parts.find((p) => p.type === "year")?.value;
+    const month = parts.find((p) => p.type === "month")?.value;
+    const day = parts.find((p) => p.type === "day")?.value;
+
+    return year && month && day ? `${year}-${month}-${day}` : new Date().toISOString().split("T")[0];
+  };
+
+  const getHoraBogota = (): string => {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Bogota",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(new Date());
+
+    const hour = parts.find((p) => p.type === "hour")?.value;
+    const minute = parts.find((p) => p.type === "minute")?.value;
+
+    return hour && minute ? `${hour}:${minute}` : new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" });
+  };
+
+  // Estado para los campos de la constancia - Con valores automáticos de fecha y hora
   const [constanciaData, setConstanciaData] = useState({
-    fechaRealizacion: "",
+    fechaRealizacion: getFechaBogota(),
     lugarRealizacion: "",
     lugarOtro: "",
-    horaInicio: "",
+    horaInicio: getHoraBogota(),
     horaFin: "",
     responsableSST: "",
     observaciones: "",
@@ -250,9 +280,9 @@ function FirmarInduccionContent() {
         setInduccion(data.data);
 
         // Pre-poblar datos de la constancia con la información del registro
+        // Solo sobrescribir responsableSST si viene del backend, mantener fecha/hora automáticas
         setConstanciaData((prev) => ({
           ...prev,
-          fechaRealizacion: prev.fechaRealizacion || data.data.fechaRealizacion || "",
           responsableSST: prev.responsableSST || data.data.responsableSST || "",
         }));
 
@@ -485,10 +515,11 @@ function FirmarInduccionContent() {
                 <input
                   type="date"
                   value={constanciaData.fechaRealizacion}
-                  onChange={(e) => setConstanciaData({...constanciaData, fechaRealizacion: e.target.value})}
-                  className="w-full px-3 py-2.5 rounded-lg bg-slate-800 border border-white/20 text-white focus:border-blue-500 focus:outline-none"
+                  readOnly
+                  className="w-full px-3 py-2.5 rounded-lg bg-slate-700 border border-white/20 text-white/90 cursor-not-allowed"
                   required
                 />
+                <p className="text-xs text-slate-500 mt-1">Fecha actual de Bogotá (automática)</p>
               </div>
 
               <div>
@@ -496,10 +527,11 @@ function FirmarInduccionContent() {
                 <input
                   type="time"
                   value={constanciaData.horaInicio}
-                  onChange={(e) => setConstanciaData({...constanciaData, horaInicio: e.target.value})}
-                  className="w-full px-3 py-2.5 rounded-lg bg-slate-800 border border-white/20 text-white focus:border-blue-500 focus:outline-none"
+                  readOnly
+                  className="w-full px-3 py-2.5 rounded-lg bg-slate-700 border border-white/20 text-white/90 cursor-not-allowed"
                   required
                 />
+                <p className="text-xs text-slate-500 mt-1">Hora actual de Bogotá (automática)</p>
               </div>
 
               <div>
@@ -507,10 +539,11 @@ function FirmarInduccionContent() {
                 <input
                   type="time"
                   value={constanciaData.horaFin}
-                  onChange={(e) => setConstanciaData({...constanciaData, horaFin: e.target.value})}
-                  className="w-full px-3 py-2.5 rounded-lg bg-slate-800 border border-white/20 text-white focus:border-blue-500 focus:outline-none"
+                  readOnly
+                  className="w-full px-3 py-2.5 rounded-lg bg-slate-700 border border-white/20 text-white/90 cursor-not-allowed"
                   required
                 />
+                <p className="text-xs text-slate-500 mt-1">Capturada al finalizar la evaluación (automática)</p>
               </div>
 
               <div className="md:col-span-2">
@@ -1031,6 +1064,14 @@ function FirmarInduccionContent() {
               onAprobada={(puntaje, resultado) => {
                 setPuntajeEvaluacion(puntaje);
                 if (resultado) setEvaluacionResultado(resultado);
+
+                // Capturar hora fin automáticamente al terminar la evaluación
+                const horaFinActual = getHoraBogota();
+                setConstanciaData((prev) => ({
+                  ...prev,
+                  horaFin: horaFinActual,
+                }));
+
                 setStep("constancia"); // Cambiar a constancia primero
               }}
               onReprobada={() => {

@@ -2,6 +2,12 @@
 // GET /api/inducciones/evaluacion?induccionId=X
 // Evaluación completa de 26 preguntas para Inducción/Reinducción
 // SIRIUS REGENERATIVE SOLUTIONS S.A.S. ZOMAC
+//
+// PUNTAJE TOTAL: 18 puntos
+// - 16 preguntas evaluativas (puntajeAsignado: 1) = 16 puntos
+// - 2 preguntas evaluativas reformuladas (p23, p24) = 2 puntos
+// - 8 preguntas declarativas (puntajeAsignado: 0) = 0 puntos
+// Mínimo aprobatorio: 80% de 18 = 14.4 puntos
 // ══════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
@@ -407,39 +413,35 @@ export async function GET(request: NextRequest) {
         ppId: "pp23",
         preguntaId: "p23",
         orden: 23,
-        puntajeAsignado: 0,
+        puntajeAsignado: 1,
         obligatoria: true,
-        texto: "Seleccione las correspondencias correctas entre residuo y caneca (pregunta declarativa):",
-        tipo: "Selección Múltiple",
+        texto: "Un trabajador necesita desechar un envase plástico de herbicida vacío. ¿En cuál caneca debe depositarlo?",
+        tipo: "Selección Única",
         opciones: [
-          "Blanca - aprovechables (papel, cartón, plástico, vidrio y metales)",
-          "Verde - orgánicos aprovechables",
-          "Negra - no aprovechables",
-          "Roja - residuos biosanitarios o de riesgo biológico",
-          "Amarilla - residuos químicos o peligrosos según rotulación interna",
+          "Blanca — porque es plástico y los plásticos son aprovechables",
+          "Negra — porque ya está vacío y no tiene utilidad",
+          "Amarilla — porque estuvo en contacto con una sustancia química peligrosa",
+          "Roja — porque cualquier residuo contaminado es biosanitario",
         ],
-        respuestaCorrecta:
-          "Blanca - aprovechables (papel, cartón, plástico, vidrio y metales)|Verde - orgánicos aprovechables|Negra - no aprovechables|Roja - residuos biosanitarios o de riesgo biológico|Amarilla - residuos químicos o peligrosos según rotulación interna",
-        explicacion: "Pregunta declarativa (no suma puntaje).",
+        respuestaCorrecta: "Amarilla — porque estuvo en contacto con una sustancia química peligrosa",
+        explicacion: "Aunque el envase es plástico, al haber contenido una sustancia química peligrosa (herbicida) se clasifica como residuo químico/peligroso y va en la caneca amarilla según la rotulación interna.",
       },
       {
         ppId: "pp24",
         preguntaId: "p24",
         orden: 24,
-        puntajeAsignado: 0,
+        puntajeAsignado: 1,
         obligatoria: true,
-        texto: "Seleccione relaciones correctas entre aspecto e impacto ambiental (pregunta declarativa):",
-        tipo: "Selección Múltiple",
+        texto: "En la planta de pirólisis se detecta una disposición inadecuada de residuos sólidos cerca del área de producción. ¿Cuál es el impacto ambiental DIRECTO más probable de esta situación?",
+        tipo: "Selección Única",
         opciones: [
-          "Derrame de combustible - contaminación de suelo y agua",
-          "Emisión de humo - deterioro de la calidad del aire",
-          "Disposición inadecuada de residuos - proliferación de vectores",
-          "Ruido excesivo - afectación a la salud auditiva",
-          "Consumo ineficiente de agua - agotamiento del recurso hídrico",
+          "Deterioro de la calidad del aire por emisiones",
+          "Agotamiento del recurso hídrico en la zona",
+          "Proliferación de vectores y contaminación del suelo",
+          "Afectación a la salud auditiva de los trabajadores",
         ],
-        respuestaCorrecta:
-          "Derrame de combustible - contaminación de suelo y agua|Emisión de humo - deterioro de la calidad del aire|Disposición inadecuada de residuos - proliferación de vectores|Ruido excesivo - afectación a la salud auditiva|Consumo ineficiente de agua - agotamiento del recurso hídrico",
-        explicacion: "Pregunta declarativa (no suma puntaje).",
+        respuestaCorrecta: "Proliferación de vectores y contaminación del suelo",
+        explicacion: "La disposición inadecuada de residuos sólidos genera directamente proliferación de vectores (insectos, roedores) y contaminación del suelo. Los demás impactos corresponden a otros aspectos ambientales (emisiones, consumo de agua, ruido).",
       },
       // Bloque 13: Derrames
       {
