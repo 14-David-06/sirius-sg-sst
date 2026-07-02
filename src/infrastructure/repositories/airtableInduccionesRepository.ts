@@ -85,6 +85,8 @@ export class AirtableInduccionesRepository {
    * Obtener un registro por ID_Induccion (IND-XXXX)
    */
   async obtenerRegistroPorIdInduccion(idInduccion: string): Promise<RegistroInduccion | null> {
+    console.log('[obtenerRegistroPorIdInduccion] Buscando inducción:', idInduccion);
+
     const url = `${this.client.baseUrl}/${this.registrosTableId}`;
     const params = new URLSearchParams({
       filterByFormula: `{ID_Induccion} = '${idInduccion}'`,
@@ -100,9 +102,14 @@ export class AirtableInduccionesRepository {
     }
 
     const data = await response.json();
+    console.log('[obtenerRegistroPorIdInduccion] Registros encontrados:', data.records.length);
+
     if (data.records.length === 0) return null;
 
-    return this.mapRecordToRegistro(data.records[0]);
+    const registro = this.mapRecordToRegistro(data.records[0]);
+    console.log('[obtenerRegistroPorIdInduccion] Registro mapeado - idEmpleadoCore:', registro.idEmpleadoCore);
+
+    return registro;
   }
 
   /**
@@ -136,6 +143,8 @@ export class AirtableInduccionesRepository {
     cargo: string;
   }): Promise<RegistroInduccion> {
     console.log('[crearRegistro] Iniciando creación de nueva inducción...');
+    console.log('[crearRegistro] DTO recibido:', JSON.stringify(dto, null, 2));
+    console.log('[crearRegistro] ID Empleado Core:', dto.idEmpleadoCore);
 
     // Generar ID_Induccion
     const lastId = await this.obtenerUltimoIdInduccion();
@@ -179,6 +188,10 @@ export class AirtableInduccionesRepository {
       },
     };
 
+    console.log('[crearRegistro] Payload a enviar a Airtable:', JSON.stringify(payload, null, 2));
+    console.log('[crearRegistro] Campo ID_EMPLEADO_CORE (field ID):', RF.ID_EMPLEADO_CORE);
+    console.log('[crearRegistro] Valor ID Empleado Core:', dto.idEmpleadoCore);
+
     const response = await fetch(url, {
       method: "POST",
       headers: this.client.headers,
@@ -191,7 +204,12 @@ export class AirtableInduccionesRepository {
     }
 
     const record = await response.json();
-    return this.mapRecordToRegistro(record);
+    console.log('[crearRegistro] Registro creado en Airtable:', JSON.stringify(record, null, 2));
+
+    const registroMapeado = this.mapRecordToRegistro(record);
+    console.log('[crearRegistro] Registro mapeado final - idEmpleadoCore:', registroMapeado.idEmpleadoCore);
+
+    return registroMapeado;
   }
 
   /**

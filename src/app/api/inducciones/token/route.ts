@@ -24,19 +24,27 @@ export async function POST(request: NextRequest) {
 
     // Si no se proporciona idEmpleadoCore, lo obtenemos del registro
     let empleadoId = idEmpleadoCore;
+    console.log('[POST /api/inducciones/token] idInduccion:', idInduccion);
+    console.log('[POST /api/inducciones/token] idEmpleadoCore recibido:', idEmpleadoCore || 'NO PROPORCIONADO');
+
     if (!empleadoId) {
+      console.log('[POST /api/inducciones/token] Obteniendo idEmpleadoCore desde registro de inducción...');
       const { induccionesRepository } = await import("@/infrastructure/repositories/airtableInduccionesRepository");
       const registro = await induccionesRepository.obtenerRegistroPorIdInduccion(idInduccion);
       if (!registro) {
+        console.error('[POST /api/inducciones/token] Inducción no encontrada:', idInduccion);
         return NextResponse.json(
           { success: false, message: "Inducción no encontrada" },
           { status: 404 }
         );
       }
       empleadoId = registro.idEmpleadoCore;
+      console.log('[POST /api/inducciones/token] idEmpleadoCore obtenido del registro:', empleadoId);
     }
 
+    console.log('[POST /api/inducciones/token] Generando token para:', { idInduccion, empleadoId });
     const token = await generarTokenFirma(idInduccion, empleadoId);
+    console.log('[POST /api/inducciones/token] Token generado - hashFirma:', token.hashFirma?.substring(0, 20) + '...');
 
     return NextResponse.json({
       success: true,
