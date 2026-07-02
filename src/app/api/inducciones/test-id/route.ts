@@ -62,7 +62,7 @@ async function obtenerUltimoIdInduccion(): Promise<string | null> {
   const lastId = ids.length > 0 ? ids[0].original : null;
   console.log(`[TEST obtenerUltimoIdInduccion] Último ID encontrado: ${lastId || 'NINGUNO (primera inducción)'}`);
   console.log(`[TEST obtenerUltimoIdInduccion] Total de IDs válidos extraídos: ${ids.length}`);
-  console.log(`[TEST obtenerUltimoIdInduccion] Todos los IDs ordenados:`, ids.map(i => i.original));
+  console.log(`[TEST obtenerUltimoIdInduccion] Todos los IDs ordenados:`, ids.map((i: { original: string; numero: number }) => i.original));
 
   return lastId;
 }
@@ -120,7 +120,7 @@ async function obtenerUltimoIdToken(): Promise<string | null> {
   const lastId = ids.length > 0 ? ids[0].original : null;
   console.log(`[TEST obtenerUltimoIdToken] Último Token_ID encontrado: ${lastId || 'NINGUNO'}`);
   console.log(`[TEST obtenerUltimoIdToken] Total de Token_IDs válidos extraídos: ${ids.length}`);
-  console.log(`[TEST obtenerUltimoIdToken] Todos los Token_IDs ordenados:`, ids.map(i => i.original));
+  console.log(`[TEST obtenerUltimoIdToken] Todos los Token_IDs ordenados:`, ids.map((i: { original: string; numero: number }) => i.original));
 
   return lastId;
 }
