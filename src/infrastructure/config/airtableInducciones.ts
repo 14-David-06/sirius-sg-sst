@@ -60,6 +60,7 @@ export const airtableInduccionesConfig = {
     FECHA_ENVIO: process.env.AIRTABLE_IND_ALR_FECHA_ENVIO!,
     CORREO_DESTINO: process.env.AIRTABLE_IND_ALR_CORREO_DESTINO!,
     OBSERVACIONES_ENVIO: process.env.AIRTABLE_IND_ALR_OBSERVACIONES_ENVIO!,
+    REGISTROS_LINK: process.env.AIRTABLE_IND_ALR_LINK_REGISTROS!,
   },
 
   // ── Tabla "Constancias_Inducciones" — Datos de constancia ─

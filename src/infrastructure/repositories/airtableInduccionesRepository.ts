@@ -255,10 +255,24 @@ export class AirtableInduccionesRepository {
     induccionId: string,
     idEmpleadoCore: string
   ): Promise<TokenFirma> {
+    console.log('[crearTokenFirma] Iniciando creación de token...');
+    console.log('[crearTokenFirma] ID_Induccion:', induccionId);
+    console.log('[crearTokenFirma] ID_Empleado_CORE:', idEmpleadoCore);
+
+    // 1. Obtener el record ID del registro de inducción
+    const registro = await this.obtenerRegistroPorIdInduccion(induccionId);
+    if (!registro || !registro.id) {
+      throw new Error(`No se encontró el registro de inducción ${induccionId}`);
+    }
+
+    console.log('[crearTokenFirma] Record ID de inducción encontrado:', registro.id);
+
     // Generar Token_ID
     const lastId = await this.obtenerUltimoIdToken();
     const newIdNum = lastId ? parseInt(lastId.split("-")[1]) + 1 : 1;
     const tokenId = `TKNI-${String(newIdNum).padStart(4, "0")}`;
+
+    console.log('[crearTokenFirma] Token_ID generado:', tokenId);
 
     // Fechas (expiracion según configuración)
     const now = new Date();
@@ -293,8 +307,12 @@ export class AirtableInduccionesRepository {
         [TF.FECHA_GENERACION]: now.toISOString(),
         [TF.FECHA_EXPIRACION]: expiracion.toISOString(),
         [TF.ESTADO_TOKEN]: "Pendiente",
+        // ✅ CRÍTICO: Campo linked para crear la relación con ind_registros
+        [TF.REGISTROS_LINK]: [registro.id],
       },
     };
+
+    console.log('[crearTokenFirma] Payload a enviar:', JSON.stringify(payload, null, 2));
 
     const response = await fetch(url, {
       method: "POST",
@@ -304,10 +322,13 @@ export class AirtableInduccionesRepository {
 
     if (!response.ok) {
       const error = await response.text();
+      console.error('[crearTokenFirma] Error creando token:', error);
       throw new Error(`Error creando token: ${error}`);
     }
 
     const record = await response.json();
+    console.log('[crearTokenFirma] Token creado exitosamente:', record.id);
+
     return this.mapRecordToToken(record);
   }
 
@@ -404,10 +425,23 @@ export class AirtableInduccionesRepository {
     fechaVencimiento: string,
     fechaAlerta: string
   ): Promise<AlertaLog> {
+    console.log('[crearAlerta] Iniciando creación de alerta...');
+    console.log('[crearAlerta] ID_Induccion:', induccionId);
+
+    // 1. Obtener el record ID del registro de inducción
+    const registro = await this.obtenerRegistroPorIdInduccion(induccionId);
+    if (!registro || !registro.id) {
+      throw new Error(`No se encontró el registro de inducción ${induccionId}`);
+    }
+
+    console.log('[crearAlerta] Record ID de inducción encontrado:', registro.id);
+
     // Generar ID_Alerta
     const lastId = await this.obtenerUltimoIdAlerta();
     const newIdNum = lastId ? parseInt(lastId.split("-")[2]) + 1 : 1;
     const idAlerta = `ALERTA-IND-${String(newIdNum).padStart(4, "0")}`;
+
+    console.log('[crearAlerta] ID_Alerta generado:', idAlerta);
 
     const url = `${this.client.baseUrl}/${this.alertasTableId}`;
     const payload = {
@@ -420,8 +454,12 @@ export class AirtableInduccionesRepository {
         [AF.FECHA_ALERTA]: fechaAlerta,
         [AF.TIPO_ALERTA]: "15_DIAS",
         [AF.ENVIADA]: false,
+        // ✅ CRÍTICO: Campo linked para crear la relación con ind_registros
+        [AF.REGISTROS_LINK]: [registro.id],
       },
     };
+
+    console.log('[crearAlerta] Payload a enviar:', JSON.stringify(payload, null, 2));
 
     const response = await fetch(url, {
       method: "POST",
@@ -431,10 +469,13 @@ export class AirtableInduccionesRepository {
 
     if (!response.ok) {
       const error = await response.text();
+      console.error('[crearAlerta] Error creando alerta:', error);
       throw new Error(`Error creando alerta: ${error}`);
     }
 
     const record = await response.json();
+    console.log('[crearAlerta] Alerta creada exitosamente:', record.id);
+
     return this.mapRecordToAlerta(record);
   }
 
@@ -495,9 +536,8 @@ export class AirtableInduccionesRepository {
 
     console.log('[obtenerUltimoIdInduccion] Consultando último ID...');
 
-    // Estrategia: obtener todos los IDs y ordenar en JS (más confiable)
+    // Traer TODOS los registros (sin filtro de campos para evitar problemas de naming)
     const params = new URLSearchParams({
-      fields: JSON.stringify(['ID_Induccion']), // Solo traer el campo que necesitamos
       pageSize: "100", // Traer últimos 100 registros
     });
 
@@ -517,9 +557,25 @@ export class AirtableInduccionesRepository {
       return null;
     }
 
+    console.log('[obtenerUltimoIdInduccion] Registros obtenidos:', data.records.length);
+    console.log('[obtenerUltimoIdInduccion] Primer registro (campos):', JSON.stringify(Object.keys(data.records[0].fields || {})));
+
     // Ordenar en JS por número extraído (más confiable que sort de Airtable)
+    // Intentar múltiples nombres de campo para compatibilidad
     const ids = data.records
-      .map((r: any) => r.fields['ID_Induccion'])
+      .map((r: any) => {
+        // Intentar diferentes variaciones del nombre del campo
+        const idValue = r.fields['ID_Induccion'] ||
+                        r.fields[RF.ID_INDUCCION] ||
+                        r.fields['ID Induccion'] ||
+                        r.fields['ID Inducción'];
+
+        if (!idValue) {
+          console.warn('[obtenerUltimoIdInduccion] Registro sin ID_Induccion:', r.id);
+        }
+
+        return idValue;
+      })
       .filter(Boolean)
       .map((id: string) => ({
         original: id,
@@ -530,6 +586,7 @@ export class AirtableInduccionesRepository {
     const lastId = ids.length > 0 ? ids[0].original : null;
     console.log(`[obtenerUltimoIdInduccion] Último ID encontrado: ${lastId || 'NINGUNO (primera inducción)'}`);
     console.log(`[obtenerUltimoIdInduccion] Total de registros analizados: ${data.records.length}`);
+    console.log(`[obtenerUltimoIdInduccion] Total de IDs válidos extraídos: ${ids.length}`);
 
     return lastId;
   }
@@ -539,9 +596,8 @@ export class AirtableInduccionesRepository {
 
     console.log('[obtenerUltimoIdToken] Consultando último Token_ID...');
 
-    // Estrategia: obtener todos los IDs y ordenar en JS (más confiable)
+    // Traer TODOS los campos para evitar problemas de naming
     const params = new URLSearchParams({
-      fields: JSON.stringify(['Token_ID']),
       pageSize: "100",
     });
 
@@ -561,9 +617,25 @@ export class AirtableInduccionesRepository {
       return null;
     }
 
+    console.log('[obtenerUltimoIdToken] Registros obtenidos:', data.records.length);
+    console.log('[obtenerUltimoIdToken] Primer registro (campos):', JSON.stringify(Object.keys(data.records[0].fields || {})));
+
     // Ordenar en JS por número extraído
+    // Intentar múltiples nombres de campo para compatibilidad
     const ids = data.records
-      .map((r: any) => r.fields['Token_ID'])
+      .map((r: any) => {
+        // Intentar diferentes variaciones del nombre del campo
+        const tokenValue = r.fields['Token_ID'] ||
+                           r.fields[TF.TOKEN_ID] ||
+                           r.fields['Token ID'] ||
+                           r.fields['TokenID'];
+
+        if (!tokenValue) {
+          console.warn('[obtenerUltimoIdToken] Registro sin Token_ID:', r.id);
+        }
+
+        return tokenValue;
+      })
       .filter(Boolean)
       .map((id: string) => ({
         original: id,
@@ -573,6 +645,8 @@ export class AirtableInduccionesRepository {
 
     const lastId = ids.length > 0 ? ids[0].original : null;
     console.log(`[obtenerUltimoIdToken] Último Token_ID encontrado: ${lastId || 'NINGUNO'}`);
+    console.log(`[obtenerUltimoIdToken] Total de registros analizados: ${data.records.length}`);
+    console.log(`[obtenerUltimoIdToken] Total de Token_IDs válidos extraídos: ${ids.length}`);
 
     return lastId;
   }
@@ -582,9 +656,8 @@ export class AirtableInduccionesRepository {
 
     console.log('[obtenerUltimoIdAlerta] Consultando último ID_Alerta...');
 
-    // Estrategia: obtener todos los IDs y ordenar en JS (más confiable)
+    // Traer TODOS los campos para evitar problemas de naming
     const params = new URLSearchParams({
-      fields: JSON.stringify(['ID_Alerta']),
       pageSize: "100",
     });
 
@@ -600,13 +673,29 @@ export class AirtableInduccionesRepository {
     const data = await response.json();
 
     if (data.records.length === 0) {
-      console.log('[obtenerUltimoIdAlerta] No hay registros, iniciando en ALR-IND-0001');
+      console.log('[obtenerUltimoIdAlerta] No hay registros, iniciando en ALERTA-IND-0001');
       return null;
     }
 
+    console.log('[obtenerUltimoIdAlerta] Registros obtenidos:', data.records.length);
+    console.log('[obtenerUltimoIdAlerta] Primer registro (campos):', JSON.stringify(Object.keys(data.records[0].fields || {})));
+
     // Ordenar en JS por número extraído
+    // Intentar múltiples nombres de campo para compatibilidad
     const ids = data.records
-      .map((r: any) => r.fields['ID_Alerta'])
+      .map((r: any) => {
+        // Intentar diferentes variaciones del nombre del campo
+        const alertaValue = r.fields['ID_Alerta'] ||
+                            r.fields[AF.ID_ALERTA] ||
+                            r.fields['ID Alerta'] ||
+                            r.fields['IDAlerta'];
+
+        if (!alertaValue) {
+          console.warn('[obtenerUltimoIdAlerta] Registro sin ID_Alerta:', r.id);
+        }
+
+        return alertaValue;
+      })
       .filter(Boolean)
       .map((id: string) => ({
         original: id,
@@ -616,6 +705,8 @@ export class AirtableInduccionesRepository {
 
     const lastId = ids.length > 0 ? ids[0].original : null;
     console.log(`[obtenerUltimoIdAlerta] Último ID_Alerta encontrado: ${lastId || 'NINGUNO'}`);
+    console.log(`[obtenerUltimoIdAlerta] Total de registros analizados: ${data.records.length}`);
+    console.log(`[obtenerUltimoIdAlerta] Total de ID_Alertas válidos extraídos: ${ids.length}`);
 
     return lastId;
   }
