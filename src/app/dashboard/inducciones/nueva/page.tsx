@@ -275,14 +275,14 @@ function NuevaInduccionForm() {
                     value={empleadoSeleccionado}
                     onChange={(e) => setEmpleadoSeleccionado(e.target.value)}
                     disabled={loadingEmpleados || colaboradorBloqueado}
-                    className="w-full bg-white/5 border border-white/10 rounded-lg pl-10 pr-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-400/50 disabled:opacity-50"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg pl-10 pr-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-400/50 disabled:opacity-50 [&>option]:bg-gray-900 [&>option]:text-white"
                     required
                   >
-                    <option value="">
+                    <option value="" className="bg-gray-900 text-gray-400">
                       {loadingEmpleados ? "Cargando..." : "Seleccione un colaborador"}
                     </option>
                     {empleados.map((emp) => (
-                      <option key={emp.idEmpleadoCore} value={emp.idEmpleadoCore}>
+                      <option key={emp.idEmpleadoCore} value={emp.idEmpleadoCore} className="bg-gray-900 text-white">
                         {emp.nombreCompleto} - {emp.numeroDocumento}
                       </option>
                     ))}
