@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
       filterFormula += ` AND {${vehConfig.vehiculosFields.TIPO_VEHICULO}} = '${tipoVehiculoFilter}'`;
     }
 
-    const vehResponse = await fetch(`${vehUrl}?filterByFormula=${encodeURIComponent(filterFormula)}`, {
+    const vehResponse = await fetch(`${vehUrl}?returnFieldsByFieldId=true&filterByFormula=${encodeURIComponent(filterFormula)}`, {
       headers,
     });
 
@@ -120,13 +120,13 @@ export async function GET(request: NextRequest) {
 
     // 2. Obtener todos los documentos (SOAT y Tecnomecánica)
     const docUrl = getSGSSTUrl(vehConfig.documentosVehicularesTableId);
-    const docResponse = await fetch(docUrl, { headers });
+    const docResponse = await fetch(`${docUrl}?returnFieldsByFieldId=true`, { headers });
     const docData = docResponse.ok ? await docResponse.json() : { records: [] };
     const documentos = docData.records || [];
 
     // 3. Obtener todas las licencias
     const licUrl = getSGSSTUrl(vehConfig.licenciasConduccionTableId);
-    const licResponse = await fetch(licUrl, { headers });
+    const licResponse = await fetch(`${licUrl}?returnFieldsByFieldId=true`, { headers });
     const licData = licResponse.ok ? await licResponse.json() : { records: [] };
     const licencias = licData.records || [];
 
@@ -153,11 +153,11 @@ export async function GET(request: NextRequest) {
       const soatVencimiento = soatDoc?.fields[vehConfig.documentosVehicularesFields.FECHA_VENCIMIENTO] || null;
       const soatEstado = calcularEstado(soatVencimiento);
 
-      // Buscar Tecnomecánica
+      // Buscar Tecnomecánica (usando includes para evitar problemas de encoding)
       const tecnoDoc = documentos.find(
         (d: any) =>
           d.fields[vehConfig.documentosVehicularesFields.VEHICULO_LINK]?.[0] === vehiculoId &&
-          d.fields[vehConfig.documentosVehicularesFields.TIPO_DOCUMENTO] === "Tecnomecánica"
+          d.fields[vehConfig.documentosVehicularesFields.TIPO_DOCUMENTO]?.includes("Tecno")
       );
 
       const tecnoVencimiento = tecnoDoc?.fields[vehConfig.documentosVehicularesFields.FECHA_VENCIMIENTO] || null;
@@ -227,14 +227,15 @@ export async function GET(request: NextRequest) {
         const PF = airtableConfig.personalFields;
 
         // Construir OR formula para obtener todos los registros en una sola consulta
-        const orConditions = idsUnicos.map((id) => `{${PF.ID_EMPLEADO}} = '${id}'`).join(", ");
+        // IMPORTANTE: filterByFormula usa NOMBRES de campo, no Field IDs
+        const orConditions = idsUnicos.map((id) => `{ID Empleado} = '${id}'`).join(", ");
         const filterFormula = `OR(${orConditions})`;
 
         console.log(`🔍 Lookup URL:`, personalUrl);
         console.log(`🔍 Filter formula:`, filterFormula);
 
         const personalResponse = await fetch(
-          `${personalUrl}?filterByFormula=${encodeURIComponent(filterFormula)}&fields[]=${PF.ID_EMPLEADO}&fields[]=${PF.NOMBRE_COMPLETO}&fields[]=${PF.AREAS}`,
+          `${personalUrl}?filterByFormula=${encodeURIComponent(filterFormula)}`,
           {
             headers: {
               Authorization: `Bearer ${airtableConfig.apiToken}`,
@@ -249,13 +250,18 @@ export async function GET(request: NextRequest) {
 
           if (personalData.records && personalData.records.length > 0) {
             personalData.records.forEach((record: any) => {
-              const idEmpleado = record.fields[PF.ID_EMPLEADO];
+              const fields = record.fields;
+              // Usar nombres EXACTOS de campo (case-sensitive)
+              const idEmpleado = fields["ID Empleado"];
+              const nombreCompleto = fields["Nombre completo"]; // ⚠️ "completo" con minúscula
+              const areas = fields["Areas"]; // Sin tilde
+
               if (idEmpleado) {
                 personalMap.set(idEmpleado, {
-                  nombre: record.fields[PF.NOMBRE_COMPLETO] || "Sin nombre",
-                  area: record.fields[PF.AREAS]?.[0] || record.fields[PF.AREAS] || "Sin área",
+                  nombre: nombreCompleto || "Sin nombre",
+                  area: Array.isArray(areas) ? areas[0] : (areas || "Sin área"),
                 });
-                console.log(`  ✓ ${idEmpleado} → ${record.fields[PF.NOMBRE_COMPLETO]}`);
+                console.log(`  ✓ ${idEmpleado} → ${nombreCompleto}`);
               }
             });
           } else {
