@@ -46,3 +46,4 @@ scripts/*.log
 scripts/*-output.txt
 scripts/*-diagnostico.txt
 *-field-ids.json
+/docs
