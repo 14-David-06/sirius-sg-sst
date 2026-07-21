@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { generarCertificado } from "@/core/use-cases/inducciones";
 
 // POST /api/inducciones/certificado
+// @deprecated - Usar /api/inducciones/regenerar-documento para el documento unificado completo
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();

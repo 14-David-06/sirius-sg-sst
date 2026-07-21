@@ -770,6 +770,65 @@ export class AirtableInduccionesRepository {
       observacionesEnvio: f["Observaciones_Envio"] || f[AF.OBSERVACIONES_ENVIO] || null,
     };
   }
+
+  // ── CONSTANCIAS ────────────────────────────────────────────
+
+  /**
+   * Obtener constancia por ID de inducción
+   */
+  async obtenerConstanciaPorInduccion(idInduccion: string): Promise<any | null> {
+    const { constanciasTableId, constanciasFields: CF } = airtableInduccionesConfig;
+    const { registrosTableId, registrosFields: RF } = airtableInduccionesConfig;
+
+    console.log('[obtenerConstanciaPorInduccion] Buscando constancia para:', idInduccion);
+
+    // 1. Obtener el record ID del registro de inducción
+    const registro = await this.obtenerRegistroPorIdInduccion(idInduccion);
+    if (!registro || !registro.id) {
+      console.log('[obtenerConstanciaPorInduccion] Registro no encontrado');
+      return null;
+    }
+
+    console.log('[obtenerConstanciaPorInduccion] Record ID:', registro.id);
+
+    // 2. Buscar la constancia vinculada
+    const filterFormula = `FIND("${registro.id}", {ID_Induccion}) > 0`;
+    const url = `${this.client.baseUrl}/${constanciasTableId}`;
+    const params = new URLSearchParams({
+      filterByFormula: filterFormula,
+      maxRecords: "1",
+    });
+
+    console.log('[obtenerConstanciaPorInduccion] Filter formula:', filterFormula);
+    console.log('[obtenerConstanciaPorInduccion] URL completa:', `${url}?${params}`);
+
+    const response = await fetch(`${url}?${params}`, {
+      headers: this.client.headers,
+    });
+
+    if (!response.ok) {
+      console.error('[obtenerConstanciaPorInduccion] Error:', response.statusText);
+      return null;
+    }
+
+    const data = await response.json();
+    console.log('[obtenerConstanciaPorInduccion] Records encontrados:', data.records.length);
+    if (data.records.length === 0) return null;
+
+    const record = data.records[0];
+    const f = record.fields;
+
+    return {
+      id: record.id,
+      idConstancia: f["ID_Constancia"] || f[CF.ID_CONSTANCIA],
+      fechaRealizacion: f["Fecha_Realizacion"] || f[CF.FECHA_REALIZACION],
+      lugarRealizacion: f["Lugar_Realizacion"] || f[CF.LUGAR_REALIZACION],
+      horaInicio: f["Hora_Inicio"] || f[CF.HORA_INICIO],
+      horaFin: f["Hora_Fin"] || f[CF.HORA_FIN],
+      responsableSST: f["Responsable_SST"] || f[CF.RESPONSABLE_SST],
+      observaciones: f["Observaciones"] || f[CF.OBSERVACIONES] || null,
+    };
+  }
 }
 
 // Exportar instancia singleton

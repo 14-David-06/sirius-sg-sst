@@ -11,6 +11,7 @@ import type { RegistroInduccion } from "@/shared/types/inducciones";
 
 /**
  * Genera un certificado PDF para una inducción completada
+ * @deprecated Usar generarDocumentoUnificado en su lugar (incluye constancia + evaluación + certificado)
  */
 export async function generarCertificado(
   idInduccion: string
