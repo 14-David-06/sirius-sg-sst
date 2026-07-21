@@ -18,6 +18,7 @@ import {
   getAirtableUrl,
   getAirtableHeaders,
 } from "@/infrastructure/config/airtable";
+import { requireAuth } from "@/lib/authMiddleware";
 
 // ══════════════════════════════════════════════════════════
 // Tipos
@@ -398,6 +399,10 @@ async function fetchImageBuffer(url: string): Promise<Buffer | null> {
 // Incluye firma descifrada como imagen PNG transparente
 // ══════════════════════════════════════════════════════════
 export async function GET(req: NextRequest) {
+  // Verificar autenticación
+  const authResult = await requireAuth(req);
+  if (!authResult.authenticated) return authResult.response;
+
   try {
     const sgHeaders = getSGSSTHeaders();
     const insHeaders = getInsumosHeaders();

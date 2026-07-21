@@ -5,6 +5,7 @@ import {
   getAirtableHeaders,
 } from "@/infrastructure/config/airtable";
 import { airtableSGSSTConfig, getSGSSTUrl, getSGSSTHeaders } from "@/infrastructure/config/airtableSGSST";
+import { requireAuth } from "@/lib/authMiddleware";
 
 interface AirtableRecord {
   id: string;
@@ -35,6 +36,10 @@ export interface PersonalItem {
  *   ?area=Laboratorio    → Filtra solo empleados asignados a esa área
  */
 export async function GET(req: NextRequest) {
+  // Verificar autenticación
+  const authResult = await requireAuth(req);
+  if (!authResult.authenticated) return authResult.response;
+
   try {
     const { personalTableId, personalFields } = airtableConfig;
     const url = getAirtableUrl(personalTableId);
