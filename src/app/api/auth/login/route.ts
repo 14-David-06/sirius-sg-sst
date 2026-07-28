@@ -24,6 +24,8 @@ export async function POST(request: NextRequest) {
       numeroDocumento: result.user!.numeroDocumento,
       tipoPersonal: result.user!.tipoPersonal,
       rol: result.user!.rol,
+      nivelAcceso: result.user!.nivelAcceso,
+      ordenNivel: result.user!.ordenNivel,
     });
 
     // Crear response con cookie HTTP-only

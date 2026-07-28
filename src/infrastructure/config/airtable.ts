@@ -21,6 +21,9 @@ export const airtableConfig = {
     ESTADO_ACTIVIDAD: process.env.AIRTABLE_PF_ESTADO_ACTIVIDAD!,
     AREAS: process.env.AIRTABLE_PF_AREAS!,
     ROL_LOOKUP: process.env.AIRTABLE_PF_ROL_LOOKUP!,
+    NIVEL_SISTEMA: process.env.AIRTABLE_PF_NIVEL_SISTEMA!,
+    NIVEL_LOOKUP: process.env.AIRTABLE_PF_NIVEL_LOOKUP!,
+    NIVEL_ORDEN_LOOKUP: process.env.AIRTABLE_PF_NIVEL_ORDEN_LOOKUP!,
   },
 
   // ── Field IDs - Tabla "Sistemas y Aplicaciones" ───────────

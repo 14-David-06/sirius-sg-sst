@@ -18,6 +18,10 @@ export interface JwtPayload {
   numeroDocumento: string;
   tipoPersonal: string;
   rol?: string;
+  /** Nombre del nivel de acceso: "Super Admin" | "Admin" | "Usuario" | ... */
+  nivelAcceso?: string;
+  /** Orden jerárquico del nivel — 1 = Super Admin. Ver NIVELES_ACCESO */
+  ordenNivel?: number;
 }
 
 /**

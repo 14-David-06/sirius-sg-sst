@@ -16,6 +16,11 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { extractTokenFromRequest, verifyJWT, type JwtPayload } from "@/lib/jwt";
+import {
+  NIVELES_ACCESO,
+  ORDEN_SIN_NIVEL,
+  tieneNivelMinimo,
+} from "@/core/domain/services/accessControl";
 
 export interface AuthResult {
   authenticated: boolean;
@@ -68,25 +73,38 @@ export async function requireAuth(request: NextRequest): Promise<AuthResult> {
 }
 
 /**
- * Middleware que verifica autenticación Y rol de administrador.
- * Similar a requireAuth pero requiere rol "admin" en el payload.
+ * Middleware que verifica autenticación Y un nivel de acceso mínimo.
+ *
+ * El nivel viene del campo "Nivel_Sistema_Nuevo" de Personal (Sirius Nomina
+ * Core) y viaja en el JWT como `ordenNivel`. Es jerárquico: un orden menor
+ * (más privilegios) cumple cualquier requisito mayor.
+ *
+ * ```typescript
+ * const auth = await requireNivel(request, NIVELES_ACCESO.ADMIN);
+ * if (!auth.authenticated) return auth.response;
+ * ```
  */
-export async function requireAdmin(request: NextRequest): Promise<AuthResult> {
+export async function requireNivel(
+  request: NextRequest,
+  ordenRequerido: number
+): Promise<AuthResult> {
   const authResult = await requireAuth(request);
 
   if (!authResult.authenticated) {
     return authResult;
   }
 
-  // Verificar que el usuario tiene rol admin
   const user = authResult.user!;
-  if (user.rol !== "admin" && user.tipoPersonal !== "Administrador") {
+  // Token emitido antes de este cambio → sin nivel, se falla en cerrado
+  const orden = user.ordenNivel ?? ORDEN_SIN_NIVEL;
+
+  if (!tieneNivelMinimo(orden, ordenRequerido)) {
     return {
       authenticated: false,
       response: NextResponse.json(
         {
           success: false,
-          message: "Acceso denegado. Requiere permisos de administrador.",
+          message: "Acceso denegado. Nivel de acceso insuficiente.",
           code: "AUTH_INSUFFICIENT_PERMISSIONS",
         },
         { status: 403 }
@@ -95,6 +113,23 @@ export async function requireAdmin(request: NextRequest): Promise<AuthResult> {
   }
 
   return authResult;
+}
+
+/**
+ * Middleware que verifica autenticación Y nivel de administrador o superior.
+ */
+export async function requireAdmin(request: NextRequest): Promise<AuthResult> {
+  return requireNivel(request, NIVELES_ACCESO.ADMIN);
+}
+
+/**
+ * Middleware que verifica autenticación Y nivel de super administrador.
+ * Reservado para gestión de usuarios y configuración global.
+ */
+export async function requireSuperAdmin(
+  request: NextRequest
+): Promise<AuthResult> {
+  return requireNivel(request, NIVELES_ACCESO.SUPER_ADMIN);
 }
 
 /**

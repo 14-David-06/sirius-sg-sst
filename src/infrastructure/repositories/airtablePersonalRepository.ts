@@ -4,6 +4,7 @@ import {
   getAirtableHeaders,
 } from "../config/airtable";
 import type { User } from "@/core/domain/entities/User";
+import { ORDEN_SIN_NIVEL } from "@/core/domain/services/accessControl";
 import type { PersonRepository } from "@/core/ports/output";
 import type { Logger } from "@/core/ports/output";
 
@@ -148,7 +149,22 @@ export class AirtablePersonalRepository implements PersonRepository {
             thumbnails: fotoPerfilArr[0].thumbnails,
           }
         : undefined,
+      rol: (() => {
+        // El lookup "Rol (from Rol)" llega como arreglo; tomamos el primero
+        const v = f[PF.ROL_LOOKUP];
+        return ((Array.isArray(v) ? v[0] : v) as string) || "";
+      })(),
       rolIds: (f[PF.ROL] as string[]) || [],
+      nivelAcceso: (() => {
+        const v = f[PF.NIVEL_LOOKUP];
+        return ((Array.isArray(v) ? v[0] : v) as string) || "";
+      })(),
+      ordenNivel: (() => {
+        // Sin nivel configurado se falla en cerrado (solo lectura)
+        const v = f[PF.NIVEL_ORDEN_LOOKUP];
+        const orden = Number(Array.isArray(v) ? v[0] : v);
+        return Number.isFinite(orden) && orden > 0 ? orden : ORDEN_SIN_NIVEL;
+      })(),
       areasIds: (f[PF.AREAS] as string[]) || [],
       accesosIds: (f[PF.ACCESOS_ASIGNADOS] as string[]) || [],
     };

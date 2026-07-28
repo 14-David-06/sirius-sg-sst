@@ -170,15 +170,6 @@ const modulesByPhase: Record<Phase, Module[]> = {
   // ════════════════════ P · PLANEAR ════════════════════
   P: [
     {
-      title: "Política y Objetivos SST",
-      description: "Política de SST firmada, objetivos medibles y alcance del sistema.",
-      icon: I.scale,
-      color: "bg-blue-500/15 text-blue-300",
-      href: "#",
-      status: "soon",
-      estandar: "Estándar 2.1.1 / 2.2.1",
-    },
-    {
       title: "Políticas Empresariales",
       description: "Consulta y firma de políticas de seguridad, reglamento interno y recursos humanos.",
       icon: I.document,

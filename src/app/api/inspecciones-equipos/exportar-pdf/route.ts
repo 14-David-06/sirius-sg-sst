@@ -173,7 +173,9 @@ async function fetchAllRecords(
 function formatFechaLarga(iso: string | undefined | null): string {
   if (!iso) return "";
   try {
-    const date = new Date(iso);
+    // Airtable entrega fechas solo-dia (YYYY-MM-DD) que JS interpreta como medianoche UTC;
+    // anadir mediodia evita que el informe muestre un dia menos en America/Bogota
+    const date = iso.includes("T") ? new Date(iso) : new Date(iso + "T12:00:00");
     return date.toLocaleDateString("es-CO", {
       timeZone: "America/Bogota",
       day: "2-digit",
