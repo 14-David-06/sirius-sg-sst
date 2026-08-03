@@ -8,6 +8,7 @@ import {
   getSGSSTUrl,
   getSGSSTHeaders,
 } from "@/infrastructure/config/airtableSGSST";
+import { resolverCargosVigentes } from "@/lib/cargosVigentes";
 
 // ══════════════════════════════════════════════════════════
 // AES-256-CBC Descifrado
@@ -319,6 +320,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Cargo vigente en Nómina Core; el LABOR guardado queda como respaldo
+    const cargosVigentes = await resolverCargosVigentes(
+      asistentes.map((a) => (a.fields[asisF.CEDULA] as string) || "")
+    );
+
     // 3. Construir Excel
     const workbook = new ExcelJS.Workbook();
     workbook.creator = "Sirius SG-SST";
@@ -625,7 +631,11 @@ export async function POST(request: NextRequest) {
 
       // LABOR
       const laborCell = ws.getCell(row, 4);
-      laborCell.value = asistente ? (asistente.fields[asisF.LABOR] as string) || "" : "";
+      laborCell.value = asistente
+        ? cargosVigentes[(asistente.fields[asisF.CEDULA] as string) || ""] ||
+          (asistente.fields[asisF.LABOR] as string) ||
+          ""
+        : "";
       laborCell.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.BLACK}` } };
       laborCell.alignment = { vertical: "middle", wrapText: true };
       laborCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${rowBg}` } };

@@ -4,6 +4,7 @@ import {
   getSGSSTUrl,
   getSGSSTHeaders,
 } from "@/infrastructure/config/airtableSGSST";
+import { resolverCargosVigentes } from "@/lib/cargosVigentes";
 
 interface AirtableRecord {
   id: string;
@@ -67,16 +68,25 @@ export async function GET(
 
       if (detalleResponse.ok) {
         const detalleData: AirtableListResponse = await detalleResponse.json();
-        asistentes = detalleData.records.map((record, idx) => ({
-          id:               record.id,
-          item:             idx + 1,
-          idEmpleado:       record.fields[asisF.ID_EMPLEADO_CORE] as string,
-          nombre:           record.fields[asisF.NOMBRES] as string,
-          cedula:           record.fields[asisF.CEDULA] as string,
-          labor:            record.fields[asisF.LABOR] as string,
-          tieneFirma:       !!(record.fields[asisF.FIRMA_CONFIRMADA]),
-          firmaConfirmada:  !!(record.fields[asisF.FIRMA_CONFIRMADA]),
-        }));
+
+        // Cargo vigente en Nómina Core; el LABOR guardado queda como respaldo
+        const cargosVigentes = await resolverCargosVigentes(
+          detalleData.records.map((r) => (r.fields[asisF.CEDULA] as string) || "")
+        );
+
+        asistentes = detalleData.records.map((record, idx) => {
+          const cedula = record.fields[asisF.CEDULA] as string;
+          return {
+            id:               record.id,
+            item:             idx + 1,
+            idEmpleado:       record.fields[asisF.ID_EMPLEADO_CORE] as string,
+            nombre:           record.fields[asisF.NOMBRES] as string,
+            cedula,
+            labor:            cargosVigentes[cedula] || (record.fields[asisF.LABOR] as string),
+            tieneFirma:       !!(record.fields[asisF.FIRMA_CONFIRMADA]),
+            firmaConfirmada:  !!(record.fields[asisF.FIRMA_CONFIRMADA]),
+          };
+        });
       }
     }
 

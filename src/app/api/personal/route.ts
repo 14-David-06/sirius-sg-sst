@@ -69,6 +69,15 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // IDs de empleado excluidos de los listados generales (ej: el CEO).
+    // Se excluye por ID de empleado —que es estable— y no por el título del
+    // cargo: si el rol se reasigna en Nómina Core, un match por título deja
+    // de aplicar y la persona reaparece en silencio en las listas de firma.
+    const EXCLUIR_ID_EMPLEADOS = (process.env.ASISTENCIA_EXCLUIR_ID_EMPLEADOS || "SIRIUS-PER-0016")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
     // Construir filtro
     let filterFormula: string;
 
@@ -76,8 +85,8 @@ export async function GET(req: NextRequest) {
     if (idEmpleadoBuscar) {
       filterFormula = `AND({${personalFields.ESTADO_ACTIVIDAD}} = 'Activo', {${personalFields.ID_EMPLEADO}} = '${idEmpleadoBuscar}')`;
     } else {
-      // Para listados generales, excluir CEO y Contratistas
-      filterFormula = `AND({Estado de Actividad} = 'Activo', {Tipo Personal} != 'Contratista', {Rol (from Rol)} != 'DIRECTOR EJECUTIVO (CEO) (Chief Executive Officer)')`;
+      // Para listados generales, excluir Contratistas (el CEO se excluye por ID más abajo)
+      filterFormula = `AND({${personalFields.ESTADO_ACTIVIDAD}} = 'Activo', {${personalFields.TIPO_PERSONAL}} != 'Contratista')`;
     }
 
     let allRecords: AirtableRecord[] = [];
@@ -107,13 +116,16 @@ export async function GET(req: NextRequest) {
       offset = data.offset;
     } while (offset);
 
-    // Filtrar excluidos solo cuando se solicitó exclusión por asistencia
-    const filteredRecords = excludedIds.size > 0
-      ? allRecords.filter((record) => {
+    // Aplicar exclusiones. En búsquedas por ID específico no se excluye nada:
+    // ese modo lo usan la validación y el login, que deben poder resolver a
+    // cualquier empleado activo (incluido el CEO).
+    const filteredRecords = idEmpleadoBuscar
+      ? allRecords
+      : allRecords.filter((record) => {
           const empId = (record.fields[personalFields.ID_EMPLEADO] as string) || "";
+          if (EXCLUIR_ID_EMPLEADOS.includes(empId)) return false;
           return !excludedIds.has(empId);
-        })
-      : allRecords;
+        });
 
     // Obtener parámetro de área para filtrado adicional
     const areaFilter = req.nextUrl.searchParams.get("area");
