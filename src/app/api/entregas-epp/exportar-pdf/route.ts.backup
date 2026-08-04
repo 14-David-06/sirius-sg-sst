@@ -269,6 +269,15 @@ export async function GET(req: NextRequest) {
     // Filtro por tipo (EPP/Dotación)
     const normalize = (s: string) =>
       s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const tipoFilterCodes = new Set<string>();
+    const targetNorm = normalize(tipo);
+    for (const [codigo, info] of insumoMap) {
+      const matchesTipo = info.categoriaIds.some((catId) => {
+        const catTipo = categoryTipoMap.get(catId) || "";
+        return normalize(catTipo) === targetNorm;
+      });
+      if (matchesTipo) tipoFilterCodes.add(codigo);
+    }
 
     const personalMap = new Map<string, { nombre: string; documento: string; cargo: string }>();
     for (const r of allPersonal) {
@@ -322,20 +331,8 @@ export async function GET(req: NextRequest) {
 
     for (const ent of allEntregas) {
       const f = ent.fields;
-
-      // Filtro 1: Motivo de entrega (dotación vs epp)
-      const motivo = (f[entregasFields.MOTIVO] as string) || "";
-      if (tipo === "dotacion") {
-        const motivoNorm = normalize(motivo);
-        // Solo entregas cuyo motivo incluya "dotación"
-        if (!motivoNorm.includes("dotacion")) continue;
-      }
-
-      // Filtro 2: Empleado (opcional)
       const idEmp = (f[entregasFields.ID_EMPLEADO_CORE] as string) || "Desconocido";
       const empInfo = personalMap.get(idEmp) || { nombre: idEmp, documento: "", cargo: "" };
-      if (idEmpleadoFilter && idEmp !== idEmpleadoFilter) continue;
-
 
       if (!empleadoGroups.has(idEmp)) {
         empleadoGroups.set(idEmp, {
@@ -381,6 +378,9 @@ export async function GET(req: NextRequest) {
         const df = detRec.fields;
         const codigoInsumo = (df[detalleFields.CODIGO_INSUMO] as string) || "";
 
+        // Filtrar por tipo
+        if (tipoFilterCodes.size > 0 && !tipoFilterCodes.has(codigoInsumo)) continue;
+
         const insumoInfo = insumoMap.get(codigoInsumo);
         detalles.push({
           nombre: insumoInfo?.nombre || codigoInsumo || "—",
@@ -413,16 +413,9 @@ export async function GET(req: NextRequest) {
     }
 
     if (empleadoGroups.size === 0) {
-      const motivoLabel = tipo === "dotacion"
-        ? "entregas con motivo 'Dotación'"
-        : "entregas de EPP";
-      const mesFormatted = getMesNombre(mes) || mes;
+      const tipoLabel = tipo === "dotacion" ? "Dotación" : "EPP";
       return NextResponse.json(
-        {
-          success: false,
-          message: `No hay ${motivoLabel} para ${mesFormatted}${idEmpleadoFilter ? " de este empleado" : ""}`,
-          detail: `Se encontraron ${allEntregas.length} entrega(s) en total pero ninguna cumplió con el filtro de tipo '${tipo}'`
-        },
+        { success: false, message: `No hay entregas de ${tipoLabel} para ${getMesNombre(mes)}` },
         { status: 404 }
       );
     }
@@ -515,28 +508,24 @@ export async function GET(req: NextRequest) {
       doc.setFillColor(...BRAND.AZUL);
       doc.rect(0, 0, PAGE_W, 32, "F");
 
-      // Logo (centrado total: vertical y horizontal)
+      // Logo
       if (logoBase64) {
         try {
-          const logoSize = 24;
-          const headerHeight = 32;
-          const logoY = (headerHeight - logoSize) / 2; // Centrado vertical
-          const logoX = (PAGE_W - logoSize) / 2; // Centrado horizontal
-          doc.addImage(logoBase64, "PNG", logoX, logoY, logoSize, logoSize);
+          doc.addImage(logoBase64, "PNG", MARGIN, 4, 24, 24);
         } catch { /* sin logo */ }
       }
 
-      // Título (lado izquierdo)
+      // Título
       doc.setFont("helvetica", "bold");
       doc.setFontSize(14);
       doc.setTextColor(...BRAND.BLANCO);
-      doc.text(`ACTA DE ENTREGA DE ${tipoLabel.toUpperCase()}`, MARGIN, 14);
+      doc.text(`ACTA DE ENTREGA DE ${tipoLabel.toUpperCase()}`, logoBase64 ? MARGIN + 28 : MARGIN, 14);
 
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
-      doc.text(`Período: ${mesLabel}`, MARGIN, 21);
+      doc.text(`Período: ${mesLabel}`, logoBase64 ? MARGIN + 28 : MARGIN, 21);
 
-      // Código del formato (lado derecho)
+      // Código del formato
       doc.setFontSize(8);
       doc.text(
         tipo === "dotacion" ? "CÓDIGO: FT-SST-023" : "CÓDIGO: FT-SST-029",

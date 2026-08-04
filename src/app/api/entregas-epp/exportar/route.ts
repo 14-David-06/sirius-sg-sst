@@ -348,27 +348,26 @@ const BRAND = {
   VERDE_ALEGRIA: "00B602",   // Acento verde
   WHITE: "FFFFFF",
   LIGHT_GRAY: "F8FAFC",
-  BORDER: "B0C4DE",          // Borde azul suave
+  BORDER: "E2E8F0",          // Borde gris muy suave
+  BORDER_MEDIUM: "CBD5E1",   // Borde gris medio
+  BORDER_STRONG: "94A3B8",   // Borde gris fuerte para separación
 };
 
 const TOTAL_COLS = 5; // EPP, CANTIDAD, REFERENCIA, FECHA, FIRMA
 
-const headerFont: Partial<ExcelJS.Font> = {
-  name: "Calibri",
-  size: 11,
-  bold: true,
-  color: { argb: `FF${BRAND.WHITE}` },
-};
-
-const bodyFont: Partial<ExcelJS.Font> = {
-  name: "Calibri",
-  size: 10,
-  color: { argb: `FF${BRAND.IMPERIAL}` },
-};
-
 const brandBorder: Partial<ExcelJS.Border> = {
   style: "thin",
   color: { argb: `FF${BRAND.BORDER}` },
+};
+
+const mediumBorder: Partial<ExcelJS.Border> = {
+  style: "thin",
+  color: { argb: `FF${BRAND.BORDER_MEDIUM}` },
+};
+
+const strongBorder: Partial<ExcelJS.Border> = {
+  style: "medium",
+  color: { argb: `FF${BRAND.BORDER_STRONG}` },
 };
 
 const allBorders: Partial<ExcelJS.Borders> = {
@@ -376,6 +375,13 @@ const allBorders: Partial<ExcelJS.Borders> = {
   left: brandBorder,
   bottom: brandBorder,
   right: brandBorder,
+};
+
+const tableBorders: Partial<ExcelJS.Borders> = {
+  top: mediumBorder,
+  left: mediumBorder,
+  bottom: mediumBorder,
+  right: mediumBorder,
 };
 
 // ══════════════════════════════════════════════════════════
@@ -719,20 +725,31 @@ export async function GET(req: NextRequest) {
       logoCell.border = allBorders;
       logoCell.alignment = { horizontal: "center", vertical: "middle" };
 
-      // Add logo image inside the merged cell — explicit size for proper rendering
+      // Add logo image inside the merged cell — centrado con dimensiones exactas
       if (logoImageId !== null) {
+        const LOGO_WIDTH = 120;
+        const LOGO_HEIGHT = 60;
+
+        // Calcular centrado horizontal en columna A
+        // Columna A: width 34 unidades (relativamente ancha)
+        // Para centrar visualmente, el logo debe comenzar aprox. en el centro
+        // menos la mitad de su ancho: posición ≈ 0.5 - (ancho_logo / ancho_columna_total)
+        // Ajuste visual: 0.35 funciona bien para columnas anchas
+        const colOffset = 0.999; // centrado horizontal ajustado para columna ancha
+        const rowOffset = 0; // alineado al inicio (se centra verticalmente por la altura de 2 filas)
+
         ws.addImage(logoImageId, {
-          tl: { col: 0.05, row: currentRow - 1 + 0.05 } as unknown as ExcelJS.Anchor,
-          ext: { width: 160, height: 55 },
-          editAs: "oneCell",
+          tl: { col: colOffset, row: currentRow - 1 + rowOffset } as unknown as ExcelJS.Anchor,
+          ext: { width: LOGO_WIDTH, height: LOGO_HEIGHT },
+          editAs: "oneCell", // Mantiene tamaño fijo al redimensionar celda
         });
       }
 
       const companyCell = ws.getCell(currentRow, 2);
       companyCell.value = "SIRIUS REGENERATIVE SOLUTIONS S.A.S. ZOMAC";
       companyCell.font = {
-        name: "Calibri",
-        size: 16,
+        name: "Segoe UI",
+        size: 14,
         bold: true,
         color: { argb: `FF${BRAND.WHITE}` },
       };
@@ -742,7 +759,7 @@ export async function GET(req: NextRequest) {
         pattern: "solid",
         fgColor: { argb: `FF${BRAND.AZUL_BARRANCA}` },
       };
-      companyCell.border = allBorders;
+      companyCell.border = { top: strongBorder, left: brandBorder, bottom: brandBorder, right: strongBorder };
       // Apply fill to all merged cells in top row
       for (let c = 3; c <= TOTAL_COLS; c++) {
         const mc = ws.getCell(currentRow, c);
@@ -769,41 +786,41 @@ export async function GET(req: NextRequest) {
 
       const nitCell = ws.getCell(currentRow, 2);
       nitCell.value = "NIT: 901.377.064-8";
-      nitCell.font = { name: "Calibri", size: 10, bold: true, color: { argb: `FF${BRAND.AZUL_BARRANCA}` } };
+      nitCell.font = { name: "Segoe UI", size: 9, bold: false, color: { argb: `FF${BRAND.AZUL_BARRANCA}` } };
       nitCell.alignment = { horizontal: "center", vertical: "middle" };
       nitCell.fill = {
         type: "pattern",
         pattern: "solid",
-        fgColor: { argb: `FF${BRAND.COTILEDON}` },
+        fgColor: { argb: `FF${BRAND.WHITE}` },
       };
-      nitCell.border = allBorders;
+      nitCell.border = { top: brandBorder, left: brandBorder, bottom: strongBorder, right: brandBorder };
       // Cell 3 is merged with 2
       ws.getCell(currentRow, 3).border = allBorders;
 
       ws.mergeCells(currentRow, 4, currentRow, TOTAL_COLS);
       const codeCell = ws.getCell(currentRow, 4);
       codeCell.value = tipo === "dotacion" ? "CÓDIGO: FT-SST-023" : "CÓDIGO: FT-SST-029";
-      codeCell.font = { name: "Calibri", size: 10, bold: true, color: { argb: `FF${BRAND.AZUL_BARRANCA}` } };
+      codeCell.font = { name: "Segoe UI", size: 9, bold: true, color: { argb: `FF${BRAND.AZUL_BARRANCA}` } };
       codeCell.alignment = { horizontal: "center", vertical: "middle" };
       codeCell.fill = {
         type: "pattern",
         pattern: "solid",
-        fgColor: { argb: `FF${BRAND.COTILEDON}` },
+        fgColor: { argb: `FF${BRAND.WHITE}` },
       };
-      codeCell.border = allBorders;
-      ws.getCell(currentRow, 5).border = allBorders;
+      codeCell.border = { top: brandBorder, left: brandBorder, bottom: strongBorder, right: strongBorder };
+      ws.getCell(currentRow, 5).border = { top: brandBorder, left: brandBorder, bottom: strongBorder, right: strongBorder };
       ws.getRow(currentRow).height = 22;
       currentRow++;
 
-      // Row 3: Title bar (Azul Barranca primario)
+      // Row 3: Title bar (Azul Barranca primario con sombra)
       ws.mergeCells(currentRow, 1, currentRow, TOTAL_COLS);
       const titleCell = ws.getCell(currentRow, 1);
       titleCell.value = tipo === "dotacion"
         ? "FORMATO DE ENTREGA DE DOTACIÓN"
         : "FORMATO DE ENTREGA DE ELEMENTOS DE PROTECCIÓN PERSONAL";
       titleCell.font = {
-        name: "Calibri",
-        size: 12,
+        name: "Segoe UI",
+        size: 13,
         bold: true,
         color: { argb: `FF${BRAND.WHITE}` },
       };
@@ -813,49 +830,54 @@ export async function GET(req: NextRequest) {
         pattern: "solid",
         fgColor: { argb: `FF${BRAND.AZUL_BARRANCA}` },
       };
-      titleCell.border = allBorders;
-      ws.getRow(currentRow).height = 28;
+      titleCell.border = { top: strongBorder, left: strongBorder, bottom: strongBorder, right: strongBorder };
+      ws.getRow(currentRow).height = 32;
       currentRow++;
 
-      // Row 4: Employee info (Sutileza — azul pastel claro)
+      // Row 4: Employee info (diseño mejorado con gradiente visual)
       ws.mergeCells(currentRow, 1, currentRow, 3);
       const nameCell = ws.getCell(currentRow, 1);
       nameCell.value = `TRABAJADOR:  ${group.nombre}`;
-      nameCell.font = { name: "Calibri", size: 10, bold: true, color: { argb: `FF${BRAND.IMPERIAL}` } };
-      nameCell.alignment = { vertical: "middle" };
+      nameCell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: `FF${BRAND.AZUL_BARRANCA}` } };
+      nameCell.alignment = { vertical: "middle", indent: 1 };
       nameCell.fill = {
         type: "pattern",
         pattern: "solid",
-        fgColor: { argb: `FF${BRAND.SUTILEZA}` },
+        fgColor: { argb: `FF${BRAND.COTILEDON}` },
       };
-      nameCell.border = allBorders;
+      nameCell.border = tableBorders;
 
       ws.mergeCells(currentRow, 4, currentRow, TOTAL_COLS);
       const docCell = ws.getCell(currentRow, 4);
       docCell.value = `C.C:  ${group.documento}`;
-      docCell.font = { name: "Calibri", size: 10, bold: true, color: { argb: `FF${BRAND.IMPERIAL}` } };
-      docCell.alignment = { vertical: "middle" };
+      docCell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: `FF${BRAND.AZUL_BARRANCA}` } };
+      docCell.alignment = { vertical: "middle", indent: 1 };
       docCell.fill = {
         type: "pattern",
         pattern: "solid",
-        fgColor: { argb: `FF${BRAND.SUTILEZA}` },
+        fgColor: { argb: `FF${BRAND.COTILEDON}` },
       };
-      docCell.border = allBorders;
-      ws.getRow(currentRow).height = 26;
+      docCell.border = tableBorders;
+      ws.getRow(currentRow).height = 28;
       currentRow++;
 
       // ═══════════════════════════════════════════════════
       // DOTACIÓN: Textos normativos (antes de la tabla)
       // ═══════════════════════════════════════════════════
       if (tipo === "dotacion") {
-        // Subtítulo ACTA
+        // Subtítulo ACTA con diseño destacado
         ws.mergeCells(currentRow, 1, currentRow, TOTAL_COLS);
         const actaCell = ws.getCell(currentRow, 1);
         actaCell.value = "ACTA DE ENTREGA DE DOTACIÓN";
-        actaCell.font = { name: "Calibri", size: 12, bold: true, color: { argb: `FF${BRAND.IMPERIAL}` } };
+        actaCell.font = { name: "Segoe UI", size: 12, bold: true, color: { argb: `FF${BRAND.AZUL_BARRANCA}` } };
         actaCell.alignment = { horizontal: "center", vertical: "middle" };
-        actaCell.border = allBorders;
-        ws.getRow(currentRow).height = 28;
+        actaCell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: `FF${BRAND.SUTILEZA}` },
+        };
+        actaCell.border = tableBorders;
+        ws.getRow(currentRow).height = 32;
         currentRow++;
 
         // Referencia con fecha de corte
@@ -872,25 +894,25 @@ export async function GET(req: NextRequest) {
         refDotCell.value = fechaCorte
           ? `Ref. Entrega de Dotación con Corte ${fechaCorte}.`
           : "Ref. Entrega de Dotación.";
-        refDotCell.font = { name: "Calibri", size: 10, bold: true, underline: true, color: { argb: `FF${BRAND.IMPERIAL}` } };
-        refDotCell.alignment = { vertical: "middle" };
-        refDotCell.border = allBorders;
-        ws.getRow(currentRow).height = 22;
+        refDotCell.font = { name: "Segoe UI", size: 10, bold: true, underline: true, color: { argb: `FF${BRAND.IMPERIAL}` } };
+        refDotCell.alignment = { vertical: "middle", indent: 1 };
+        refDotCell.border = tableBorders;
+        ws.getRow(currentRow).height = 24;
         currentRow++;
 
         // Texto introductorio
         ws.mergeCells(currentRow, 1, currentRow, TOTAL_COLS);
         const introCell = ws.getCell(currentRow, 1);
         introCell.value = "Por medio de la presente se hace entrega de los siguientes Elementos de Dotación Personal.";
-        introCell.font = { name: "Calibri", size: 10, color: { argb: `FF${BRAND.IMPERIAL}` } };
-        introCell.alignment = { vertical: "middle", wrapText: true };
-        introCell.border = allBorders;
-        ws.getRow(currentRow).height = 22;
+        introCell.font = { name: "Segoe UI", size: 10, color: { argb: `FF${BRAND.IMPERIAL}` } };
+        introCell.alignment = { vertical: "middle", wrapText: true, indent: 1 };
+        introCell.border = tableBorders;
+        ws.getRow(currentRow).height = 26;
         currentRow++;
       }
 
       // ═══════════════════════════════════════════════════
-      // COLUMN HEADERS — Azul Barranca
+      // COLUMN HEADERS — Azul Barranca con diseño moderno
       // ═══════════════════════════════════════════════════
       const colHeaders = [
         tipo === "dotacion" ? "DOTACIÓN ENTREGADA" : "EPP ENTREGADO",
@@ -902,20 +924,20 @@ export async function GET(req: NextRequest) {
       colHeaders.forEach((header, idx) => {
         const cell = ws.getCell(currentRow, idx + 1);
         cell.value = header;
-        cell.font = headerFont;
+        cell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: `FF${BRAND.WHITE}` } };
         cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
         cell.fill = {
           type: "pattern",
           pattern: "solid",
           fgColor: { argb: `FF${BRAND.AZUL_BARRANCA}` },
         };
-        cell.border = allBorders;
+        cell.border = { top: strongBorder, left: mediumBorder, bottom: strongBorder, right: mediumBorder };
       });
-      ws.getRow(currentRow).height = 26;
+      ws.getRow(currentRow).height = 30;
       currentRow++;
 
       // ═══════════════════════════════════════════════════
-      // DATA ROWS — alternando Cotiledon / Blanco
+      // DATA ROWS — diseño limpio con bordes sutiles
       // ═══════════════════════════════════════════════════
       let rowIndex = 0;
       for (const row of group.rows) {
@@ -924,31 +946,31 @@ export async function GET(req: NextRequest) {
         const rowBg = isEven ? BRAND.WHITE : BRAND.COTILEDON;
 
         // Altura: grande para firma, normal para sin firma
-        ws.getRow(dataRow).height = row.signatureDataUrl ? SIGNATURE_ROW_HEIGHT : 24;
+        ws.getRow(dataRow).height = row.signatureDataUrl ? SIGNATURE_ROW_HEIGHT : 28;
 
         // A: EPP name
         const eppCell = ws.getCell(dataRow, 1);
         eppCell.value = row.eppNombre;
-        eppCell.font = bodyFont;
-        eppCell.alignment = { vertical: "middle", wrapText: true };
+        eppCell.font = { name: "Segoe UI", size: 10, color: { argb: `FF${BRAND.IMPERIAL}` } };
+        eppCell.alignment = { vertical: "middle", wrapText: true, indent: 1 };
         eppCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${rowBg}` } };
-        eppCell.border = allBorders;
+        eppCell.border = tableBorders;
 
         // B: Cantidad
         const cantCell = ws.getCell(dataRow, 2);
         cantCell.value = row.cantidad;
-        cantCell.font = { ...bodyFont, bold: true, color: { argb: `FF${BRAND.AZUL_BARRANCA}` } };
+        cantCell.font = { name: "Segoe UI", size: 11, bold: true, color: { argb: `FF${BRAND.AZUL_BARRANCA}` } };
         cantCell.alignment = { horizontal: "center", vertical: "middle" };
         cantCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${rowBg}` } };
-        cantCell.border = allBorders;
+        cantCell.border = tableBorders;
 
         // C: Referencia
         const refCell = ws.getCell(dataRow, 3);
         refCell.value = row.referencia;
-        refCell.font = { ...bodyFont, size: 9 };
+        refCell.font = { name: "Segoe UI", size: 9, color: { argb: `FF${BRAND.IMPERIAL}` } };
         refCell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
         refCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${rowBg}` } };
-        refCell.border = allBorders;
+        refCell.border = tableBorders;
 
         // D: Fecha
         const fechaCell = ws.getCell(dataRow, 4);
@@ -969,14 +991,14 @@ export async function GET(req: NextRequest) {
         } else {
           fechaCell.value = "—";
         }
-        fechaCell.font = bodyFont;
+        fechaCell.font = { name: "Segoe UI", size: 10, color: { argb: `FF${BRAND.IMPERIAL}` } };
         fechaCell.alignment = { horizontal: "center", vertical: "middle" };
         fechaCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${rowBg}` } };
-        fechaCell.border = allBorders;
+        fechaCell.border = tableBorders;
 
         // E: Firma — imagen PNG transparente en TODAS las filas
         const firmaCell = ws.getCell(dataRow, 5);
-        firmaCell.border = allBorders;
+        firmaCell.border = tableBorders;
         firmaCell.alignment = { horizontal: "center", vertical: "middle" };
         firmaCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${rowBg}` } };
 
@@ -1013,9 +1035,9 @@ export async function GET(req: NextRequest) {
         } else if (row.estado === "Pendiente") {
           firmaCell.value = "Pendiente";
           firmaCell.font = {
-            name: "Calibri",
+            name: "Segoe UI",
             size: 9,
-            color: { argb: `FF${BRAND.SUTILEZA}` },
+            color: { argb: `FF94A3B8` },
             italic: true,
           };
         }
@@ -1031,47 +1053,57 @@ export async function GET(req: NextRequest) {
         // Espacio
         currentRow++;
 
-        // Texto de certificación
+        // Texto de certificación con fondo destacado
         ws.mergeCells(currentRow, 1, currentRow, TOTAL_COLS);
         const certCell = ws.getCell(currentRow, 1);
         certCell.value = "Certifico que recibo a satisfacción los elementos de dotación Personal nombrados anteriormente en buen estado, y haber sido informado de los trabajos y zonas en los que deberá utilizar dicha dotación, así como haber recibido instrucciones para su correcto uso y aceptando los siguientes compromisos.";
-        certCell.font = { name: "Calibri", size: 9, color: { argb: `FF${BRAND.IMPERIAL}` } };
-        certCell.alignment = { vertical: "middle", wrapText: true };
-        certCell.border = allBorders;
-        ws.getRow(currentRow).height = 50;
+        certCell.font = { name: "Segoe UI", size: 9, color: { argb: `FF${BRAND.IMPERIAL}` } };
+        certCell.alignment = { vertical: "middle", wrapText: true, indent: 1 };
+        certCell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: `FF${BRAND.COTILEDON}` },
+        };
+        certCell.border = tableBorders;
+        ws.getRow(currentRow).height = 54;
         currentRow++;
 
         // Compromiso a)
         ws.mergeCells(currentRow, 1, currentRow, TOTAL_COLS);
         const compACell = ws.getCell(currentRow, 1);
         compACell.value = "a) Mantenerlos en buen estado y hacer buen uso de ellos, durante el tiempo de vida útil.";
-        compACell.font = { name: "Calibri", size: 9, color: { argb: `FF${BRAND.IMPERIAL}` } };
+        compACell.font = { name: "Segoe UI", size: 9, color: { argb: `FF${BRAND.IMPERIAL}` } };
         compACell.alignment = { vertical: "middle", wrapText: true, indent: 2 };
-        compACell.border = allBorders;
-        ws.getRow(currentRow).height = 20;
+        compACell.border = tableBorders;
+        ws.getRow(currentRow).height = 22;
         currentRow++;
 
         // Compromiso b)
         ws.mergeCells(currentRow, 1, currentRow, TOTAL_COLS);
         const compBCell = ws.getCell(currentRow, 1);
         compBCell.value = "b) Utilizar esta dotación durante la jornada de trabajo en las áreas cuya obligatoriedad de uso se encuentra establecido.";
-        compBCell.font = { name: "Calibri", size: 9, color: { argb: `FF${BRAND.IMPERIAL}` } };
+        compBCell.font = { name: "Segoe UI", size: 9, color: { argb: `FF${BRAND.IMPERIAL}` } };
         compBCell.alignment = { vertical: "middle", wrapText: true, indent: 2 };
-        compBCell.border = allBorders;
-        ws.getRow(currentRow).height = 20;
+        compBCell.border = tableBorders;
+        ws.getRow(currentRow).height = 22;
         currentRow++;
 
         // Espacio antes de nota legal
         currentRow++;
 
-        // Nota legal — Ley 11/84 Art. 230
+        // Nota legal — Ley 11/84 Art. 230 con diseño destacado
         ws.mergeCells(currentRow, 1, currentRow, TOTAL_COLS);
         const legalCell = ws.getCell(currentRow, 1);
         legalCell.value = "De acuerdo a lo estipulado en la ley 11/84. Art. 230 establece el deber de todo empleador de suministrar cada cuatro meses, en forma gratuita una dotación (un par de zapatos y un vestido de labor) cuando tenga a su cargo uno o más trabajadores permanentes, cuya remuneración mensual sea hasta dos veces el salario mínimo más alto vigente, y que haya cumplido más de tres meses al servicio de este.";
-        legalCell.font = { name: "Calibri", size: 8, bold: true, color: { argb: `FF${BRAND.IMPERIAL}` } };
-        legalCell.alignment = { vertical: "middle", wrapText: true };
-        legalCell.border = allBorders;
-        ws.getRow(currentRow).height = 45;
+        legalCell.font = { name: "Segoe UI", size: 8, bold: true, color: { argb: `FF${BRAND.IMPERIAL}` } };
+        legalCell.alignment = { vertical: "middle", wrapText: true, indent: 1 };
+        legalCell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: `FF${BRAND.SUTILEZA}` },
+        };
+        legalCell.border = tableBorders;
+        ws.getRow(currentRow).height = 50;
         currentRow++;
       }
 
@@ -1086,15 +1118,15 @@ export async function GET(req: NextRequest) {
         const TOTAL_WIDTH_UNITS = 35; // 140 / 4
         const PX_PER_UNIT = 7; // aprox px por unidad de ancho en ExcelJS
 
-        // Fila de etiqueta (fusionada)
+        // Fila de etiqueta (fusionada) con diseño destacado
         ws.mergeCells(currentRow, 1, currentRow, TOTAL_COLS);
         const fotoLabelCell = ws.getCell(currentRow, 1);
-        fotoLabelCell.value = `Evidencias fotográficas (${group.fotoUrls.length})`;
-        fotoLabelCell.font = { name: "Calibri", size: 9, bold: true, color: { argb: `FF${BRAND.AZUL_BARRANCA}` } };
-        fotoLabelCell.alignment = { vertical: "middle", indent: 1 };
-        fotoLabelCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.COTILEDON}` } };
-        fotoLabelCell.border = allBorders;
-        ws.getRow(currentRow).height = 18;
+        fotoLabelCell.value = `📷  Evidencias Fotográficas (${group.fotoUrls.length})`;
+        fotoLabelCell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: `FF${BRAND.WHITE}` } };
+        fotoLabelCell.alignment = { vertical: "middle", horizontal: "center" };
+        fotoLabelCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.AZUL_CIELO}` } };
+        fotoLabelCell.border = { top: strongBorder, left: strongBorder, bottom: mediumBorder, right: strongBorder };
+        ws.getRow(currentRow).height = 22;
         currentRow++;
 
         // Fila con las fotos — fusionar todas las columnas para aprovechar el ancho completo
@@ -1102,8 +1134,8 @@ export async function GET(req: NextRequest) {
         ws.mergeCells(fotoDataRow, 1, fotoDataRow, TOTAL_COLS);
         ws.getRow(fotoDataRow).height = FOTO_ROW_HEIGHT;
         const fotoCellBase = ws.getCell(fotoDataRow, 1);
-        fotoCellBase.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.WHITE}` } };
-        fotoCellBase.border = allBorders;
+        fotoCellBase.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.LIGHT_GRAY}` } };
+        fotoCellBase.border = { top: mediumBorder, left: strongBorder, bottom: strongBorder, right: strongBorder };
 
         // Distribuir imágenes equitativamente a lo ancho (máximo 3)
         const maxFotos = Math.min(group.fotoUrls.length, 3);
@@ -1135,24 +1167,24 @@ export async function GET(req: NextRequest) {
       }
 
       // ═══════════════════════════════════════════════════
-      // FOOTER — motivo (Sutileza)
+      // FOOTER — motivo con diseño moderno
       // ═══════════════════════════════════════════════════
       ws.mergeCells(currentRow, 1, currentRow, TOTAL_COLS);
       const footerCell = ws.getCell(currentRow, 1);
       const motivos = [...new Set(group.rows.map((r) => r.motivo).filter(Boolean))];
       footerCell.value = `Motivo de entrega: ${motivos.join(", ") || "—"}`;
-      footerCell.font = { name: "Calibri", size: 9, italic: true, color: { argb: `FF${BRAND.AZUL_BARRANCA}` } };
-      footerCell.alignment = { vertical: "middle" };
+      footerCell.font = { name: "Segoe UI", size: 9, italic: false, color: { argb: `FF${BRAND.AZUL_BARRANCA}` } };
+      footerCell.alignment = { vertical: "middle", indent: 1 };
       footerCell.fill = {
         type: "pattern",
         pattern: "solid",
-        fgColor: { argb: `FF${BRAND.SUTILEZA}` },
+        fgColor: { argb: `FF${BRAND.COTILEDON}` },
       };
-      footerCell.border = allBorders;
-      ws.getRow(currentRow).height = 22;
+      footerCell.border = { top: strongBorder, left: strongBorder, bottom: brandBorder, right: strongBorder };
+      ws.getRow(currentRow).height = 24;
       currentRow++;
 
-      // Bottom accent line (Verde Alegria — thin accent)
+      // Bottom accent line (Verde Alegria — acento de marca)
       ws.mergeCells(currentRow, 1, currentRow, TOTAL_COLS);
       const accentCell = ws.getCell(currentRow, 1);
       accentCell.fill = {
@@ -1160,7 +1192,8 @@ export async function GET(req: NextRequest) {
         pattern: "solid",
         fgColor: { argb: `FF${BRAND.VERDE_ALEGRIA}` },
       };
-      ws.getRow(currentRow).height = 4;
+      accentCell.border = { top: brandBorder, left: strongBorder, bottom: strongBorder, right: strongBorder };
+      ws.getRow(currentRow).height = 6;
       currentRow++;
 
       // Spacer between employee sections

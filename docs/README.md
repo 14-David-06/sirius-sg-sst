@@ -135,6 +135,12 @@ docs/
 | [RESUMEN_BOTONES_TEST.md](modulos/evaluaciones/RESUMEN_BOTONES_TEST.md) | Testing de botones de evaluación |
 | [RESUMEN_CAMBIOS_PREGUNTAS.md](modulos/evaluaciones/RESUMEN_CAMBIOS_PREGUNTAS.md) | Resumen de cambios en preguntas |
 
+### Módulo Entregas EPP
+| Archivo | Descripción | Fecha |
+|---------|-------------|-------|
+| [ANALISIS_COMPLETO.md](modulos/entregas-epp/ANALISIS_COMPLETO.md) | Análisis completo del módulo: arquitectura, flujos, performance, seguridad AES-256-CBC, 13 endpoints | 2026-08-03 |
+| [MEJORAS_UX_SELECTOR_MES.md](modulos/entregas-epp/MEJORAS_UX_SELECTOR_MES.md) | Fix para selector de mes en exportar PDF con auto-detección de meses disponibles | 2026-08-03 |
+
 ---
 
 ## 🔧 Scripts y Utilidades

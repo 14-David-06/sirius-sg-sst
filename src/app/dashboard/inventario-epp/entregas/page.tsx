@@ -31,6 +31,7 @@ import {
   Upload,
   Trash2,
 } from "lucide-react";
+import imageCompression from "browser-image-compression";
 import { guardarEnGaleria } from "@/shared/utils";
 
 // ══════════════════════════════════════════════════════════
@@ -172,6 +173,7 @@ function GestorFotos({
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const targetIndexRef = useRef<number>(0);
 
@@ -184,37 +186,66 @@ function GestorFotos({
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (fileInputRef.current) fileInputRef.current.value = "";
     if (!file) return;
 
     const idx = targetIndexRef.current;
 
-    if (file.size > 10 * 1024 * 1024) {
-      setError("La imagen excede 10 MB");
-      return;
-    }
-    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-      setError("Formato no permitido. Use JPG, PNG o WebP");
+    // Validar tipo (más permisivo para iOS)
+    if (!file.type.startsWith('image/')) {
+      setError("Por favor seleccione una imagen");
       return;
     }
 
-    guardarEnGaleria(file);
     setUploading(idx);
     setError(null);
     setSuccess(null);
+    setUploadProgress(null);
 
     try {
-      // Subir la foto a través del API server (FormData)
-      // Esto evita problemas de CORS con S3 y es más confiable
+      // ✅ Comprimir imagen antes de subir (optimizado para iOS)
+      const options = {
+        maxSizeMB: 2,
+        maxWidthOrHeight: 1920,
+        useWebWorker: true,
+        fileType: 'image/jpeg' as const,
+        initialQuality: 0.8,
+        onProgress: (progress: number) => {
+          // Progreso: 0-50% compresión, 50-100% upload
+          setUploadProgress(Math.round(progress / 2));
+        },
+      };
+
+      let processedFile: File;
+
+      if (file.size > 2 * 1024 * 1024 || !file.type.includes('jpeg')) {
+        console.log(`Comprimiendo ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)...`);
+        processedFile = await imageCompression(file, options);
+        console.log(`Comprimido a ${(processedFile.size / 1024 / 1024).toFixed(2)} MB`);
+      } else {
+        processedFile = file;
+      }
+
+      if (processedFile.size > 10 * 1024 * 1024) {
+        setError("La imagen excede 10 MB. Intente con otra foto.");
+        return;
+      }
+
+      setUploadProgress(60);
+      guardarEnGaleria(processedFile);
+
       const formData = new FormData();
       formData.append("entregaRecordId", entrega.id);
       formData.append("index", String(idx));
-      formData.append("foto", file);
+      formData.append("foto", processedFile);
+
+      setUploadProgress(70);
 
       const res = await fetch("/api/entregas-epp/foto-evidencia/actualizar", {
         method: "POST",
         body: formData,
       });
+
+      setUploadProgress(90);
 
       if (!res.ok) {
         const errText = await res.text().catch(() => "");
@@ -223,14 +254,20 @@ function GestorFotos({
       const json = await res.json();
       if (!json.success) throw new Error(json.message);
 
+      setUploadProgress(100);
       const action = idx < currentUrls.length ? "actualizada" : "agregada";
       setSuccess(`Foto ${idx + 1} ${action} exitosamente`);
       onUpdated();
     } catch (err) {
       console.error("Error en GestorFotos:", err);
-      setError(err instanceof Error ? err.message : "Error al procesar la foto");
+      if (err instanceof Error && err.message.includes('compression')) {
+        setError("Error al procesar la imagen. Intente con otra foto.");
+      } else {
+        setError(err instanceof Error ? err.message : "Error al procesar la foto");
+      }
     } finally {
       setUploading(null);
+      setUploadProgress(null);
     }
   };
 
@@ -363,7 +400,12 @@ function GestorFotos({
                   title={idx > 0 && !currentUrls[idx - 1] ? "Agregue la foto anterior primero" : "Agregar foto"}
                 >
                   {isUploading ? (
-                    <Loader2 className="w-6 h-6 text-orange-400/50 animate-spin" />
+                    <div className="flex flex-col items-center gap-1">
+                      <Loader2 className="w-6 h-6 text-orange-400 animate-spin" />
+                      {uploadProgress !== null && (
+                        <p className="text-[9px] text-white/40">{uploadProgress}%</p>
+                      )}
+                    </div>
                   ) : (
                     <>
                       <Upload className="w-6 h-6 text-white/15 mb-1" />
@@ -392,9 +434,13 @@ function GestorFotos({
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp"
+        accept="image/*"
+        capture="environment"
         className="hidden"
         onChange={handleFileChange}
+        onClick={(e) => {
+          (e.target as HTMLInputElement).value = '';
+        }}
       />
     </div>
   );
@@ -708,6 +754,7 @@ export default function EntregasListPage() {
   // ── Exportar Excel ────────────────────────────────────
   const handleExportExcel = async (tipo: "epp" | "dotacion") => {
     setExportingTipo(tipo);
+    setError(null);
     try {
       const params = new URLSearchParams({ tipo });
       if (exportMes) params.set("mes", exportMes);
@@ -715,7 +762,15 @@ export default function EntregasListPage() {
       const res = await fetch(fetchUrl);
       if (!res.ok) {
         const json = await res.json().catch(() => null);
-        throw new Error(json?.message || "Error al generar el archivo");
+        const errorMsg = json?.message || "Error al generar el archivo";
+
+        // Si es un 404 (no hay entregas), mostrar alerta informativa
+        if (res.status === 404) {
+          alert(`ℹ️ Información\n\n${errorMsg}\n\nIntente con otro mes o filtro.`);
+          return; // No establecer error global
+        }
+
+        throw new Error(errorMsg);
       }
 
       const blob = await res.blob();
@@ -750,7 +805,15 @@ export default function EntregasListPage() {
       const res = await fetch(`/api/entregas-epp/exportar-pdf?${params.toString()}`);
       if (!res.ok) {
         const json = await res.json().catch(() => null);
-        throw new Error(json?.message || "Error al generar el PDF");
+        const errorMsg = json?.message || "Error al generar el PDF";
+
+        // Si es un 404 (no hay entregas), mostrar alerta informativa en lugar de error
+        if (res.status === 404) {
+          alert(`ℹ️ Información\n\n${errorMsg}\n\n${json?.detail || "Intente con otro mes o filtro."}`);
+          return; // No establecer error global
+        }
+
+        throw new Error(errorMsg);
       }
       const blob = await res.blob();
       const blobUrl = URL.createObjectURL(blob);
