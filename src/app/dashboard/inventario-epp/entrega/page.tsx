@@ -1,6 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
@@ -28,7 +36,11 @@ import {
   Trash2,
 } from "lucide-react";
 import { useSession } from "@/presentation/context/SessionContext";
-import { guardarEnGaleria } from "@/shared/utils";
+import {
+  guardarEnGaleria,
+  esArchivoImagen,
+  normalizarFotoEvidencia,
+} from "@/shared/utils";
 
 // ══════════════════════════════════════════════════════════
 // Tipos
@@ -87,6 +99,9 @@ const MOTIVOS = [
   "Cambio de Cargo/Área",
   "Otro",
 ];
+
+/** Máximo de fotos de evidencia por panel (Dotación / EPP) */
+const MAX_FOTOS_POR_PANEL = 3;
 
 // ══════════════════════════════════════════════════════════
 // Helpers
@@ -277,6 +292,102 @@ export default function EntregaEPPPage() {
   const fotoInputRefEpp = useRef<HTMLInputElement>(null);
 
   const [fotoUploading, setFotoUploading] = useState(false);
+  const [fotoProcesando, setFotoProcesando] = useState(false);
+
+  // ── Subida directa a S3 con URLs prefirmadas ───────────
+  // Devuelve las keys de S3, o null si la subida directa no fue posible
+  // (en ese caso el llamador usa el fallback server-side).
+  const subirFotosAS3 = async (
+    entregaRecordId: string,
+    fotos: File[]
+  ): Promise<string[] | null> => {
+    try {
+      const presignRes = await fetch("/api/entregas-epp/foto-evidencia/presign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          entregaRecordId,
+          fotos: fotos.map(() => ({ type: "image/jpeg", extension: "jpg" })),
+        }),
+      });
+
+      const presignJson = await presignRes.json().catch(() => null);
+      if (!presignJson?.success || !Array.isArray(presignJson.uploads)) {
+        return null;
+      }
+
+      const uploads = presignJson.uploads as {
+        key: string;
+        uploadUrl: string;
+        contentType: string;
+      }[];
+
+      const resultados = await Promise.all(
+        uploads.map((u, i) =>
+          fetch(u.uploadUrl, {
+            method: "PUT",
+            headers: { "Content-Type": u.contentType },
+            body: fotos[i],
+          })
+        )
+      );
+
+      if (resultados.some((r) => !r.ok)) return null;
+
+      return uploads.map((u) => u.key);
+    } catch (err) {
+      console.warn("Subida directa a S3 no disponible, usando fallback:", err);
+      return null;
+    }
+  };
+
+  // ── Agregar foto de evidencia (compatible con iOS) ─────
+  // iOS entrega HEIC/HEIF y archivos de varios MB sin `type` confiable;
+  // por eso todo se normaliza a JPEG reducido antes de guardar y previsualizar.
+  const agregarFoto = async (
+    file: File,
+    fotosActuales: File[],
+    setFotos: Dispatch<SetStateAction<File[]>>,
+    setPreviews: Dispatch<SetStateAction<string[]>>,
+    etiqueta: string,
+    input: HTMLInputElement | null
+  ) => {
+    // Liberar el input de una vez para permitir volver a elegir la misma foto
+    if (input) input.value = "";
+
+    if (fotosActuales.length >= MAX_FOTOS_POR_PANEL) {
+      setErrorMsg(`Máximo ${MAX_FOTOS_POR_PANEL} fotos de ${etiqueta}`);
+      return;
+    }
+    if (!esArchivoImagen(file)) {
+      setErrorMsg("El archivo seleccionado no es una imagen");
+      return;
+    }
+    if (file.size > 50 * 1024 * 1024) {
+      setErrorMsg("La imagen es demasiado grande (máx. 50 MB)");
+      return;
+    }
+
+    setFotoProcesando(true);
+    setErrorMsg("");
+    try {
+      const procesada = await normalizarFotoEvidencia(file);
+
+      if (procesada.size > 10 * 1024 * 1024) {
+        setErrorMsg("La imagen excede 10 MB. Intente con otra foto.");
+        return;
+      }
+
+      setFotos((prev) => [...prev, procesada]);
+      setPreviews((prev) => [...prev, URL.createObjectURL(procesada)]);
+      guardarEnGaleria(procesada);
+    } catch (err) {
+      console.error("Error procesando la foto de evidencia:", err);
+      setErrorMsg("No se pudo procesar la imagen. Intente con otra foto.");
+    } finally {
+      setFotoProcesando(false);
+    }
+  };
 
   // Visibilidad de paneles de fotos
   const esDotacion = motivo.toLowerCase().includes("dotación");
@@ -479,24 +590,44 @@ export default function EntregaEPPPage() {
         (e: EntregaCreada) => ({ ...e, firmado: false })
       );
 
-      // Subir fotos de evidencia a S3 (dotación + EPP combinadas)
-      // Se usa upload server-side via FormData para evitar CORS al subir directo a S3
+      // Subir fotos de evidencia (dotación + EPP combinadas).
+      // Ruta principal: presign + PUT directo a S3 — evita el límite de
+      // payload del servidor con fotos de móvil. Si falla (CORS, red),
+      // se cae al upload server-side vía FormData.
       const todasLasFotos = [...fotosDotacion, ...fotosEpp];
       if (todasLasFotos.length > 0 && entregas.length > 0) {
         setFotoUploading(true);
         try {
-          for (const ent of entregas) {
-            const formData = new FormData();
-            formData.append("entregaRecordId", ent.entregaId);
-            todasLasFotos.forEach((foto) => formData.append("fotos", foto));
+          const s3Keys = await subirFotosAS3(
+            entregas[0].entregaId,
+            todasLasFotos
+          );
 
-            const saveRes = await fetch("/api/entregas-epp/foto-evidencia", {
-              method: "POST",
-              body: formData,
-            });
-            const saveJson = await saveRes.json();
-            if (!saveJson.success) {
-              console.error("Error guardando fotos de evidencia:", saveJson.message);
+          for (const ent of entregas) {
+            let saveRes: Response;
+
+            if (s3Keys) {
+              saveRes = await fetch("/api/entregas-epp/foto-evidencia", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ entregaRecordId: ent.entregaId, s3Keys }),
+              });
+            } else {
+              const formData = new FormData();
+              formData.append("entregaRecordId", ent.entregaId);
+              todasLasFotos.forEach((foto) => formData.append("fotos", foto));
+              saveRes = await fetch("/api/entregas-epp/foto-evidencia", {
+                method: "POST",
+                body: formData,
+              });
+            }
+
+            const saveJson = await saveRes.json().catch(() => null);
+            if (!saveJson?.success) {
+              console.error(
+                "Error guardando fotos de evidencia:",
+                saveJson?.message || `HTTP ${saveRes.status}`
+              );
             }
           }
         } catch (fotoErr) {
@@ -1250,46 +1381,58 @@ export default function EntregaEPPPage() {
                     </div>
                   ))}
 
-                  {fotosDotacion.length < 3 && (
+                  {fotosDotacion.length < MAX_FOTOS_POR_PANEL && (
                     <div
-                      onClick={() => fotoInputRefDotacion.current?.click()}
-                      className="border-2 border-dashed border-white/15 rounded-xl aspect-square flex flex-col items-center justify-center cursor-pointer hover:border-blue-400/30 hover:bg-white/5 transition-all"
+                      onClick={() => {
+                        if (!fotoProcesando) fotoInputRefDotacion.current?.click();
+                      }}
+                      className={`border-2 border-dashed border-white/15 rounded-xl aspect-square flex flex-col items-center justify-center transition-all ${
+                        fotoProcesando
+                          ? "opacity-50 cursor-wait"
+                          : "cursor-pointer hover:border-blue-400/30 hover:bg-white/5"
+                      }`}
                     >
-                      <ImageIcon className="w-8 h-8 text-white/15 mb-1.5" />
-                      <p className="text-[11px] text-white/30">
-                        {fotosDotacion.length === 0 ? "Agregar foto" : "Agregar otra"}
-                      </p>
+                      {fotoProcesando ? (
+                        <>
+                          <Loader2 className="w-8 h-8 text-white/30 mb-1.5 animate-spin" />
+                          <p className="text-[11px] text-white/30">Procesando…</p>
+                        </>
+                      ) : (
+                        <>
+                          <ImageIcon className="w-8 h-8 text-white/15 mb-1.5" />
+                          <p className="text-[11px] text-white/30">
+                            {fotosDotacion.length === 0 ? "Agregar foto" : "Agregar otra"}
+                          </p>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
 
                 {fotosDotacion.length === 0 && (
                   <p className="text-[11px] text-blue-300/60 text-center">
-                    0 a 3 fotos · JPG, PNG o WebP · Máx. 10 MB c/u
+                    0 a 3 fotos · Se optimizan automáticamente a JPG
                   </p>
                 )}
 
                 <input
                   ref={fotoInputRefDotacion}
                   type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  capture="environment"
+                  // image/* + sin `capture`: en iOS habilita Cámara y Fototeca
+                  // (con accept restringido las fotos HEIC quedan deshabilitadas)
+                  accept="image/*"
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (!file) return;
-                    if (file.size > 10 * 1024 * 1024) {
-                      setErrorMsg("La imagen excede 10 MB");
-                      return;
-                    }
-                    if (fotosDotacion.length >= 3) {
-                      setErrorMsg("Máximo 3 fotos de dotación");
-                      return;
-                    }
-                    guardarEnGaleria(file);
-                    setFotosDotacion((prev) => [...prev, file]);
-                    setFotosPreviewsDotacion((prev) => [...prev, URL.createObjectURL(file)]);
-                    if (fotoInputRefDotacion.current) fotoInputRefDotacion.current.value = "";
+                    void agregarFoto(
+                      file,
+                      fotosDotacion,
+                      setFotosDotacion,
+                      setFotosPreviewsDotacion,
+                      "dotación",
+                      fotoInputRefDotacion.current
+                    );
                   }}
                 />
               </div>
@@ -1330,46 +1473,57 @@ export default function EntregaEPPPage() {
                     </div>
                   ))}
 
-                  {fotosEpp.length < 3 && (
+                  {fotosEpp.length < MAX_FOTOS_POR_PANEL && (
                     <div
-                      onClick={() => fotoInputRefEpp.current?.click()}
-                      className="border-2 border-dashed border-white/15 rounded-xl aspect-square flex flex-col items-center justify-center cursor-pointer hover:border-orange-400/30 hover:bg-white/5 transition-all"
+                      onClick={() => {
+                        if (!fotoProcesando) fotoInputRefEpp.current?.click();
+                      }}
+                      className={`border-2 border-dashed border-white/15 rounded-xl aspect-square flex flex-col items-center justify-center transition-all ${
+                        fotoProcesando
+                          ? "opacity-50 cursor-wait"
+                          : "cursor-pointer hover:border-orange-400/30 hover:bg-white/5"
+                      }`}
                     >
-                      <ImageIcon className="w-8 h-8 text-white/15 mb-1.5" />
-                      <p className="text-[11px] text-white/30">
-                        {fotosEpp.length === 0 ? "Agregar foto" : "Agregar otra"}
-                      </p>
+                      {fotoProcesando ? (
+                        <>
+                          <Loader2 className="w-8 h-8 text-white/30 mb-1.5 animate-spin" />
+                          <p className="text-[11px] text-white/30">Procesando…</p>
+                        </>
+                      ) : (
+                        <>
+                          <ImageIcon className="w-8 h-8 text-white/15 mb-1.5" />
+                          <p className="text-[11px] text-white/30">
+                            {fotosEpp.length === 0 ? "Agregar foto" : "Agregar otra"}
+                          </p>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
 
                 {fotosEpp.length === 0 && (
                   <p className="text-[11px] text-orange-300/60 text-center">
-                    0 a 3 fotos · JPG, PNG o WebP · Máx. 10 MB c/u
+                    0 a 3 fotos · Se optimizan automáticamente a JPG
                   </p>
                 )}
 
                 <input
                   ref={fotoInputRefEpp}
                   type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  capture="environment"
+                  // image/* + sin `capture`: en iOS habilita Cámara y Fototeca
+                  accept="image/*"
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (!file) return;
-                    if (file.size > 10 * 1024 * 1024) {
-                      setErrorMsg("La imagen excede 10 MB");
-                      return;
-                    }
-                    if (fotosEpp.length >= 3) {
-                      setErrorMsg("Máximo 3 fotos de EPP");
-                      return;
-                    }
-                    guardarEnGaleria(file);
-                    setFotosEpp((prev) => [...prev, file]);
-                    setFotosPreviewsEpp((prev) => [...prev, URL.createObjectURL(file)]);
-                    if (fotoInputRefEpp.current) fotoInputRefEpp.current.value = "";
+                    void agregarFoto(
+                      file,
+                      fotosEpp,
+                      setFotosEpp,
+                      setFotosPreviewsEpp,
+                      "EPP",
+                      fotoInputRefEpp.current
+                    );
                   }}
                 />
               </div>
@@ -1419,6 +1573,7 @@ export default function EntregaEPPPage() {
                   totalLineas === 0 ||
                   pageState === "submitting" ||
                   fotoUploading ||
+                  fotoProcesando ||
                   !user
                 }
                 className="w-full py-3.5 rounded-xl bg-orange-500/30 border border-orange-400/40 text-orange-300 font-semibold text-sm hover:bg-orange-500/40 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"

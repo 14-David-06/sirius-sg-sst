@@ -121,21 +121,94 @@ export function formatDate(date: Date, locale = "es-CO"): string {
 // Galería del dispositivo
 // ══════════════════════════════════════════════════════════
 
+/** Detecta iOS / iPadOS (incluye iPad con user agent de escritorio) */
+export function esIOS(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  return (
+    /iPad|iPhone|iPod/.test(ua) ||
+    (ua.includes("Macintosh") && (navigator.maxTouchPoints ?? 0) > 1)
+  );
+}
+
 /**
- * Guarda una imagen en la galería del dispositivo descargándola
- * al almacenamiento local del navegador.
- * En iOS Safari las descargas de imágenes van automáticamente
- * a la app Fotos. En Android van a Descargas / Galería.
+ * Guarda una imagen en la galería / archivos del dispositivo.
+ *
+ * En Android y escritorio se usa la descarga vía <a download>.
+ * En iOS Safari ese click sobre un blob: puede navegar fuera de la página
+ * (perdiendo el formulario y las fotos ya cargadas), por lo que allí se
+ * intenta la hoja de compartir nativa y, si no está disponible o el
+ * navegador la rechaza, simplemente no se guarda copia local.
+ *
+ * Nunca lanza: guardar copia es opcional y no debe romper el flujo.
  */
 export function guardarEnGaleria(file: File): void {
-  const url = URL.createObjectURL(file);
-  const a = document.createElement("a");
-  a.href = url;
-  const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
-  a.download = `evidencia_${Date.now()}.${ext}`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  try {
+    if (esIOS()) {
+      const nav = navigator as Navigator & {
+        canShare?: (data: { files: File[] }) => boolean;
+      };
+      if (nav.share && nav.canShare?.({ files: [file] })) {
+        // El usuario decide si guarda en Fotos; si rechaza, se ignora
+        nav.share({ files: [file] } as ShareData).catch(() => {});
+      }
+      return;
+    }
+
+    const url = URL.createObjectURL(file);
+    const a = document.createElement("a");
+    a.href = url;
+    const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+    a.download = `evidencia_${Date.now()}.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (err) {
+    console.warn("No se pudo guardar copia local de la evidencia:", err);
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// Normalización de fotos de evidencia
+// ══════════════════════════════════════════════════════════
+
+/** Extensiones de imagen aceptadas (iOS entrega HEIC/HEIF de la Fototeca) */
+const EXTENSIONES_IMAGEN = ["jpg", "jpeg", "png", "webp", "heic", "heif"];
+
+/**
+ * Valida que el archivo elegido sea una imagen.
+ * En iOS `file.type` llega vacío o como image/heic, por lo que se
+ * valida también por extensión antes de rechazar.
+ */
+export function esArchivoImagen(file: File): boolean {
+  if (file.type.startsWith("image/")) return true;
+  const ext = file.name.split(".").pop()?.toLowerCase() || "";
+  return EXTENSIONES_IMAGEN.includes(ext);
+}
+
+/**
+ * Convierte cualquier foto (incluido HEIC de iPhone) a JPEG reducido.
+ * Corrige además la orientación EXIF y baja el peso para no exceder
+ * el límite de payload del servidor.
+ */
+export async function normalizarFotoEvidencia(file: File): Promise<File> {
+  const imageCompression = (await import("browser-image-compression")).default;
+
+  const comprimido = await imageCompression(file, {
+    maxSizeMB: 1,
+    maxWidthOrHeight: 1920,
+    useWebWorker: true,
+    fileType: "image/jpeg",
+    initialQuality: 0.8,
+  });
+
+  const nombreBase =
+    file.name.replace(/\.[^.]+$/, "") || `evidencia_${comprimido.size}`;
+
+  return new File([comprimido], `${nombreBase}.jpg`, {
+    type: "image/jpeg",
+    lastModified: file.lastModified,
+  });
 }
 

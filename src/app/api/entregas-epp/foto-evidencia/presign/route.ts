@@ -12,7 +12,8 @@ import {
 // ══════════════════════════════════════════════════════════
 
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
-const MAX_FOTOS = 3;
+// Hasta 3 fotos de dotación + 3 de EPP en el formulario de entrega
+const MAX_FOTOS = 6;
 
 interface PresignRequest {
   entregaRecordId: string;

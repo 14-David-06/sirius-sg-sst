@@ -434,8 +434,8 @@ function GestorFotos({
       <input
         ref={fileInputRef}
         type="file"
+        // Sin `capture`: en iOS permite elegir entre Cámara y Fototeca
         accept="image/*"
-        capture="environment"
         className="hidden"
         onChange={handleFileChange}
         onClick={(e) => {

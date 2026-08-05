@@ -21,7 +21,8 @@ import {
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB por foto
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MIN_FOTOS = 1;
-const MAX_FOTOS = 3;
+// Hasta 3 fotos de dotación + 3 de EPP en el formulario de entrega
+const MAX_FOTOS = 6;
 
 function getFotoFieldId(): string | null {
   const fieldId = airtableSGSSTConfig.entregasFields.FOTO_EVIDENCIA_URL;
