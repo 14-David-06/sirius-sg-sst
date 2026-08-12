@@ -294,8 +294,8 @@ const modulesByPhase: Record<Phase, Module[]> = {
       description: "Reporte, investigación y análisis de causas de eventos laborales.",
       icon: I.alert,
       color: "bg-red-500/15 text-red-300",
-      href: "#",
-      status: "soon",
+      href: "/dashboard/accidentes",
+      status: "active",
       estandar: "Estándar 3.1.8 / 7.1.1",
     },
     {

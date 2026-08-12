@@ -241,6 +241,12 @@ src/
 **Comités SST:**
 - Miembros Comités SST
 
+**Incidentes y Accidentes de Trabajo:**
+- at_eventos (accidentes e incidentes)
+- at_investigaciones (Res. 1401/2007)
+- at_acciones (preventivas y correctivas)
+- at_reportes (casi accidentes, actos y condiciones inseguras)
+
 **Políticas Empresariales:**
 - Políticas (catálogo de políticas)
 - Firmas Políticas (registro de aceptación)
@@ -309,13 +315,43 @@ src/
 - Lookup a Nómina Core para resolver colaboradores
 - Categorías de licencia colombianas: A1, A2, B1, B2, B3, C1, C2, C3
 
+### Módulo de Incidentes y Accidentes de Trabajo (Nuevo - Ago 2026)
+
+| Módulo | API | Dashboard | Estado | Características |
+|---|---|---|---|---|
+| **Incidentes y Accidentes** | `/api/accidentes` | `accidentes` | ✅ | Eventos, investigación (Res. 1401/2007), acciones y reportes preventivos |
+
+**Endpoints implementados:**
+- `GET/POST /api/accidentes/eventos` — Listar y registrar accidentes e incidentes
+- `GET/PUT/DELETE /api/accidentes/eventos/:recordId` — Detalle con investigación y acciones
+- `GET/POST /api/accidentes/investigaciones` — Investigación del evento (una por evento)
+- `PUT/DELETE /api/accidentes/investigaciones/:recordId`
+- `GET/POST /api/accidentes/acciones` — Acciones preventivas y correctivas
+- `PUT/DELETE /api/accidentes/acciones/:recordId`
+- `GET/POST /api/accidentes/reportes` — Casi accidentes, actos y condiciones inseguras
+- `PUT/DELETE /api/accidentes/reportes/:recordId`
+- `GET /api/accidentes/indicadores` — Estadísticas legales del periodo + filas del informe mensual
+
+**Tablas Airtable:**
+- `at_eventos` — Accidentes e incidentes con trabajador involucrado (31 campos)
+- `at_investigaciones` — Investigación con causas inmediatas y básicas (18 campos)
+- `at_acciones` — Acciones preventivas/correctivas con jerarquía de control (16 campos)
+- `at_reportes` — Reportes preventivos (17 campos)
+
+**Características clave:**
+- Consecutivos automáticos: `AT-2026-001`, `INV-2026-001`, `ACC-2026-001`, `REP-2026-001`
+- Cubre 9 de los 18 indicadores legales del informe mensual de gestión SST
+- `typecast` desactivado en escrituras para que Airtable rechace valores fuera del catálogo
+- Un accidente mortal se marca automáticamente como grave
+- Ver `docs/modulos/accidentes/README.md`
+
 ### Módulos en Desarrollo
 
 | Módulo | API | Dashboard | Estado |
 |---|---|---|---|
 | **PVE Osteomuscular** | — | `pve` | 🔧 |
 | **Gestión de Riesgos** | — | — | 📋 Planificado |
-| **Incidentes y Accidentes** | — | — | 📋 Planificado |
+| **Medicina Laboral** | — | — | 📋 Planificado (9 indicadores restantes del informe) |
 | **Exámenes Médicos** | — | — | 📋 Planificado |
 | **Documentación SST** | — | — | 📋 Planificado |
 

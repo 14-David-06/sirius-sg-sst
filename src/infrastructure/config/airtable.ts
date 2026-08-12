@@ -4,6 +4,7 @@ export const airtableConfig = {
   personalTableId: process.env.AIRTABLE_PERSONAL_TABLE_ID!,
   sistemasTableId: process.env.AIRTABLE_SISTEMAS_TABLE_ID!,
   rolesTableId: process.env.AIRTABLE_ROLES_TABLE_ID!,
+  areasTableId: process.env.AIRTABLE_AREAS_TABLE_ID!,
   baseUrl: "https://api.airtable.com/v0",
 
   // ── Field IDs - Tabla "Personal" ──────────────────────────
@@ -35,6 +36,14 @@ export const airtableConfig = {
   // ── Field IDs - Tabla "Roles y Permisos" ──────────────────
   rolesFields: {
     NOMBRE_ROL: process.env.AIRTABLE_RF_NOMBRE_ROL!,
+  },
+
+  // ── Field IDs - Tabla "Areas" ─────────────────────────────
+  // El campo AREAS de Personal es un link: devuelve recIDs, no nombres.
+  // Esta tabla es la fuente de verdad de los nombres de área.
+  areasFields: {
+    CODIGO_AREA: process.env.AIRTABLE_AF_CODIGO_AREA!,
+    NOMBRE_AREA: process.env.AIRTABLE_AF_NOMBRE_AREA!,
   },
 };
 

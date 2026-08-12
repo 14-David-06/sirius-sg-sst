@@ -893,6 +893,113 @@ export const airtableSGSSTConfig = {
     DESTINATARIO:   process.env.AIRTABLE_VEH_ALERT_DESTINATARIO!,
     ENVIADO:        process.env.AIRTABLE_VEH_ALERT_ENVIADO!,                   // boolean
   },
+
+  // ══════════════════════════════════════════════════════════
+  // MÓDULO INCIDENTES Y ACCIDENTES DE TRABAJO
+  // Decreto 1072/2015 · Resolución 1401/2007 (investigación)
+  // ══════════════════════════════════════════════════════════
+
+  // ── Tabla "at_eventos" (accidentes e incidentes con trabajador)
+  atEventosTableId: process.env.AIRTABLE_AT_EVENTOS_TABLE_ID!,
+  atEventosFields: {
+    ID_EVENTO:                 process.env.AIRTABLE_AT_EVT_ID_EVENTO!,
+    ID_EMPLEADO_CORE:          process.env.AIRTABLE_AT_EVT_ID_EMPLEADO_CORE!,
+    NOMBRE_EMPLEADO:           process.env.AIRTABLE_AT_EVT_NOMBRE_EMPLEADO!,
+    NUMERO_DOCUMENTO:          process.env.AIRTABLE_AT_EVT_NUMERO_DOCUMENTO!,
+    CARGO:                     process.env.AIRTABLE_AT_EVT_CARGO!,
+    TIPO_EVENTO:               process.env.AIRTABLE_AT_EVT_TIPO_EVENTO!,        // Accidente de trabajo|Incidente de trabajo
+    FECHA_EVENTO:              process.env.AIRTABLE_AT_EVT_FECHA_EVENTO!,
+    HORA_EVENTO:               process.env.AIRTABLE_AT_EVT_HORA_EVENTO!,
+    LUGAR_AREA:                process.env.AIRTABLE_AT_EVT_LUGAR_AREA!,
+    DESCRIPCION:               process.env.AIRTABLE_AT_EVT_DESCRIPCION!,
+    MECANISMO:                 process.env.AIRTABLE_AT_EVT_MECANISMO!,
+    TIPO_LESION:               process.env.AIRTABLE_AT_EVT_TIPO_LESION!,
+    PARTE_CUERPO:              process.env.AIRTABLE_AT_EVT_PARTE_CUERPO!,       // multipleSelects
+    CAUSA_PRINCIPAL:           process.env.AIRTABLE_AT_EVT_CAUSA_PRINCIPAL!,
+    CON_LESION:                process.env.AIRTABLE_AT_EVT_CON_LESION!,         // boolean
+    GRAVE:                     process.env.AIRTABLE_AT_EVT_GRAVE!,              // boolean — Res. 1401/2007
+    MORTAL:                    process.env.AIRTABLE_AT_EVT_MORTAL!,             // boolean
+    DIAS_INCAPACIDAD:          process.env.AIRTABLE_AT_EVT_DIAS_INCAPACIDAD!,
+    FECHA_INICIO_INCAPACIDAD:  process.env.AIRTABLE_AT_EVT_FECHA_INICIO_INCAPACIDAD!,
+    FECHA_FIN_INCAPACIDAD:     process.env.AIRTABLE_AT_EVT_FECHA_FIN_INCAPACIDAD!,
+    ESTADO_ARL:                process.env.AIRTABLE_AT_EVT_ESTADO_ARL!,         // Pendiente de reporte|Reportado a ARL|Reconocido por ARL|Objetado por ARL|En junta de calificación
+    FECHA_REPORTE_ARL:         process.env.AIRTABLE_AT_EVT_FECHA_REPORTE_ARL!,
+    NUMERO_FURAT:              process.env.AIRTABLE_AT_EVT_NUMERO_FURAT!,
+    ESTADO:                    process.env.AIRTABLE_AT_EVT_ESTADO!,             // Abierto|En investigación|Cerrado
+    EVIDENCIAS_URL:            process.env.AIRTABLE_AT_EVT_EVIDENCIAS_URL!,     // JSON con keys de S3
+    OBSERVACIONES:             process.env.AIRTABLE_AT_EVT_OBSERVACIONES!,
+    ACTIVO:                    process.env.AIRTABLE_AT_EVT_ACTIVO!,             // soft-delete
+    CREATED_AT:                process.env.AIRTABLE_AT_EVT_CREATED_AT!,
+    UPDATED_AT:                process.env.AIRTABLE_AT_EVT_UPDATED_AT!,
+    INVESTIGACIONES_LINK:      process.env.AIRTABLE_AT_EVT_INVESTIGACIONES_LINK!, // → at_investigaciones
+    ACCIONES_LINK:             process.env.AIRTABLE_AT_EVT_ACCIONES_LINK!,        // → at_acciones
+  },
+
+  // ── Tabla "at_investigaciones" ────────────────────────────
+  atInvestigacionesTableId: process.env.AIRTABLE_AT_INVESTIGACIONES_TABLE_ID!,
+  atInvestigacionesFields: {
+    ID_INVESTIGACION:          process.env.AIRTABLE_AT_INV_ID_INVESTIGACION!,
+    EVENTO_LINK:               process.env.AIRTABLE_AT_INV_EVENTO_LINK!,        // → at_eventos
+    FECHA_INVESTIGACION:       process.env.AIRTABLE_AT_INV_FECHA_INVESTIGACION!,
+    EQUIPO_INVESTIGADOR:       process.env.AIRTABLE_AT_INV_EQUIPO_INVESTIGADOR!,
+    METODOLOGIA:               process.env.AIRTABLE_AT_INV_METODOLOGIA!,
+    CAUSAS_INM_ACTOS:          process.env.AIRTABLE_AT_INV_CAUSAS_INM_ACTOS!,
+    CAUSAS_INM_CONDICIONES:    process.env.AIRTABLE_AT_INV_CAUSAS_INM_CONDICIONES!,
+    CAUSAS_BAS_PERSONALES:     process.env.AIRTABLE_AT_INV_CAUSAS_BAS_PERSONALES!,
+    CAUSAS_BAS_LABORALES:      process.env.AIRTABLE_AT_INV_CAUSAS_BAS_LABORALES!,
+    CONCLUSIONES:              process.env.AIRTABLE_AT_INV_CONCLUSIONES!,
+    FECHA_ENVIO_ARL:           process.env.AIRTABLE_AT_INV_FECHA_ENVIO_ARL!,    // plazo: 15 días hábiles
+    ESTADO:                    process.env.AIRTABLE_AT_INV_ESTADO!,             // Borrador|Completada|Enviada a ARL
+    DOCUMENTO_URL:             process.env.AIRTABLE_AT_INV_DOCUMENTO_URL!,
+    OBSERVACIONES:             process.env.AIRTABLE_AT_INV_OBSERVACIONES!,
+    ACTIVO:                    process.env.AIRTABLE_AT_INV_ACTIVO!,
+    CREATED_AT:                process.env.AIRTABLE_AT_INV_CREATED_AT!,
+    UPDATED_AT:                process.env.AIRTABLE_AT_INV_UPDATED_AT!,
+    ACCIONES_LINK:             process.env.AIRTABLE_AT_INV_ACCIONES_LINK!,      // → at_acciones
+  },
+
+  // ── Tabla "at_acciones" (preventivas y correctivas) ───────
+  atAccionesTableId: process.env.AIRTABLE_AT_ACCIONES_TABLE_ID!,
+  atAccionesFields: {
+    ID_ACCION:                 process.env.AIRTABLE_AT_ACC_ID_ACCION!,
+    INVESTIGACION_LINK:        process.env.AIRTABLE_AT_ACC_INVESTIGACION_LINK!, // → at_investigaciones
+    EVENTO_LINK:               process.env.AIRTABLE_AT_ACC_EVENTO_LINK!,        // → at_eventos
+    TIPO:                      process.env.AIRTABLE_AT_ACC_TIPO!,               // Preventiva|Correctiva
+    JERARQUIA_CONTROL:         process.env.AIRTABLE_AT_ACC_JERARQUIA_CONTROL!,
+    DESCRIPCION:               process.env.AIRTABLE_AT_ACC_DESCRIPCION!,
+    RESPONSABLE_NOMBRE:        process.env.AIRTABLE_AT_ACC_RESPONSABLE_NOMBRE!,
+    RESPONSABLE_TIPO:          process.env.AIRTABLE_AT_ACC_RESPONSABLE_TIPO!,   // Empresa|Trabajador|Contratista|ARL
+    FECHA_EJECUCION:           process.env.AIRTABLE_AT_ACC_FECHA_EJECUCION!,
+    FECHA_CIERRE:              process.env.AIRTABLE_AT_ACC_FECHA_CIERRE!,
+    ESTADO:                    process.env.AIRTABLE_AT_ACC_ESTADO!,             // Pendiente|En proceso|Cerrada|Vencida
+    EVIDENCIA_URL:             process.env.AIRTABLE_AT_ACC_EVIDENCIA_URL!,
+    OBSERVACIONES:             process.env.AIRTABLE_AT_ACC_OBSERVACIONES!,
+    ACTIVO:                    process.env.AIRTABLE_AT_ACC_ACTIVO!,
+    CREATED_AT:                process.env.AIRTABLE_AT_ACC_CREATED_AT!,
+    UPDATED_AT:                process.env.AIRTABLE_AT_ACC_UPDATED_AT!,
+  },
+
+  // ── Tabla "at_reportes" (casi accidentes, actos y condiciones inseguras)
+  atReportesTableId: process.env.AIRTABLE_AT_REPORTES_TABLE_ID!,
+  atReportesFields: {
+    ID_REPORTE:                process.env.AIRTABLE_AT_REP_ID_REPORTE!,
+    TIPO:                      process.env.AIRTABLE_AT_REP_TIPO!,               // Casi accidente|Acto inseguro|Condición insegura
+    FECHA_REPORTE:             process.env.AIRTABLE_AT_REP_FECHA_REPORTE!,
+    REPORTANTE_ID_CORE:        process.env.AIRTABLE_AT_REP_REPORTANTE_ID_CORE!,
+    REPORTANTE_NOMBRE:         process.env.AIRTABLE_AT_REP_REPORTANTE_NOMBRE!,
+    AREA_LUGAR:                process.env.AIRTABLE_AT_REP_AREA_LUGAR!,
+    DESCRIPCION:               process.env.AIRTABLE_AT_REP_DESCRIPCION!,
+    NIVEL_RIESGO:              process.env.AIRTABLE_AT_REP_NIVEL_RIESGO!,       // Bajo|Medio|Alto|Crítico
+    ACCION_INMEDIATA:          process.env.AIRTABLE_AT_REP_ACCION_INMEDIATA!,
+    RESPONSABLE_NOMBRE:        process.env.AIRTABLE_AT_REP_RESPONSABLE_NOMBRE!,
+    ESTADO:                    process.env.AIRTABLE_AT_REP_ESTADO!,             // Abierto|En gestión|Cerrado
+    FECHA_CIERRE:              process.env.AIRTABLE_AT_REP_FECHA_CIERRE!,
+    EVIDENCIA_URL:             process.env.AIRTABLE_AT_REP_EVIDENCIA_URL!,
+    OBSERVACIONES:             process.env.AIRTABLE_AT_REP_OBSERVACIONES!,
+    ACTIVO:                    process.env.AIRTABLE_AT_REP_ACTIVO!,
+    CREATED_AT:                process.env.AIRTABLE_AT_REP_CREATED_AT!,
+    UPDATED_AT:                process.env.AIRTABLE_AT_REP_UPDATED_AT!,
+  },
 };
 
 export function getSGSSTUrl(tableId: string): string {

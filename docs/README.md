@@ -95,6 +95,11 @@ docs/
 
 ## 📦 Módulos del Sistema
 
+### Módulo Incidentes y Accidentes de Trabajo
+| Archivo | Descripción |
+|---------|-------------|
+| [README.md](modulos/accidentes/README.md) | Tablas, endpoints, interfaz e indicadores que aporta al informe mensual |
+
 ### Módulo Vehicular
 | Archivo | Descripción |
 |---------|-------------|
