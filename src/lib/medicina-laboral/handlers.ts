@@ -3,7 +3,7 @@
 // Helpers compartidos por los endpoints API
 // ══════════════════════════════════════════════════════════
 import { NextRequest, NextResponse } from "next/server";
-import { verificarSesion as verificarSesionCore } from "@/lib/auth";
+import { requireAuth } from "@/lib/authMiddleware";
 
 // ── Respuestas ─────────────────────────────────────────────
 
@@ -24,15 +24,17 @@ export function errorServidor(accion: string, error: unknown): NextResponse {
 
 // ── Autenticación ──────────────────────────────────────────
 
+/**
+ * Verifica la sesión. Devuelve la respuesta de error si no hay sesión válida,
+ * o `null` si el usuario está autenticado.
+ */
 export async function verificarSesion(
   req: NextRequest
 ): Promise<NextResponse | null> {
-  const sesion = await verificarSesionCore();
-  if (!sesion) {
-    return NextResponse.json(
       { success: false, message: "No autenticado" },
-      { status: 401 }
-    );
+  const auth = await requireAuth(req);
+  if (!auth.authenticated) {
+    return auth.response ?? jsonError("No autenticado", 401);
   }
   return null;
 }

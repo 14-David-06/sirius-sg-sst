@@ -240,7 +240,8 @@ async function main() {
     }
 
     outputLines.push(`# ── Tabla "${tableName}" ────────────────────────────────`);
-    outputLines.push(`${mapping.prefix.replace("_", "_").slice(0, -1).replace("_MED_", "_MED_")}TABLE_ID=${tableId}`);
+    const tableIdVar = `AIRTABLE_${tableName.toUpperCase()}_TABLE_ID`;
+    outputLines.push(`${tableIdVar}=${tableId}`);
 
     const camposEncontrados: string[] = [];
     const camposFaltantes: string[] = [];

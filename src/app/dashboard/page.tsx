@@ -272,12 +272,12 @@ const modulesByPhase: Record<Phase, Module[]> = {
       estandar: "Estándar 4.2.5",
     },
     {
-      title: "Exámenes Médicos",
-      description: "Exámenes médicos ocupacionales: ingreso, periódicos y de retiro.",
+      title: "Medicina Laboral",
+      description: "Exámenes, seguimientos, incapacidades, reubicaciones y enfermedades laborales.",
       icon: I.stetoscope,
       color: "bg-cyan-500/15 text-cyan-300",
-      href: "#",
-      status: "soon",
+      href: "/dashboard/medicina-laboral",
+      status: "active",
       estandar: "Estándar 3.1.6",
     },
     {

@@ -345,14 +345,43 @@ src/
 - Un accidente mortal se marca automáticamente como grave
 - Ver `docs/modulos/accidentes/README.md`
 
+### Módulo de Medicina Laboral (Nuevo - Ago 2026)
+
+| Módulo | API | Dashboard | Estado | Características |
+|---|---|---|---|---|
+| **Medicina Laboral** | `/api/medicina-laboral` | `medicina-laboral` | ✅ | Exámenes ocupacionales, seguimientos, incapacidades, reubicaciones y enfermedades laborales |
+
+**Endpoints implementados** (todos con `GET`/`POST` en la raíz y `GET`/`PUT`/`DELETE` en `/:recordId`):
+- `/api/medicina-laboral/examenes` — Exámenes de ingreso, periódicos, egreso y reintegro
+- `/api/medicina-laboral/seguimientos` — Seguimientos y controles médicos
+- `/api/medicina-laboral/incapacidades` — Incapacidades, prórrogas y licencias
+- `/api/medicina-laboral/reubicaciones` — Reubicaciones temporales y definitivas
+- `/api/medicina-laboral/enfermedades-laborales` — Calificación de origen y PCL
+- `GET /api/medicina-laboral/indicadores` — Los 9 indicadores restantes del informe mensual
+
+**Tablas Airtable** (base SG-SST, 95 field IDs):
+- `med_examenes` — Exámenes ocupacionales (18 campos)
+- `med_seguimientos` — Seguimientos médicos (16 campos)
+- `med_incapacidades` — Incapacidades y licencias (19 campos, con autovínculo de prórroga)
+- `med_reubicaciones` — Reubicaciones laborales (19 campos)
+- `med_enfermedades_laborales` — Enfermedades laborales (18 campos)
+
+**Características clave:**
+- Consecutivos automáticos: `EXM-2026-001`, `SEG-2026-001`, `INC-2026-001`, `REU-2026-001`, `EL-2026-001`
+- Completa los 9 indicadores del informe mensual que faltaban tras el módulo de accidentes
+- `typecast` desactivado en escrituras para que Airtable rechace valores fuera del catálogo
+- Días de incapacidad calculados por rango de fechas (ambos extremos incluidos)
+- Prórrogas vinculadas a la incapacidad de origen (`Incapacidad_Origen_Link`)
+- UI: hub con KPIs del periodo + 5 páginas CRUD que comparten primitivas en
+  `src/app/dashboard/medicina-laboral/_components/ui.tsx`
+- Ver `docs/modulos/medicina-laboral/README.md`
+
 ### Módulos en Desarrollo
 
 | Módulo | API | Dashboard | Estado |
 |---|---|---|---|
 | **PVE Osteomuscular** | — | `pve` | 🔧 |
 | **Gestión de Riesgos** | — | — | 📋 Planificado |
-| **Medicina Laboral** | — | — | 📋 Planificado (9 indicadores restantes del informe) |
-| **Exámenes Médicos** | — | — | 📋 Planificado |
 | **Documentación SST** | — | — | 📋 Planificado |
 
 **Leyenda:**
