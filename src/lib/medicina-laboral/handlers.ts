@@ -31,7 +31,6 @@ export function errorServidor(accion: string, error: unknown): NextResponse {
 export async function verificarSesion(
   req: NextRequest
 ): Promise<NextResponse | null> {
-      { success: false, message: "No autenticado" },
   const auth = await requireAuth(req);
   if (!auth.authenticated) {
     return auth.response ?? jsonError("No autenticado", 401);
