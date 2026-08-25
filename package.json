@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "check:env": "tsx scripts/check-env.ts",
+    "gen:env-example": "tsx scripts/generar-env-example.ts",
     "test:inspecciones-areas": "node test-inspecciones-areas.js",
     "get-field-ids:medicina": "tsx scripts/obtener-field-ids-medicina-laboral.ts"
   },

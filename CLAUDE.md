@@ -99,9 +99,9 @@ src/
 │   │   │   ├── page.tsx
 │   │   │   ├── historial/
 │   │   │   └── [id]/
-│   │   ├── inspecciones-emergencia/ # Hub inspecciones emergencia ⭐ NUEVO
-│   │   │   ├── page.tsx
-│   │   │   └── historial/
+│   │   │                            # ⚠ NO existe inspecciones-emergencia/
+│   │   │                            #   Las 4 inspecciones específicas solo
+│   │   │                            #   tienen API, sin UI
 │   │   ├── inspecciones-equipos/
 │   │   │   ├── page.tsx
 │   │   │   └── historial/
@@ -274,14 +274,35 @@ src/
 | **Inspecciones Equipos** | `/api/inspecciones-equipos` | `inspecciones-equipos` | ✅ | Equipos emergencia genérico |
 | **Inspecciones Áreas** | `/api/inspecciones-areas` | `inspecciones-areas` | ✅ | Categorías + criterios + acciones correctivas |
 
-### Módulos de Inspecciones Específicas (Nuevos - Mar 2026)
+### Módulos de Inspecciones Específicas (Mar 2026 · API completada Ago 2026)
+
+Los cuatro tipos comparten la librería `src/lib/inspecciones-emergencia/`:
+`config.ts` mapea cada tipo a sus tablas y field IDs, `repository.ts` opera
+sobre cualquiera de ellos, y `handlers.ts` expone un solo par GET/POST. Por eso
+cada `route.ts` es un reenvío de dos líneas.
 
 | Módulo | API | Dashboard | Estado | Características |
 |---|---|---|---|---|
-| **Inspecciones Botiquín** | `/api/inspecciones-botiquin` | `inspecciones-emergencia` | 🚧 | Catálogo elementos + vencimientos |
-| **Inspecciones Extintor** | `/api/inspecciones-extintor` | `inspecciones-emergencia` | 🚧 | 10 criterios específicos |
-| **Inspecciones Camilla** | `/api/inspecciones-camilla` | `inspecciones-emergencia` | 🚧 | Elementos + estado |
-| **Inspecciones Kit Derrames** | `/api/inspecciones-kit-derrames` | `inspecciones-emergencia` | 🚧 | Elementos + verificaciones procedimiento |
+| **Inspecciones Botiquín** | `/api/inspecciones-botiquin` | — | 🚧 | Catálogo elementos + vencimientos |
+| **Inspecciones Extintor** | `/api/inspecciones-extintor` | — | 🚧 | 10 criterios de verificación |
+| **Inspecciones Camilla** | `/api/inspecciones-camilla` | — | 🚧 | Elementos + estado |
+| **Inspecciones Kit Derrames** | `/api/inspecciones-kit-derrames` | — | 🚧 | Elementos + verificaciones de procedimiento |
+
+**Pendientes de estos cuatro módulos:**
+1. **UI.** No existe `/dashboard/inspecciones-emergencia`. El hub
+   `/dashboard/inspecciones` solo enlaza a EPP, áreas y equipos. Hoy solo se
+   capturan vía API.
+2. **Field IDs faltantes.** `npm run check:env` reporta que faltan
+   `AIRTABLE_KITSDER_TABLE_ID` y los campos de `kitsDerFields`, el snapshot
+   `infoExtintorFields`, dos campos de `verificacionesKitDerFields`, y
+   `UBICACION` en extintores y camillas. Hasta configurarlos, el catálogo de
+   kits no carga y las verificaciones de procedimiento se guardan incompletas.
+**Contrato de la API** (igual para los cuatro):
+- `GET ?catalogo=equipos` → catálogo de botiquines/extintores/camillas/kits
+- `GET ?catalogo=elementos` → catálogo de elementos (vacío en extintor)
+- `GET ?desde&hasta&estado` → inspecciones del periodo
+- `POST` → cabecera + detalles + responsables (+ verificaciones en kit)
+- Todos exigen sesión y responden `{ success, data }`
 
 ### Módulo de Seguimiento Vehicular (Nuevo - Jun 2026)
 
@@ -425,11 +446,19 @@ const signedUrl = await getSignedUrlForKey(key, 3600);
 ## Comandos
 
 ```bash
-npm run dev        # Desarrollo
-npm run build      # Build producción
-npm run lint       # ESLint
-npx tsc --noEmit   # Type-check sin emitir
+npm run dev              # Desarrollo
+npm run build            # Build producción
+npm run lint             # ESLint
+npm run check:env        # Verifica que todos los IDs de Airtable existan
+npm run gen:env-example  # Regenera .env.example desde .env.local
+
+# Type-check. Se filtra .next/ por el bug de routes.d.ts en Next.js 16.2.4
+npx tsc --noEmit | grep -v "^\.next/"
 ```
+
+**Antes de tocar un módulo, corre `npm run check:env`.** Un field ID ausente se
+convierte en la cadena `"undefined"` al usarse como clave, y Airtable rechaza el
+request completo con un error que no dice qué campo fue.
 
 ## Variables de Entorno Requeridas
 
@@ -538,10 +567,15 @@ JWT_SECRET                   # Secreto para tokens JWT
    - Puede causar timeouts en bases grandes
    - Ver: `DIAGNOSTICO_INSPECCIONES_AREAS.md`
 
-2. Validación de Field IDs faltante
-   - No hay validación de que los field IDs estén definidos
-   - Fallas silenciosas si una variable está undefined
-   - Recomendado: función `validateConfig()` en startup
+2. ~~Validación de Field IDs faltante~~ — **resuelto (Ago 2026)**
+   - `src/infrastructure/config/validateConfig.ts` recorre las tres configs
+   - `npm run check:env` reporta variables ausentes y placeholders sin
+     reemplazar; sale con código 1 si algo falta
+   - `npm run gen:env-example` regenera `.env.example` desde `.env.local`
+     enmascarando los valores
+   - **La corrida actual reporta 23 problemas abiertos** (kit de derrames,
+     snapshot de extintor, `Created_At`/`Updated_At` de actas de comité, y
+     placeholders en políticas). Correrlo antes de tocar esos módulos.
 
 3. Logging insuficiente
    - Errores de queries secundarias se ignoran silenciosamente
@@ -560,20 +594,39 @@ JWT_SECRET                   # Secreto para tokens JWT
    - No hay documentación formal de endpoints
    - Solo código fuente como referencia
 
+7. `typescript.ignoreBuildErrors: true` en `next.config.ts`
+   - Workaround del bug de Next.js 16.2.4 al generar `.next/dev/types/routes.d.ts`
+     (el archivo sale malformado cuando hay muchos endpoints)
+   - **Revertir cuando se actualice Next.js**, o los errores de tipos reales
+     pasarán silenciosos en el build
+   - Mientras tanto, verificar a mano:
+     `npx tsc --noEmit | grep -v "^\.next/"`
+
+8. Sin rate limiting ni `middleware.ts`
+   - Los endpoints públicos de firma (`/api/*/firmar-publico`, `/firmar/*`)
+     no tienen throttling
+
 **Prioridad BAJA:**
-7. UI de inspecciones específicas
-   - APIs completadas pero sin interfaces
-   - Funcionalidad accesible solo vía API
+9. UI de inspecciones específicas
+   - Las 4 APIs están completas pero no existe `/dashboard/inspecciones-emergencia`
+   - El hub `/dashboard/inspecciones` solo enlaza a EPP, áreas y equipos
 
-8. Migraciones de datos
-   - Existe `/api/equipos-emergencia/migrar` pero no documentado
-   - Proceso manual, no automatizado
+10. Migraciones de datos
+    - Existe `/api/equipos-emergencia/migrar` pero no documentado
+    - Proceso manual, no automatizado
 
-### Mejoras Recientes (Marzo 2026)
+### Mejoras Recientes
 
+**Agosto 2026**
+- ✅ Módulo de Medicina Laboral (5 tablas, 21 endpoints, hub + 5 páginas CRUD)
+- ✅ Librería compartida `src/lib/inspecciones-emergencia/` y los 3 `route.ts`
+  que faltaban (extintor, camilla, kit de derrames)
+- ✅ Botiquín migrado a la librería compartida — ahora exige sesión
+- ✅ `validateConfig()` + `npm run check:env` + `npm run gen:env-example`
+- ✅ `.env.example` versionado (1000 variables, sin secretos)
+
+**Marzo 2026**
 - ✅ Corrección crítica en queries FIND() de inspecciones-areas
-- ✅ Implementación de 4 APIs de inspecciones específicas
-- ✅ Creación de hub de inspecciones de emergencia
 - ✅ Endpoint de migración de equipos
 - ✅ Mejoras en sistema de evaluaciones (validación de respuestas)
 
