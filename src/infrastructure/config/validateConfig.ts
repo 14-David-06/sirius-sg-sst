@@ -1,5 +1,9 @@
 // ══════════════════════════════════════════════════════════
-// Validación de configuración Airtable
+// Validación de configuración de variables de entorno
+//
+// Valida:
+// 1. Variables de empresa (EMPRESA_*) — requeridas para PDFs corporativos
+// 2. Configuraciones de Airtable (3 bases) — Field IDs y Table IDs
 //
 // Los objetos de config usan `process.env.X!`, lo que hace que una variable
 // ausente se convierta en `undefined` sin que TypeScript avise. Al usarse como
@@ -27,19 +31,24 @@ export interface ResultadoValidacion {
   totalRevisado: number;
 }
 
-/** Valores que indican una variable declarada pero sin configurar de verdad. */
+/**
+ * Valores que indican una variable declarada pero sin configurar de verdad.
+ *
+ * La cadena vacía NO cuenta: es el fallback explícito de los campos declarados
+ * como `process.env.X || ""`, es decir, opcionales a propósito.
+ */
 const PLACEHOLDERS = [
   "fldPENDIENTE",
   "tblPENDIENTE",
+  "fld_pending",
+  "tbl_pending",
   "PENDIENTE",
   "undefined",
-  "",
 ];
 
 function esPlaceholder(valor: string): boolean {
-  return PLACEHOLDERS.some(
-    (p) => valor === p || (p !== "" && valor.startsWith(p))
-  );
+  if (valor === "") return false;
+  return PLACEHOLDERS.some((p) => valor === p || valor.startsWith(p));
 }
 
 function revisarObjeto(
@@ -84,7 +93,7 @@ function revisarObjeto(
 }
 
 /**
- * Revisa las tres configuraciones de Airtable.
+ * Revisa las tres configuraciones de Airtable y las variables de empresa.
  *
  * No lanza: devuelve el reporte para que quien llame decida si aborta el
  * arranque, loguea una advertencia o lo expone en un endpoint de diagnóstico.
@@ -93,6 +102,23 @@ export function validateConfig(): ResultadoValidacion {
   const problemas: ProblemaConfig[] = [];
   let totalRevisado = 0;
 
+  // Validar variables de empresa (requeridas para PDFs corporativos)
+  const variablesEmpresa = {
+    EMPRESA_NOMBRE: process.env.EMPRESA_NOMBRE,
+    EMPRESA_RAZON_SOCIAL: process.env.EMPRESA_RAZON_SOCIAL,
+    EMPRESA_NIT: process.env.EMPRESA_NIT,
+    EMPRESA_TELEFONO: process.env.EMPRESA_TELEFONO,
+    EMPRESA_CORREO: process.env.EMPRESA_CORREO,
+    EMPRESA_DIRECCION: process.env.EMPRESA_DIRECCION,
+  };
+
+  totalRevisado += revisarObjeto(
+    "Empresa",
+    variablesEmpresa as unknown as Record<string, unknown>,
+    problemas
+  );
+
+  // Validar configuraciones de Airtable
   totalRevisado += revisarObjeto(
     "SG-SST",
     airtableSGSSTConfig as unknown as Record<string, unknown>,

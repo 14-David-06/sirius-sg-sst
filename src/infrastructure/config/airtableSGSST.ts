@@ -32,8 +32,9 @@ export const airtableSGSSTConfig = {
   detalleFields: {
     ID: process.env.AIRTABLE_DET_ID!,
     CANTIDAD: process.env.AIRTABLE_DET_CANTIDAD!,
-    VIDA_UTIL: process.env.AIRTABLE_DET_VIDA_UTIL!,
-    FECHA_VENCIMIENTO: process.env.AIRTABLE_DET_FECHA_VENCIMIENTO!,
+    // VIDA_UTIL y FECHA_VENCIMIENTO se retiraron (Ago 2026): no existen en la
+    // tabla de Airtable y ningún endpoint los leía. El vencimiento del EPP se
+    // lleva en "Historial EPP Empleado".
     OBSERVACIONES: process.env.AIRTABLE_DET_OBSERVACIONES!,
     ENTREGA_LINK: process.env.AIRTABLE_DET_ENTREGA_LINK!,
     TALLA: process.env.AIRTABLE_DET_TALLA!,
@@ -80,6 +81,7 @@ export const airtableSGSSTConfig = {
     FECHA_EXPORTACION: process.env.AIRTABLE_INSP_FECHA_EXPORTACION!,
     RESPONSABLE_FIRMANTE: process.env.AIRTABLE_INSP_RESPONSABLE_FIRMANTE!,
     COPASST_FIRMANTE: process.env.AIRTABLE_INSP_COPASST_FIRMANTE!,
+    RECOMENDACIONES: process.env.AIRTABLE_INSP_RECOMENDACIONES!,
   },
 
   // ── Tabla "Detalle Inspección EPP" ────────────────────
@@ -126,6 +128,7 @@ export const airtableSGSSTConfig = {
     INSPECTOR: process.env.AIRTABLE_INSPEQ_INSPECTOR!,
     ESTADO: process.env.AIRTABLE_INSPEQ_ESTADO!,
     OBSERVACIONES: process.env.AIRTABLE_INSPEQ_OBSERVACIONES!,
+    RECOMENDACIONES: process.env.AIRTABLE_INSPEQ_RECOMENDACIONES!,
     URL_DOCUMENTO: process.env.AIRTABLE_INSPEQ_URL_DOCUMENTO!,
     FECHA_EXPORTACION: process.env.AIRTABLE_INSPEQ_FECHA_EXPORTACION!,
   },
@@ -338,6 +341,7 @@ export const airtableSGSSTConfig = {
     AREA:                 process.env.AIRTABLE_INSPA_AREA!,
     ESTADO:               process.env.AIRTABLE_INSPA_ESTADO!,
     OBSERVACIONES:        process.env.AIRTABLE_INSPA_OBSERVACIONES!,
+    RECOMENDACIONES:      process.env.AIRTABLE_INSPA_RECOMENDACIONES!,
     URL_DOCUMENTO:        process.env.AIRTABLE_INSPA_URL_DOCUMENTO!,
     FECHA_EXPORTACION:    process.env.AIRTABLE_INSPA_FECHA_EXPORTACION!,
     DETALLE_LINK:         process.env.AIRTABLE_INSPA_DETALLE_LINK!,
@@ -398,6 +402,7 @@ export const airtableSGSSTConfig = {
     CARGO_INSPECTOR:     process.env.AIRTABLE_INSPBOT_CARGO_INSPECTOR!,
     ESTADO:              process.env.AIRTABLE_INSPBOT_ESTADO!,
     OBSERVACIONES:       process.env.AIRTABLE_INSPBOT_OBSERVACIONES!,
+    RECOMENDACIONES:     process.env.AIRTABLE_INSPBOT_RECOMENDACIONES!,
     URL_DOCUMENTO:       process.env.AIRTABLE_INSPBOT_URL_DOCUMENTO!,
     FECHA_EXPORTACION:   process.env.AIRTABLE_INSPBOT_FECHA_EXPORTACION!,
     DETALLE_LINK:        process.env.AIRTABLE_INSPBOT_DETALLE_LINK!,
@@ -461,6 +466,7 @@ export const airtableSGSSTConfig = {
     CARGO_INSPECTOR:     process.env.AIRTABLE_INSPEXT_CARGO_INSPECTOR!,
     ESTADO:              process.env.AIRTABLE_INSPEXT_ESTADO!,
     OBSERVACIONES:       process.env.AIRTABLE_INSPEXT_OBSERVACIONES!,
+    RECOMENDACIONES:     process.env.AIRTABLE_INSPEXT_RECOMENDACIONES!,
     URL_DOCUMENTO:       process.env.AIRTABLE_INSPEXT_URL_DOCUMENTO!,
     FECHA_EXPORTACION:   process.env.AIRTABLE_INSPEXT_FECHA_EXPORTACION!,
     DETALLE_LINK:        process.env.AIRTABLE_INSPEXT_DETALLE_LINK!,
@@ -513,7 +519,9 @@ export const airtableSGSSTConfig = {
   extintoresFields: {
     CODIGO:            process.env.AIRTABLE_EXTINTORES_CODIGO!,
     NOMBRE:            process.env.AIRTABLE_EXTINTORES_NOMBRE!,
-    UBICACION:         process.env.AIRTABLE_EXTINTORES_UBICACION!,
+    // La variable conserva el sufijo _LINK por compatibilidad con el entorno
+    // desplegado; el campo en Airtable es texto, no un link.
+    UBICACION:         process.env.AIRTABLE_EXTINTORES_UBICACION_LINK!,
     ESTADO:            process.env.AIRTABLE_EXTINTORES_ESTADO!,
   },
 
@@ -526,6 +534,7 @@ export const airtableSGSSTConfig = {
     CARGO_INSPECTOR:     process.env.AIRTABLE_INSPCAM_CARGO_INSPECTOR!,
     ESTADO:              process.env.AIRTABLE_INSPCAM_ESTADO!,
     OBSERVACIONES:       process.env.AIRTABLE_INSPCAM_OBSERVACIONES!,
+    RECOMENDACIONES:     process.env.AIRTABLE_INSPCAM_RECOMENDACIONES!,
     URL_DOCUMENTO:       process.env.AIRTABLE_INSPCAM_URL_DOCUMENTO!,
     FECHA_EXPORTACION:   process.env.AIRTABLE_INSPCAM_FECHA_EXPORTACION!,
     DETALLE_LINK:        process.env.AIRTABLE_INSPCAM_DETALLE_LINK!,
@@ -561,7 +570,8 @@ export const airtableSGSSTConfig = {
   camillasFields: {
     CODIGO:            process.env.AIRTABLE_CAMILLAS_CODIGO!,
     NOMBRE:            process.env.AIRTABLE_CAMILLAS_NOMBRE!,
-    UBICACION:         process.env.AIRTABLE_CAMILLAS_UBICACION!,
+    // Ver nota en extintoresFields.UBICACION.
+    UBICACION:         process.env.AIRTABLE_CAMILLAS_UBICACION_LINK!,
     ESTADO:            process.env.AIRTABLE_CAMILLAS_ESTADO!,
   },
 
@@ -582,6 +592,7 @@ export const airtableSGSSTConfig = {
     CARGO_INSPECTOR:     process.env.AIRTABLE_INSPKIT_CARGO_INSPECTOR!,
     ESTADO:              process.env.AIRTABLE_INSPKIT_ESTADO!,
     OBSERVACIONES:       process.env.AIRTABLE_INSPKIT_OBSERVACIONES!,
+    RECOMENDACIONES:     process.env.AIRTABLE_INSPKIT_RECOMENDACIONES!,
     URL_DOCUMENTO:       process.env.AIRTABLE_INSPKIT_URL_DOCUMENTO!,
     FECHA_EXPORTACION:   process.env.AIRTABLE_INSPKIT_FECHA_EXPORTACION!,
     DETALLE_LINK:        process.env.AIRTABLE_INSPKIT_DETALLE_LINK!,
@@ -608,8 +619,8 @@ export const airtableSGSSTConfig = {
     ID:                      process.env.AIRTABLE_VERKIT_ID!,
     INSPECCION_LINK:         process.env.AIRTABLE_VERKIT_INSPECCION_LINK!,
     CONOCE_PROCEDIMIENTO:    process.env.AIRTABLE_VERKIT_CONOCE_PROCEDIMIENTO!,
-    ALMACENAMIENTO_ADECUADO: process.env.AIRTABLE_VERKIT_ALMACENAMIENTO_ADECUADO!,
-    ROTULADO_SENALIZADO:     process.env.AIRTABLE_VERKIT_ROTULADO_SENALIZADO!,
+    ALMACENAMIENTO_ADECUADO: process.env.AIRTABLE_VERKIT_ALMACENAMIENTO!,
+    ROTULADO_SENALIZADO:     process.env.AIRTABLE_VERKIT_ROTULADO!,
   },
 
   // ── Tabla "Responsables Inspección Kit Derrames" ──────────
@@ -786,7 +797,8 @@ export const airtableSGSSTConfig = {
   // ── Tabla "Políticas" (catálogo de políticas) ─────────────
   politicasTableId: process.env.AIRTABLE_POLITICAS_TABLE_ID!,
   politicasFields: {
-    ID:                    process.env.AIRTABLE_POL_ID!,
+    // ID se retiró (Ago 2026): AIRTABLE_POL_ID contenía el Table ID de
+    // Políticas por error de copiado, y ningún endpoint lo usaba.
     CODIGO:                process.env.AIRTABLE_POL_CODIGO!,               // P-SST-001
     TITULO:                process.env.AIRTABLE_POL_TITULO!,
     DESCRIPCION:           process.env.AIRTABLE_POL_DESCRIPCION!,
@@ -862,7 +874,9 @@ export const airtableSGSSTConfig = {
     ENTIDAD_EMISORA:   process.env.AIRTABLE_VEH_DOC_ENTIDAD_EMISORA!,
     FECHA_EXPEDICION:  process.env.AIRTABLE_VEH_DOC_FECHA_EXPEDICION!,
     FECHA_VENCIMIENTO: process.env.AIRTABLE_VEH_DOC_FECHA_VENCIMIENTO!,
-    ESTADO:            process.env.AIRTABLE_VEH_DOC_ESTADO!,                    // Vigente|Por vencer|Vencido (fórmula)
+    // ESTADO se retiró (Ago 2026): el campo nunca se creó en Airtable. El
+    // estado Vigente/Por vencer/Vencido se calcula en el servidor a partir de
+    // Fecha_Vencimiento.
     URL_DOCUMENTO:     process.env.AIRTABLE_VEH_DOC_URL_DOCUMENTO!,
     CREATED_AT:        process.env.AIRTABLE_VEH_DOC_CREATED_AT!,
   },
@@ -876,7 +890,7 @@ export const airtableSGSSTConfig = {
     CATEGORIA:          process.env.AIRTABLE_VEH_LIC_CATEGORIA!,                // A1|A2|B1|B2|B3|C1|C2|C3
     FECHA_EXPEDICION:   process.env.AIRTABLE_VEH_LIC_FECHA_EXPEDICION!,
     FECHA_VENCIMIENTO:  process.env.AIRTABLE_VEH_LIC_FECHA_VENCIMIENTO!,
-    ESTADO:             process.env.AIRTABLE_VEH_LIC_ESTADO!,                   // Vigente|Por vencer|Vencida (fórmula)
+    // ESTADO se retiró (Ago 2026): ver nota en documentosVehicularesFields.
     ORGANISMO_TRANSITO: process.env.AIRTABLE_VEH_LIC_ORGANISMO_TRANSITO!,
     URL_LICENCIA:       process.env.AIRTABLE_VEH_LIC_URL_LICENCIA!,
     CREATED_AT:         process.env.AIRTABLE_VEH_LIC_CREATED_AT!,

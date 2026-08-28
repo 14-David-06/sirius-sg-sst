@@ -95,13 +95,17 @@ src/
 │   │   ├── page.tsx                 # Home dashboard (módulos)
 │   │   ├── evaluaciones/
 │   │   ├── inspecciones/            # Hub de inspecciones
+│   │   ├── informes/                # Informe mensual de gestión ⭐ NUEVO
 │   │   ├── inspecciones-areas/      # Inspecciones áreas ⭐ NUEVO
 │   │   │   ├── page.tsx
 │   │   │   ├── historial/
 │   │   │   └── [id]/
-│   │   │                            # ⚠ NO existe inspecciones-emergencia/
-│   │   │                            #   Las 4 inspecciones específicas solo
-│   │   │                            #   tienen API, sin UI
+│   │   ├── inspecciones-emergencia/ # Botiquín, extintor, camilla, kit ⭐ NUEVO
+│   │   │   ├── _components/         # config por tipo + primitivas de UI
+│   │   │   ├── page.tsx             # Hub de los 4 tipos
+│   │   │   └── [tipo]/
+│   │   │       ├── page.tsx         # Captura (una pantalla, 4 tipos)
+│   │   │       └── historial/
 │   │   ├── inspecciones-equipos/
 │   │   │   ├── page.tsx
 │   │   │   └── historial/
@@ -283,20 +287,37 @@ cada `route.ts` es un reenvío de dos líneas.
 
 | Módulo | API | Dashboard | Estado | Características |
 |---|---|---|---|---|
-| **Inspecciones Botiquín** | `/api/inspecciones-botiquin` | — | 🚧 | Catálogo elementos + vencimientos |
-| **Inspecciones Extintor** | `/api/inspecciones-extintor` | — | 🚧 | 10 criterios de verificación |
-| **Inspecciones Camilla** | `/api/inspecciones-camilla` | — | 🚧 | Elementos + estado |
-| **Inspecciones Kit Derrames** | `/api/inspecciones-kit-derrames` | — | 🚧 | Elementos + verificaciones de procedimiento |
+| **Inspecciones Botiquín** | `/api/inspecciones-botiquin` | `inspecciones-emergencia/botiquin` | ✅ | Catálogo elementos + vencimientos |
+| **Inspecciones Extintor** | `/api/inspecciones-extintor` | `inspecciones-emergencia/extintor` | ✅ | 10 criterios de verificación |
+| **Inspecciones Camilla** | `/api/inspecciones-camilla` | `inspecciones-emergencia/camilla` | ✅ | Elementos + estado |
+| **Inspecciones Kit Derrames** | `/api/inspecciones-kit-derrames` | `inspecciones-emergencia/kit-derrames` | ✅ | Elementos + verificaciones de procedimiento |
 
-**Pendientes de estos cuatro módulos:**
-1. **UI.** No existe `/dashboard/inspecciones-emergencia`. El hub
-   `/dashboard/inspecciones` solo enlaza a EPP, áreas y equipos. Hoy solo se
-   capturan vía API.
-2. **Field IDs faltantes.** `npm run check:env` reporta que faltan
-   `AIRTABLE_KITSDER_TABLE_ID` y los campos de `kitsDerFields`, el snapshot
-   `infoExtintorFields`, dos campos de `verificacionesKitDerFields`, y
-   `UBICACION` en extintores y camillas. Hasta configurarlos, el catálogo de
-   kits no carga y las verificaciones de procedimiento se guardan incompletas.
+**UI compartida (Ago 2026).** Igual que la API, una sola pantalla sirve a los
+cuatro tipos: `src/app/dashboard/inspecciones-emergencia/_components/config.ts`
+declara por tipo el rótulo del equipo, la forma del detalle (elementos vs.
+criterios) y las etiquetas en español de los 10 criterios del extintor. Ese
+archivo **no** importa `airtableSGSST.ts` — esa config lee los tokens de
+Airtable desde `process.env` y no puede viajar al cliente.
+
+El hub `/dashboard/inspecciones` tiene **una sola** tarjeta de equipos de
+emergencia, que lleva a `/dashboard/inspecciones-emergencia`. Desde ahí se
+llega tanto al formato general (`inspecciones-equipos`) como a los cuatro
+específicos — antes había dos tarjetas para lo mismo.
+
+- `/dashboard/inspecciones-emergencia` — hub: general + los cuatro tipos
+- `/dashboard/inspecciones-emergencia/[tipo]` — captura
+- `/dashboard/inspecciones-emergencia/[tipo]/historial` — periodo + PDF
+
+Una inspección puede cubrir varios equipos: el formulario agrega bloques y no
+deja repetir el mismo equipo. En la forma «elementos», los que se dejan sin
+estado no se envían.
+
+> **Tabla `Detalle Inspección Kit Derrames` recreada (2026-08-21).** La original
+> (`tblzG1PUJxLluLgKZ`) había sido eliminada de la base, lo que degradó a
+> `singleLineText` los campos de enlace en `Inspecciones Kit Derrames`,
+> `Kits Control Derrames` y `Catálogo Elementos Kit Derrames`. La nueva es
+> `tblQfHiCjQYjKvA5e` y Airtable regeneró sus enlaces inversos. Los tres campos
+> de texto degradados siguen ahí, vacíos y sin uso: se pueden borrar a mano.
 **Contrato de la API** (igual para los cuatro):
 - `GET ?catalogo=equipos` → catálogo de botiquines/extintores/camillas/kits
 - `GET ?catalogo=elementos` → catálogo de elementos (vacío en extintor)
@@ -397,6 +418,51 @@ cada `route.ts` es un reenvío de dos líneas.
   `src/app/dashboard/medicina-laboral/_components/ui.tsx`
 - Ver `docs/modulos/medicina-laboral/README.md`
 
+### Informe Mensual de Gestión SST (Nuevo - Ago 2026)
+
+| Módulo | API | Dashboard | Estado | Características |
+|---|---|---|---|---|
+| **Informe Mensual** | `/api/informes/mensual` | `informes` | ✅ | 18 indicadores legales + 6 secciones, en JSON y PDF |
+
+**Endpoints:**
+- `GET /api/informes/mensual?mes=&anio=` — el informe en JSON
+- `GET /api/informes/mensual/pdf?mes=&anio=` — el mismo informe en PDF
+
+Sin `mes`/`anio` usan el mes en curso (America/Bogota). El periodo es siempre
+un mes calendario.
+
+**Regla del módulo: aquí no se calcula ningún indicador que un módulo ya
+calcule.** Los 18 indicadores legales vienen de `calcularIndicadores`
+(accidentes) y `calcularIndicadoresMedicinaLaboral` (medicina laboral). Lo
+único propio es el consolidado de las siete inspecciones y el conteo de
+actividades de promoción y prevención.
+
+```
+src/lib/informes/
+├── airtable.ts      Lectura paginada + filtro por periodo
+├── inspecciones.ts  Consolida los 7 tipos de inspección
+├── actividades.ts   Capacitaciones, inducciones, inspecciones y comités
+├── consolidar.ts    Arma el informe completo
+├── pdf.ts           Genera el documento
+├── handlers.ts      Sesión y lectura del periodo
+└── types.ts
+
+src/lib/pdf/corporativo.ts   Encabezado y pie Sirius (compartido)
+```
+
+**Características clave:**
+- Una consulta rota no tumba el informe: cada lectura de inspecciones y
+  actividades pasa por `traerOpcional` y el fallo se reporta en
+  `seccionesIncompletas` (amarillo en la UI, recuadro rojo en el PDF).
+  Accidentes y medicina laboral sí son obligatorios
+- Las inspecciones se consultan una sola vez y se reusan en las actividades:
+  el informe hace ~25 lecturas a Airtable y consolida en ~1.4 s
+- `textoSeguroPdf` transcribe la puntuación tipográfica y descarta emojis:
+  las fuentes estándar de jsPDF no los dibujan
+- PDF comprimido — sin `compress: true` pesaba 2.3 MB por el logo; ahora 51 KB
+- `npm run probar:informe [mes] [anio]` lo ejecuta contra Airtable real
+- Ver `docs/modulos/informes/README.md`
+
 ### Módulos en Desarrollo
 
 | Módulo | API | Dashboard | Estado |
@@ -449,8 +515,16 @@ const signedUrl = await getSignedUrlForKey(key, 3600);
 npm run dev              # Desarrollo
 npm run build            # Build producción
 npm run lint             # ESLint
-npm run check:env        # Verifica que todos los IDs de Airtable existan
+npm run check:env        # Verifica que todos los IDs de Airtable estén definidos
+npm run audit:airtable   # Contrasta el código contra el esquema REAL de Airtable
+npm run ver:tabla <q>    # Muestra los campos de una tabla (busca por nombre o ID)
+npm run probar:informe   # Genera el informe mensual contra Airtable real
 npm run gen:env-example  # Regenera .env.example desde .env.local
+
+# Gestión de eventos y evaluaciones
+npm run eventos:listar             # Lista los últimos 20 eventos con información detallada
+npm run eventos:buscar <fecha>     # Busca eventos por fecha (formato: 2026-08-26)
+npm run evaluacion:habilitar <recordId> [nombre]  # Habilita evaluación en un evento existente
 
 # Type-check. Se filtra .next/ por el bug de routes.d.ts en Next.js 16.2.4
 npx tsc --noEmit | grep -v "^\.next/"
@@ -460,9 +534,28 @@ npx tsc --noEmit | grep -v "^\.next/"
 convierte en la cadena `"undefined"` al usarse como clave, y Airtable rechaza el
 request completo con un error que no dice qué campo fue.
 
+`check:env` solo verifica que las variables estén *definidas*.
+**`audit:airtable` va más allá:** consulta la Metadata API y comprueba que cada
+tabla y cada field ID exista de verdad en la base. Úsalo cuando sospeches que
+un ID apunta a algo que ya no está. Vuelca el esquema en
+`scripts/esquema-sgsst.json` para consultarlo después con `ver:tabla` sin
+volver a llamar la API.
+
 ## Variables de Entorno Requeridas
 
 Ver archivo `.env.example` para la lista completa. Resumen de variables principales:
+
+### Datos de la Empresa (corporativo.ts) — OBLIGATORIAS
+```bash
+EMPRESA_NOMBRE               # Nombre corto (aparece en logo de respaldo PDF)
+EMPRESA_RAZON_SOCIAL         # Razón social completa
+EMPRESA_NIT                  # NIT con dígito de verificación
+EMPRESA_TELEFONO             # Teléfono de contacto
+EMPRESA_CORREO               # Correo electrónico corporativo
+EMPRESA_DIRECCION            # Dirección física de la sede principal
+```
+
+**CRÍTICO:** Estas variables son **OBLIGATORIAS** para la generación de documentos PDF corporativos (informes mensuales, actas futuras, etc.). Si faltan, las funciones de PDF lanzarán error. Valida con `npm run check:env`. Ver documentación completa en `docs/configuracion/VARIABLES_EMPRESA.md`.
 
 ### Base Personal (airtable.ts)
 ```bash
@@ -528,7 +621,7 @@ JWT_SECRET                   # Secreto para tokens JWT
 
 **IMPORTANTE:** Todas las variables de Field IDs deben estar definidas. El archivo `airtableSGSST.ts` tiene más de 300 field IDs configurados. Usar `.env.example` como plantilla.
 
-## Estado del Proyecto (Actualizado 2026-03-24)
+## Estado del Proyecto (Actualizado 2026-08-25)
 
 ### Completitud General: 75%
 
@@ -541,23 +634,22 @@ JWT_SECRET                   # Secreto para tokens JWT
 - Inspecciones EPP
 - Inspecciones de áreas físicas (recientemente corregido)
 - Inspecciones de equipos de emergencia
+- Inspecciones de botiquines, extintores, camillas y kits de derrames
+- Informe mensual de gestión SST (18 indicadores, JSON y PDF)
 - Plan anual de capacitaciones
 - Exportación a Excel y PDF
 
 **En Desarrollo Activo:**
-- 4 módulos de inspecciones específicas (API lista, UI pendiente):
-  - Botiquines
-  - Extintores
-  - Camillas
-  - Kits de derrames
-- Dashboard unificado de inspecciones de emergencia
+- Fase Verificar: indicadores, auditoría interna y revisión por la alta dirección
 
 **Planificado:**
-- Gestión de riesgos
-- Módulo de incidentes y accidentes
-- Control de exámenes médicos
-- PVE Osteomuscular
-- Gestión documental
+- Matriz de peligros (GTC 45) — estándar 4.1.1
+- Plan de emergencias — estándares 5.1.1 y 5.1.2
+- Indicadores SG-SST, auditoría interna y revisión por la alta dirección
+  (fase Verificar, hoy vacía)
+- Acciones correctivas, gestión documental y mejora continua
+  (fase Actuar, hoy vacía)
+- PVE Osteomuscular — hoy es una página informativa, no persiste nada
 
 ### Deuda Técnica Conocida
 
@@ -573,9 +665,9 @@ JWT_SECRET                   # Secreto para tokens JWT
      reemplazar; sale con código 1 si algo falta
    - `npm run gen:env-example` regenera `.env.example` desde `.env.local`
      enmascarando los valores
-   - **La corrida actual reporta 23 problemas abiertos** (kit de derrames,
-     snapshot de extintor, `Created_At`/`Updated_At` de actas de comité, y
-     placeholders en políticas). Correrlo antes de tocar esos módulos.
+   - `npm run audit:airtable` contrasta además contra el esquema real
+   - **Estado: 0 problemas.** La auditoría del 2026-08-21 encontró 31 y todos
+     se corrigieron (ver "Mejoras Recientes").
 
 3. Logging insuficiente
    - Errores de queries secundarias se ignoran silenciosamente
@@ -607,9 +699,12 @@ JWT_SECRET                   # Secreto para tokens JWT
      no tienen throttling
 
 **Prioridad BAJA:**
-9. UI de inspecciones específicas
-   - Las 4 APIs están completas pero no existe `/dashboard/inspecciones-emergencia`
-   - El hub `/dashboard/inspecciones` solo enlaza a EPP, áreas y equipos
+9. ~~UI de inspecciones específicas~~ — **resuelto (Ago 2026)**
+   - `/dashboard/inspecciones-emergencia` cubre los 4 tipos y el hub
+     `/dashboard/inspecciones` ya enlaza a la sección
+   - Falta el flujo de firma: las inspecciones se crean como `Completada`
+     o `Borrador`; el estado `Firmada` existe en el catálogo pero ninguna
+     pantalla lo produce
 
 10. Migraciones de datos
     - Existe `/api/equipos-emergencia/migrar` pero no documentado
@@ -622,8 +717,31 @@ JWT_SECRET                   # Secreto para tokens JWT
 - ✅ Librería compartida `src/lib/inspecciones-emergencia/` y los 3 `route.ts`
   que faltaban (extintor, camilla, kit de derrames)
 - ✅ Botiquín migrado a la librería compartida — ahora exige sesión
+- ✅ **Informe mensual de gestión SST**: consolida accidentes, medicina
+  laboral, inspecciones y actividades de P&P; los 18 indicadores legales en
+  una sola tabla, en JSON y en PDF con el formato corporativo
+- ✅ `src/lib/pdf/corporativo.ts`: encabezado y pie Sirius compartidos
+  (`actaPdf.ts` y `perfilPdf.ts` conservan su copia; no se tocaron)
+- ✅ **UI de los 4 tipos** en `/dashboard/inspecciones-emergencia`: hub, captura
+  e historial con descarga de PDF, todo desde una sola pantalla parametrizada
+  por tipo. Cierra el último pendiente de estos módulos
 - ✅ `validateConfig()` + `npm run check:env` + `npm run gen:env-example`
-- ✅ `.env.example` versionado (1000 variables, sin secretos)
+- ✅ `.env.example` versionado (1015 variables, sin secretos)
+- ✅ **Auditoría de la base contra el código** (`npm run audit:airtable`):
+  31 desajustes encontrados y corregidos → 0
+  - Tabla `Detalle Inspección Kit Derrames` recreada (había sido eliminada)
+  - `Created_At`/`Updated_At` creados en `copasst_actas` y `cocolab_actas`:
+    el repositorio los escribía desde siempre, pero las variables no existían
+    y `cleanFields` los descartaba en silencio — los timestamps nunca se
+    guardaron
+  - `Kits Control Derrames` e `Info Importante Extintor` mapeados: las tablas
+    existían en la base pero el código no las referenciaba
+  - Nombres de variable alineados (`_UBICACION_LINK`, `_ALMACENAMIENTO`,
+    `_ROTULADO`) y corregido un typo de un carácter en `AIRTABLE_PROG_OBSERVACIONES`
+  - Retiradas 5 declaraciones muertas de la config: campos que no existían en
+    Airtable y que ningún endpoint leía (`detalleFields.VIDA_UTIL`,
+    `detalleFields.FECHA_VENCIMIENTO`, `politicasFields.ID`, y el `ESTADO`
+    de `veh_documentos` y `veh_licencias`)
 
 **Marzo 2026**
 - ✅ Corrección crítica en queries FIND() de inspecciones-areas

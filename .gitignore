@@ -49,3 +49,9 @@ scripts/*-output.txt
 scripts/*-diagnostico.txt
 *-field-ids.json
 /docs
+scripts/esquema-sgsst.json
+
+# Salida del smoke test del informe mensual (npm run probar:informe)
+informe-prueba.pdf
+.env.example
+*.example

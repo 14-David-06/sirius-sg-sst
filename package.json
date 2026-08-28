@@ -8,9 +8,15 @@
     "start": "next start",
     "lint": "eslint",
     "check:env": "tsx scripts/check-env.ts",
+    "audit:airtable": "tsx scripts/auditar-airtable.ts",
+    "ver:tabla": "tsx scripts/ver-tabla.ts",
+    "probar:informe": "tsx scripts/probar-informe.ts",
     "gen:env-example": "tsx scripts/generar-env-example.ts",
     "test:inspecciones-areas": "node test-inspecciones-areas.js",
-    "get-field-ids:medicina": "tsx scripts/obtener-field-ids-medicina-laboral.ts"
+    "get-field-ids:medicina": "tsx scripts/obtener-field-ids-medicina-laboral.ts",
+    "eventos:listar": "tsx scripts/listar-eventos-recientes.ts",
+    "eventos:buscar": "tsx scripts/buscar-evento-fecha.ts",
+    "evaluacion:habilitar": "tsx scripts/habilitar-evaluacion.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.995.0",

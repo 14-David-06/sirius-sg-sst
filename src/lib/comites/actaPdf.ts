@@ -31,6 +31,8 @@ const C = {
 } as const;
 
 // ── Datos fijos de la empresa ────────────────────────────
+// TODO: migrar a variables de entorno (ver src/lib/pdf/corporativo.ts)
+// Los documentos nuevos deben usar el módulo corporativo.ts que lee de env.
 const EMPRESA    = "SIRIUS";
 const NIT        = "901.377.064-8";
 const TELEFONO   = "320 9568566";

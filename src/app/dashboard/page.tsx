@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useSession } from "@/presentation/context/SessionContext";
+import { useEffect, useRef } from "react";
 
 // ══════════════════════════════════════════════════════════
 // Dashboard SG-SST organizado bajo el ciclo PHVA
@@ -324,6 +325,16 @@ const modulesByPhase: Record<Phase, Module[]> = {
   // ════════════════════ V · VERIFICAR ══════════════════
   V: [
     {
+      title: "Informe Mensual de Gestión",
+      description:
+        "Consolida accidentes, medicina laboral, inspecciones y actividades de P&P del mes, con los 18 indicadores legales.",
+      icon: I.document,
+      color: "bg-blue-500/15 text-blue-300",
+      href: "/dashboard/informes",
+      status: "active",
+      estandar: "Res. 0312/2019 — Informe mensual",
+    },
+    {
       title: "Indicadores SG-SST",
       description: "Indicadores de estructura, proceso y resultado del SG-SST.",
       icon: I.chart,
@@ -386,6 +397,7 @@ const modulesByPhase: Record<Phase, Module[]> = {
 export default function DashboardPage() {
   const router = useRouter();
   const { user, logout } = useSession();
+  const cardsRef = useRef<(HTMLButtonElement | null)[]>([]);
 
   const handleLogout = () => {
     logout();
@@ -400,6 +412,59 @@ export default function DashboardPage() {
   const allModules = Object.values(modulesByPhase).flat();
   const totalActive = allModules.filter((m) => m.status === "active").length;
   const totalSoon = allModules.filter((m) => m.status === "soon").length;
+
+  // Efecto 3D en las tarjetas
+  useEffect(() => {
+    const cards = cardsRef.current.filter(Boolean) as HTMLButtonElement[];
+
+    const handleMouseMove = (e: MouseEvent, card: HTMLElement, intensity = 8) => {
+      const rect = card.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const centerX = rect.width / 2;
+      const centerY = rect.height / 2;
+      const rotateY = ((x - centerX) / centerX) * intensity;
+      const rotateX = ((centerY - y) / centerY) * intensity;
+
+      card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.02, 1.02, 1.02)`;
+    };
+
+    const handleMouseLeave = (card: HTMLElement) => {
+      card.style.transform = "perspective(1000px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)";
+    };
+
+    // Efecto para tarjetas de módulos
+    cards.forEach((card) => {
+      const mouseMoveHandler = (e: MouseEvent) => handleMouseMove(e, card, 8);
+      const mouseLeaveHandler = () => handleMouseLeave(card);
+
+      card.addEventListener("mousemove", mouseMoveHandler);
+      card.addEventListener("mouseleave", mouseLeaveHandler);
+
+      // Cleanup
+      return () => {
+        card.removeEventListener("mousemove", mouseMoveHandler);
+        card.removeEventListener("mouseleave", mouseLeaveHandler);
+      };
+    });
+
+    // Efecto para tarjetas PHVA y stats
+    const phvaCards = document.querySelectorAll<HTMLElement>(".card-3d");
+    phvaCards.forEach((card) => {
+      const mouseMoveHandler = (e: MouseEvent) => handleMouseMove(e, card, 6);
+      const mouseLeaveHandler = () => handleMouseLeave(card);
+
+      card.addEventListener("mousemove", mouseMoveHandler);
+      card.addEventListener("mouseleave", mouseLeaveHandler);
+    });
+
+    return () => {
+      phvaCards.forEach((card) => {
+        card.removeEventListener("mousemove", () => {});
+        card.removeEventListener("mouseleave", () => {});
+      });
+    };
+  }, []);
 
   return (
     <div className="min-h-screen relative">
@@ -461,7 +526,11 @@ export default function DashboardPage() {
               <a
                 key={p}
                 href={`#fase-${p}`}
-                className={`relative overflow-hidden rounded-xl border border-white/15 bg-gradient-to-br ${ph.accent} p-4 hover:border-white/30 transition-all group`}
+                style={{
+                  transformStyle: "preserve-3d",
+                  transition: "transform 0.15s ease, border-color 0.3s ease"
+                }}
+                className={`card-3d relative overflow-hidden rounded-xl border border-white/15 bg-gradient-to-br ${ph.accent} p-4 hover:border-white/30 group`}
               >
                 <div className="flex items-center gap-3">
                   <div className={`w-12 h-12 rounded-lg flex items-center justify-center font-bold text-2xl text-white ring-2 ${ph.ring} bg-white/10`}>
@@ -485,7 +554,14 @@ export default function DashboardPage() {
             { label: "Estándares cubiertos", value: `${totalActive}/62`, color: "text-sky-300" },
             { label: "Fases PHVA", value: "4/4", color: "text-purple-300" },
           ].map((stat) => (
-            <div key={stat.label} className="bg-white/10 backdrop-blur-xl rounded-xl border border-white/15 p-4">
+            <div
+              key={stat.label}
+              style={{
+                transformStyle: "preserve-3d",
+                transition: "transform 0.15s ease"
+              }}
+              className="card-3d bg-white/10 backdrop-blur-xl rounded-xl border border-white/15 p-4"
+            >
               <p className="text-xs text-white/50">{stat.label}</p>
               <p className={`text-2xl font-bold mt-1 ${stat.color}`}>{stat.value}</p>
             </div>
@@ -519,14 +595,20 @@ export default function DashboardPage() {
 
                 {/* Modules grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {mods.map((mod) => {
+                  {mods.map((mod, idx) => {
                     const isActive = mod.status === "active";
+                    const globalIdx = allModules.findIndex(m => m.title === mod.title);
                     return (
                       <button
                         key={mod.title}
+                        ref={(el) => { cardsRef.current[globalIdx] = el; }}
                         onClick={() => handleOpen(mod)}
                         disabled={!isActive}
-                        className={`relative bg-white/10 backdrop-blur-xl rounded-xl border p-5 text-left transition-all group ${
+                        style={{
+                          transformStyle: "preserve-3d",
+                          transition: "transform 0.15s ease, background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease"
+                        }}
+                        className={`relative bg-white/10 backdrop-blur-xl rounded-xl border p-5 text-left group ${
                           isActive
                             ? "border-white/15 hover:bg-white/20 hover:border-white/30 hover:shadow-2xl hover:shadow-black/20 cursor-pointer"
                             : "border-white/10 opacity-60 cursor-not-allowed"

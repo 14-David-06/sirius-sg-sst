@@ -35,7 +35,7 @@ const inspectionTypes = [
     cardBg: "bg-red-500/10 hover:bg-red-500/20 border-red-400/20 hover:border-red-400/35",
     arrowColor: "text-red-400/50",
     titleHover: "group-hover:text-red-300",
-    href: "/dashboard/inspecciones-equipos",
+    href: "/dashboard/inspecciones-emergencia",
     available: true,
   },
 ];
