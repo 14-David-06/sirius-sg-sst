@@ -1111,11 +1111,11 @@ export async function GET(req: NextRequest) {
       // FOTOS DE EVIDENCIA — fila dedicada con imágenes
       // ═══════════════════════════════════════════════════
       if (group.fotoUrls.length > 0) {
-        const FOTO_ROW_HEIGHT = 300;
+        const FOTO_ROW_HEIGHT = 200; // Reducido de 300 a 200 para mejor proporción
         // Ancho total del documento en unidades de columna ExcelJS
         // Col A=34, B=14, C=24, D=18, E=50 → Total=140 unidades
-        // Se usa 1/4 del ancho total para que las imágenes no queden demasiado anchas
-        const TOTAL_WIDTH_UNITS = 35; // 140 / 4
+        // Se usa más ancho para evitar distorsión vertical
+        const TOTAL_WIDTH_UNITS = 70; // Aumentado de 35 a 70 (mitad del ancho total)
         const PX_PER_UNIT = 7; // aprox px por unidad de ancho en ExcelJS
 
         // Fila de etiqueta (fusionada) con diseño destacado
@@ -1139,9 +1139,14 @@ export async function GET(req: NextRequest) {
 
         // Distribuir imágenes equitativamente a lo ancho (máximo 3)
         const maxFotos = Math.min(group.fotoUrls.length, 3);
-        const imgW = Math.floor((TOTAL_WIDTH_UNITS * PX_PER_UNIT) / maxFotos) - 8;
-        const imgH = FOTO_ROW_HEIGHT - 8;
-        const unitWidth = TOTAL_WIDTH_UNITS / maxFotos;
+        const imgW = Math.floor((TOTAL_WIDTH_UNITS * PX_PER_UNIT) / maxFotos) - 10;
+        // Altura proporcional al ancho para mantener relación de aspecto cuadrada
+        const imgH = Math.min(imgW, FOTO_ROW_HEIGHT - 10);
+
+        // La celda fusionada va de columna 1 a columna 5 (índices 0-4)
+        // Distribuir las imágenes proporcionalmente dentro de esas 5 columnas
+        const totalCols = TOTAL_COLS; // 5 columnas fusionadas
+        const colWidth = totalCols / maxFotos; // Ancho en columnas por imagen
 
         for (let i = 0; i < maxFotos; i++) {
           const buffer = await fetchImageBuffer(group.fotoUrls[i]);
@@ -1153,8 +1158,9 @@ export async function GET(req: NextRequest) {
           else if (buffer[0] === 0x47 && buffer[1] === 0x49) ext = "gif";
 
           const imgId = workbook.addImage({ base64: buffer.toString("base64"), extension: ext });
-          // Posición horizontal: imagen i ocupa la i-ésima porción del ancho total
-          const colStart = i * unitWidth + 0.1;
+          // Posición horizontal: distribuir uniformemente en las 5 columnas
+          // Cada imagen empieza en (i * colWidth) + pequeño margen
+          const colStart = i * colWidth + 0.1;
 
           ws.addImage(imgId, {
             tl: { col: colStart, row: fotoDataRow - 1 + 0.04 } as unknown as ExcelJS.Anchor,

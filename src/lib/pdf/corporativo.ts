@@ -25,23 +25,43 @@ export const C = {
 } as const;
 
 // ── Datos de la empresa (configurables vía env) ──────────
-function requireEnv(key: string): string {
-  const value = process.env[key];
-  if (!value) {
+// Las constantes se leen directamente de process.env para evitar errores en
+// build-time. La validación se hace en runtime en las funciones públicas.
+const _EMPRESA = process.env.EMPRESA_NOMBRE;
+const _RAZON_SOCIAL = process.env.EMPRESA_RAZON_SOCIAL;
+const _NIT = process.env.EMPRESA_NIT;
+const _TELEFONO = process.env.EMPRESA_TELEFONO;
+const _CORREO = process.env.EMPRESA_CORREO;
+const _PLANTACION = process.env.EMPRESA_DIRECCION;
+
+/**
+ * Valida que todas las variables de empresa estén definidas.
+ * Se llama al inicio de cada función pública que genera PDF.
+ */
+function validarVariablesEmpresa(): void {
+  const faltantes: string[] = [];
+  if (!_EMPRESA) faltantes.push("EMPRESA_NOMBRE");
+  if (!_RAZON_SOCIAL) faltantes.push("EMPRESA_RAZON_SOCIAL");
+  if (!_NIT) faltantes.push("EMPRESA_NIT");
+  if (!_TELEFONO) faltantes.push("EMPRESA_TELEFONO");
+  if (!_CORREO) faltantes.push("EMPRESA_CORREO");
+  if (!_PLANTACION) faltantes.push("EMPRESA_DIRECCION");
+
+  if (faltantes.length > 0) {
     throw new Error(
-      `Variable de entorno requerida no definida: ${key}\n` +
+      `Variables de entorno requeridas no definidas: ${faltantes.join(", ")}\n` +
       `Configura los datos de la empresa en .env.local y verifica con: npm run check:env`
     );
   }
-  return value;
 }
 
-export const EMPRESA = requireEnv("EMPRESA_NOMBRE");
-export const RAZON_SOCIAL = requireEnv("EMPRESA_RAZON_SOCIAL");
-export const NIT = requireEnv("EMPRESA_NIT");
-export const TELEFONO = requireEnv("EMPRESA_TELEFONO");
-export const CORREO = requireEnv("EMPRESA_CORREO");
-export const PLANTACION = requireEnv("EMPRESA_DIRECCION");
+// Re-exportar como constantes no-null para uso interno (después de validación)
+export const EMPRESA = _EMPRESA!;
+export const RAZON_SOCIAL = _RAZON_SOCIAL!;
+export const NIT = _NIT!;
+export const TELEFONO = _TELEFONO!;
+export const CORREO = _CORREO!;
+export const PLANTACION = _PLANTACION!;
 
 export interface MetadatosFormato {
   codigo: string;
@@ -86,6 +106,8 @@ export function renderEncabezado(
   logo64: string | null,
   formato: MetadatosFormato
 ): number {
+  validarVariablesEmpresa();
+
   const H = 33;
   const cL = 40; // columna del logo
   const cC = 54; // columna del código
@@ -167,6 +189,8 @@ export function renderPiePagina(
   pagina: number,
   total: number
 ): void {
+  validarVariablesEmpresa();
+
   const y0 = PH - 22;
   doc.setDrawColor(...C.VERDE);
   doc.setLineWidth(0.8);

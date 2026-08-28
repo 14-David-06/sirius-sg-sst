@@ -160,8 +160,8 @@ async function fetchImageAsBase64(imageUrl: string): Promise<string | null> {
     // Auto-rotar según EXIF, reducir resolución y convertir a JPEG
     const correctedBuffer = await sharp(rawBuffer)
       .rotate() // auto-rotate based on EXIF orientation
-      .resize(800, 800, { fit: "inside", withoutEnlargement: true })
-      .jpeg({ quality: 82 })
+      .resize(400, 400, { fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: 80 })
       .toBuffer();
     const base64 = correctedBuffer.toString("base64");
     return `data:image/jpeg;base64,${base64}`;
@@ -448,13 +448,20 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // ── 7. Logo de la empresa ───────────────────────────
-    let logoBase64 = "";
+    // ── 7. Imágenes corporativas ───────────────────────────
+    let encabezadoBase64 = "";
+    let pieBase64 = "";
     try {
-      const logoPath = path.join(process.cwd(), "public", "logo.png");
-      const logoBuf = fs.readFileSync(logoPath);
-      logoBase64 = `data:image/png;base64,${logoBuf.toString("base64")}`;
-    } catch { /* sin logo */ }
+      const encabezadoPath = path.join(process.cwd(), "public", "Encabezado Sirius.png");
+      const encabezadoBuf = fs.readFileSync(encabezadoPath);
+      encabezadoBase64 = `data:image/png;base64,${encabezadoBuf.toString("base64")}`;
+
+      const piePath = path.join(process.cwd(), "public", "Pie de pagina Sirius.png");
+      const pieBuf = fs.readFileSync(piePath);
+      pieBase64 = `data:image/png;base64,${pieBuf.toString("base64")}`;
+    } catch (e) {
+      console.warn("No se pudieron cargar las imágenes corporativas:", e);
+    }
 
     // ── 8. Generar PDF con jsPDF ────────────────────────
     const tipoLabel = tipo === "dotacion" ? "Dotación" : "EPP";
@@ -471,27 +478,58 @@ export async function GET(req: NextRequest) {
       const pageCount = doc.getNumberOfPages();
       for (let i = 1; i <= pageCount; i++) {
         doc.setPage(i);
-        doc.setFontSize(7);
-        doc.setTextColor(...BRAND.GRIS_TEXTO);
-        doc.text(
-          `Sirius SG-SST · Entregas de ${tipoLabel} · ${mesLabel}`,
-          MARGIN,
-          PAGE_H - 8
-        );
-        doc.text(`Página ${i} de ${pageCount}`, PAGE_W - MARGIN, PAGE_H - 8, {
-          align: "right",
-        });
-        // Línea separadora footer
-        doc.setDrawColor(...BRAND.GRIS_BORDE);
-        doc.setLineWidth(0.3);
-        doc.line(MARGIN, PAGE_H - 12, PAGE_W - MARGIN, PAGE_H - 12);
+
+        if (pieBase64) {
+          // Usar imagen corporativa del pie de página
+          // Dimensiones originales: 815 x 109 (proporción ~7.5:1)
+          const footerH = 22; // Altura del pie en mm (aumentado de 18 a 22mm)
+          const footerW = PAGE_W;
+          const footerY = PAGE_H - footerH;
+          try {
+            doc.addImage(pieBase64, "PNG", 0, footerY, footerW, footerH);
+          } catch (e) {
+            console.warn("Error al agregar imagen del pie:", e);
+          }
+        } else {
+          // Fallback: pie de página con texto
+          doc.setFontSize(7);
+          doc.setTextColor(...BRAND.GRIS_TEXTO);
+          doc.text(
+            `Sirius SG-SST · Entregas de ${tipoLabel} · ${mesLabel}`,
+            MARGIN,
+            PAGE_H - 8
+          );
+          doc.text(`Página ${i} de ${pageCount}`, PAGE_W - MARGIN, PAGE_H - 8, {
+            align: "right",
+          });
+          // Línea separadora footer
+          doc.setDrawColor(...BRAND.GRIS_BORDE);
+          doc.setLineWidth(0.3);
+          doc.line(MARGIN, PAGE_H - 12, PAGE_W - MARGIN, PAGE_H - 12);
+        }
+      }
+    };
+
+    const addHeaderToCurrentPage = () => {
+      if (encabezadoBase64) {
+        const headerH = 35; // Aumentado de 30 a 35mm para más presencia
+        const headerW = PAGE_W;
+        try {
+          doc.addImage(encabezadoBase64, "PNG", 0, 0, headerW, headerH);
+        } catch (e) {
+          console.warn("Error al agregar imagen del encabezado:", e);
+        }
       }
     };
 
     const checkSpace = (needed: number, y: number): number => {
-      if (y + needed > PAGE_H - 18) {
+      // Dejar espacio para el pie de página (26mm si hay imagen, 18mm si no)
+      const footerSpace = pieBase64 ? 26 : 18; // Aumentado de 22 a 26mm
+      if (y + needed > PAGE_H - footerSpace) {
         doc.addPage();
-        return MARGIN + 5;
+        addHeaderToCurrentPage(); // Agregar encabezado a la nueva página
+        // Si hay encabezado corporativo, empezar después de él
+        return encabezadoBase64 ? 43 : MARGIN + 5; // Actualizado de 38 a 43mm
       }
       return y;
     };
@@ -508,47 +546,11 @@ export async function GET(req: NextRequest) {
       }
       isFirstPage = false;
 
-      let y = MARGIN;
+      // Agregar encabezado corporativo a la página actual
+      addHeaderToCurrentPage();
 
-      // ── ENCABEZADO DEL DOCUMENTO ──────────────────────
-      // Fondo del header
-      doc.setFillColor(...BRAND.AZUL);
-      doc.rect(0, 0, PAGE_W, 32, "F");
-
-      // Logo (centrado total: vertical y horizontal)
-      if (logoBase64) {
-        try {
-          const logoSize = 24;
-          const headerHeight = 32;
-          const logoY = (headerHeight - logoSize) / 2; // Centrado vertical
-          const logoX = (PAGE_W - logoSize) / 2; // Centrado horizontal
-          doc.addImage(logoBase64, "PNG", logoX, logoY, logoSize, logoSize);
-        } catch { /* sin logo */ }
-      }
-
-      // Título (lado izquierdo)
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(14);
-      doc.setTextColor(...BRAND.BLANCO);
-      doc.text(`ACTA DE ENTREGA DE ${tipoLabel.toUpperCase()}`, MARGIN, 14);
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      doc.text(`Período: ${mesLabel}`, MARGIN, 21);
-
-      // Código del formato (lado derecho)
-      doc.setFontSize(8);
-      doc.text(
-        tipo === "dotacion" ? "CÓDIGO: FT-SST-023" : "CÓDIGO: FT-SST-029",
-        PAGE_W - MARGIN,
-        14,
-        { align: "right" }
-      );
-      doc.text(`Fecha: ${new Date().toLocaleDateString("es-CO", { timeZone: "America/Bogota" })}`, PAGE_W - MARGIN, 21, {
-        align: "right",
-      });
-
-      y = 40;
+      // Posición inicial después del encabezado
+      let y = encabezadoBase64 ? 43 : MARGIN;
 
       // ── DATOS DEL EMPLEADO ────────────────────────────
       doc.setFillColor(...BRAND.FONDO_CLARO);
@@ -706,10 +708,10 @@ export async function GET(req: NextRequest) {
           doc.text("Evidencias fotográficas:", MARGIN, y);
           y += 5;
 
-          // Grid: máximo 3 fotos por fila, tamaño máx 55mm
+          // Grid: máximo 3 fotos por fila, tamaño máx 35mm
           const PER_ROW = 3;
           const IMG_GAP = 4;
-          const IMG_SIZE = Math.min(55, Math.floor((CONTENT_W - IMG_GAP * (PER_ROW - 1)) / PER_ROW));
+          const IMG_SIZE = Math.min(35, Math.floor((CONTENT_W - IMG_GAP * (PER_ROW - 1)) / PER_ROW));
 
           for (let rowStart = 0; rowStart < ent.fotoUrls.length; rowStart += PER_ROW) {
             const rowUrls = ent.fotoUrls.slice(rowStart, rowStart + PER_ROW);

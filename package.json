@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "check:env": "tsx scripts/check-env.ts",
+    "test:validacion-empresa": "tsx scripts/test-validacion-empresa.ts",
     "audit:airtable": "tsx scripts/auditar-airtable.ts",
     "ver:tabla": "tsx scripts/ver-tabla.ts",
     "probar:informe": "tsx scripts/probar-informe.ts",

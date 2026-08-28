@@ -512,14 +512,15 @@ const signedUrl = await getSignedUrlForKey(key, 3600);
 ## Comandos
 
 ```bash
-npm run dev              # Desarrollo
-npm run build            # Build producción
-npm run lint             # ESLint
-npm run check:env        # Verifica que todos los IDs de Airtable estén definidos
-npm run audit:airtable   # Contrasta el código contra el esquema REAL de Airtable
-npm run ver:tabla <q>    # Muestra los campos de una tabla (busca por nombre o ID)
-npm run probar:informe   # Genera el informe mensual contra Airtable real
-npm run gen:env-example  # Regenera .env.example desde .env.local
+npm run dev                      # Desarrollo
+npm run build                    # Build producción
+npm run lint                     # ESLint
+npm run check:env                # Verifica variables de entorno (empresa + Airtable)
+npm run test:validacion-empresa  # Prueba validación de variables de empresa en runtime
+npm run audit:airtable           # Contrasta el código contra el esquema REAL de Airtable
+npm run ver:tabla <q>            # Muestra los campos de una tabla (busca por nombre o ID)
+npm run probar:informe           # Genera el informe mensual contra Airtable real
+npm run gen:env-example          # Regenera .env.example desde .env.local
 
 # Gestión de eventos y evaluaciones
 npm run eventos:listar             # Lista los últimos 20 eventos con información detallada
