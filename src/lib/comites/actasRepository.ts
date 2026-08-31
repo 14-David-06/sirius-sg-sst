@@ -380,6 +380,16 @@ function mapCabeceraToDomain(
     updatedAt: (f[F.UPDATED_AT] as string) || undefined,
   };
   if (comite === "COPASST") {
+    // Parsear capacitaciones manuales desde el campo JSON
+    let capacitacionesManuales = [];
+    try {
+      const raw = (f[F.CAPACITACIONES_MANUALES] as string) || "[]";
+      capacitacionesManuales = JSON.parse(raw);
+    } catch (e) {
+      console.warn("[comites] Error parseando capacitaciones manuales:", e);
+      capacitacionesManuales = [];
+    }
+
     return {
       ...base,
       comite: "COPASST",
@@ -392,6 +402,7 @@ function mapCabeceraToDomain(
       asistentes: [],
       condicionesInseguras: [],
       capacitaciones: [],
+      capacitacionesManuales,
       compromisos: [],
     };
   }
@@ -436,6 +447,8 @@ function cabeceraFieldsFromDomain(
       out[F.INCIDENTES_DETALLE] = acta.incidentesDetalle ?? "";
     if (acta.novedadesAdministrativas !== undefined)
       out[F.NOVEDADES_ADMINISTRATIVAS] = acta.novedadesAdministrativas ?? "";
+    if (acta.capacitacionesManuales !== undefined)
+      out[F.CAPACITACIONES_MANUALES] = JSON.stringify(acta.capacitacionesManuales);
   } else {
     if (acta.quejasAcoso !== undefined) out[F.QUEJAS_ACOSO] = acta.quejasAcoso;
     if (acta.quejasAcosoDetalle !== undefined)
@@ -631,6 +644,8 @@ export interface CrearActaPayload {
   condicionesInseguras?: ActaCopasst["condicionesInseguras"];
   // Capacitaciones: array de recordId de Programación Capacitaciones
   capacitacionesRecordIds?: string[];
+  // Capacitaciones manuales: array de objetos con tema, fecha, asistentes, observaciones
+  capacitacionesManuales?: ActaCopasst["capacitacionesManuales"];
   // COCOLAB
   quejasAcoso?: boolean;
   quejasAcosoDetalle?: string;
@@ -730,6 +745,10 @@ export async function crearActa(
     cabeceraFields[F.CONDICIONES_LINK] = condicionesRecIds;
     cabeceraFields[F.CAPACITACIONES_PROG_LINK] =
       payload.capacitacionesRecordIds || [];
+    // Guardar capacitaciones manuales como JSON
+    cabeceraFields[F.CAPACITACIONES_MANUALES] = JSON.stringify(
+      payload.capacitacionesManuales || []
+    );
   } else {
     cabeceraFields[F.ACCIONES_LINK] = accionesRecIds;
   }
@@ -888,8 +907,15 @@ export async function actualizarActa(
     cabeceraFields[F.CONDICIONES_LINK] = newIds;
   }
 
-  if (comite === "COPASST" && payload.capacitacionesRecordIds) {
-    cabeceraFields[F.CAPACITACIONES_PROG_LINK] = payload.capacitacionesRecordIds;
+  if (comite === "COPASST") {
+    if (payload.capacitacionesRecordIds) {
+      cabeceraFields[F.CAPACITACIONES_PROG_LINK] = payload.capacitacionesRecordIds;
+    }
+    if (payload.capacitacionesManuales !== undefined) {
+      cabeceraFields[F.CAPACITACIONES_MANUALES] = JSON.stringify(
+        payload.capacitacionesManuales
+      );
+    }
   }
 
   if (comite === "COCOLAB" && payload.accionesPreventivas) {

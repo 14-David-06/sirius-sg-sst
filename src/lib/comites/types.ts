@@ -60,6 +60,14 @@ export interface CapacitacionRef {
   fechaEjecucion?: string | null;
 }
 
+// ── Capacitación manual (COPASST) ─────────────────────────
+export interface CapacitacionManual {
+  id?: string;                  // ID generado localmente (no se guarda en Airtable)
+  tema: string;
+  fechaEjecucion?: string | null;
+  observaciones?: string | null;
+}
+
 // ── Compromiso (tabla compartida con discriminador comité) ─
 export interface CompromisoActa {
   id?: string;
@@ -119,6 +127,7 @@ export interface ActaCopasst extends ActaBase {
   asistentes: AsistenteActa[];
   condicionesInseguras: CondicionInsegura[];
   capacitaciones: CapacitacionRef[];
+  capacitacionesManuales: CapacitacionManual[];
   compromisos: CompromisoActa[];
 }
 

@@ -66,6 +66,13 @@ interface CapacitacionRef {
   fechaEjecucion?: string | null;
 }
 
+interface CapacitacionManualForm {
+  id: string;
+  tema: string;
+  fechaEjecucion: string;
+  observaciones: string;
+}
+
 interface CompromisoForm {
   compromiso: string;
   responsable: string;
@@ -149,6 +156,9 @@ export default function NuevaActaPage({
   const [capsCatalogo, setCapsCatalogo] = useState<CapacitacionRef[]>([]);
   const [loadingCaps, setLoadingCaps] = useState(false);
   const [capsSeleccionadas, setCapsSeleccionadas] = useState<Record<string, boolean>>({});
+
+  // ── Capacitaciones manuales (solo COPASST) ──
+  const [capsManuales, setCapsManuales] = useState<CapacitacionManualForm[]>([]);
 
   const [estado, setEstado] = useState<"idle" | "saving" | "ok" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState<string>("");
@@ -270,6 +280,11 @@ export default function NuevaActaPage({
       payload.novedadesAdministrativas = novedades;
       payload.condicionesInseguras = condiciones.filter((c) => c.descripcion.trim());
       payload.capacitacionesRecordIds = capacitacionesRecordIds;
+      payload.capacitacionesManuales = capsManuales.filter((c) => c.tema.trim()).map(c => ({
+        tema: c.tema,
+        fechaEjecucion: c.fechaEjecucion || null,
+        observaciones: c.observaciones || null,
+      }));
     } else {
       payload.quejasAcoso = quejasAcoso;
       payload.quejasAcosoDetalle = quejasDetalle;
@@ -568,6 +583,56 @@ export default function NuevaActaPage({
                   </ul>
                 )}
               </section>
+
+              {/* Capacitaciones manuales (solo para el acta) */}
+              <Repeater
+                titulo="Capacitaciones adicionales (manual)"
+                items={capsManuales}
+                setItems={setCapsManuales}
+                nuevo={() => ({
+                  id: crypto.randomUUID(),
+                  tema: "",
+                  fechaEjecucion: "",
+                  observaciones: "",
+                })}
+                render={(c, set) => (
+                  <>
+                    <div className="flex-1 flex items-center gap-1">
+                      <input
+                        placeholder="Tema de la capacitación"
+                        value={c.tema}
+                        onChange={(e) => set({ ...c, tema: e.target.value })}
+                        className="input flex-1"
+                      />
+                      <MicTranscribeButton
+                        variant="icon"
+                        onTranscribed={(t) => set({ ...c, tema: appendTranscripcion(c.tema, t) })}
+                        onError={setErrorMsg}
+                      />
+                    </div>
+                    <input
+                      type="date"
+                      value={c.fechaEjecucion}
+                      onChange={(e) => set({ ...c, fechaEjecucion: e.target.value })}
+                      placeholder="Fecha"
+                      className="input w-44"
+                    />
+                    <div className="flex-1 flex items-center gap-1">
+                      <input
+                        placeholder="Observaciones"
+                        value={c.observaciones}
+                        onChange={(e) => set({ ...c, observaciones: e.target.value })}
+                        className="input flex-1"
+                      />
+                      <MicTranscribeButton
+                        variant="icon"
+                        onTranscribed={(t) => set({ ...c, observaciones: appendTranscripcion(c.observaciones, t) })}
+                        onError={setErrorMsg}
+                      />
+                    </div>
+                  </>
+                )}
+              />
 
               <section className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-6">
                 <div className="flex items-center justify-between mb-3">

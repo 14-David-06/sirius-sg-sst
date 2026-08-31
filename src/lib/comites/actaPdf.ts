@@ -654,7 +654,10 @@ function renderSeccionesCopasst(
   // 6. Capacitaciones
   y = checkPage(doc, y, 40, PH, FH);
   y = secTitle(doc, "6. Capacitación e inspecciones de seguridad", M, CW, y);
-  if (acta.capacitaciones.length === 0) {
+
+  const totalCapacitaciones = acta.capacitaciones.length + (acta.capacitacionesManuales?.length || 0);
+
+  if (totalCapacitaciones === 0) {
     y = parrafo(doc,
       `Se realizó evaluación de conocimientos a los colaboradores, evidenciando apropiación ` +
       `general de los conceptos. Sin capacitaciones formales registradas en el período de ${mes}.`,
@@ -665,6 +668,16 @@ function renderSeccionesCopasst(
       `prevención de accidentes y enfermedades laborales, durante el mes de ${mes}.`,
       M, y, CW);
     y += 1;
+
+    // Combinar capacitaciones vinculadas y manuales
+    const todasLasCapacitaciones = [
+      ...acta.capacitaciones.map((c) => [c.tema || "—", c.fechaEjecucion || "—"]),
+      ...(acta.capacitacionesManuales || []).map((c) => [
+        c.tema || "—",
+        c.fechaEjecucion || "—",
+      ]),
+    ];
+
     autoTable(doc, {
       startY: y,
       margin: { left: M, right: M, bottom: 28 },
@@ -675,7 +688,7 @@ function renderSeccionesCopasst(
       alternateRowStyles: { fillColor: C.GRIS_CLARO },
       columnStyles: { 0: { cellWidth: CW * 0.72 }, 1: { cellWidth: CW * 0.28, halign: "center" } },
       head: [["Tema de capacitación", "Fecha de ejecución"]],
-      body: acta.capacitaciones.map((c) => [c.tema || "—", c.fechaEjecucion || "—"]),
+      body: todasLasCapacitaciones,
     });
     y = (doc as DocAT).lastAutoTable.finalY + 2;
     y = parrafo(doc,

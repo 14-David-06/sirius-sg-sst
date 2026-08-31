@@ -20,6 +20,7 @@ import {
   getAirtableUrl,
   getAirtableHeaders,
 } from "@/infrastructure/config/airtable";
+import { requireAuth } from "@/lib/authMiddleware";
 
 // ══════════════════════════════════════════════════════════
 // Tipos
@@ -61,7 +62,7 @@ function tryDecryptSignature(hash: string): string {
 }
 
 // ══════════════════════════════════════════════════════════
-// Helpers
+// Helpers de paginación Airtable
 // ══════════════════════════════════════════════════════════
 async function fetchAllRecords(
   url: string,
@@ -109,6 +110,14 @@ async function fetchRecordsByIds(
   return map;
 }
 
+// ══════════════════════════════════════════════════════════
+// Helpers de formato
+// ══════════════════════════════════════════════════════════
+
+/**
+ * Parsea el campo AI "Referencia Comercial" de Airtable.
+ * Airtable lo devuelve como JSON: {"state":"generated","value":"...","isStale":false}
+ */
 function parseReferenciaComercial(raw: unknown): string {
   if (!raw) return "—";
   const str = typeof raw === "string" ? raw : JSON.stringify(raw);
@@ -119,17 +128,34 @@ function parseReferenciaComercial(raw: unknown): string {
       value = value.replace(/^Referencia\s+comercial:\s*/i, "").trim();
       return value || "—";
     }
-  } catch { /* plain text */ }
+  } catch {
+    /* no es JSON, texto plano */
+  }
   return str.trim() || "—";
 }
 
-function formatFechaColombia(iso: string): string {
+function formatFechaCorta(iso: string): string {
   if (!iso) return "—";
   try {
     const dateStr = iso.includes("T") ? iso : iso + "T12:00:00";
     return new Date(dateStr).toLocaleDateString("es-CO", {
       timeZone: "America/Bogota",
       day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return iso;
+  }
+}
+
+function formatFechaLarga(iso: string): string {
+  if (!iso) return "";
+  try {
+    const dateStr = iso.includes("T") ? iso : iso + "T12:00:00";
+    return new Date(dateStr).toLocaleDateString("es-CO", {
+      timeZone: "America/Bogota",
+      day: "numeric",
       month: "long",
       year: "numeric",
     });
@@ -141,15 +167,24 @@ function formatFechaColombia(iso: string): string {
 function getMesNombre(mes: string): string {
   if (!mes || !/^\d{4}-\d{2}$/.test(mes)) return "";
   const [year, month] = mes.split("-").map(Number);
-  const date = new Date(year, month - 1, 15);
-  return date.toLocaleDateString("es-CO", { month: "long", year: "numeric" });
+  return new Date(year, month - 1, 15).toLocaleDateString("es-CO", {
+    month: "long",
+    year: "numeric",
+  });
+}
+
+interface Evidencia {
+  dataUrl: string;
+  ancho: number;
+  alto: number;
 }
 
 /**
- * Descarga imagen desde URL, corrige orientación EXIF y retorna base64 data URI para jsPDF.
+ * Descarga imagen desde URL, corrige orientación EXIF y retorna data URI JPEG
+ * con sus dimensiones, para dibujarla sin deformar.
  * sharp.rotate() sin argumentos auto-rota según metadatos EXIF del celular.
  */
-async function fetchImageAsBase64(imageUrl: string): Promise<string | null> {
+async function fetchEvidencia(imageUrl: string): Promise<Evidencia | null> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
@@ -157,47 +192,134 @@ async function fetchImageAsBase64(imageUrl: string): Promise<string | null> {
     clearTimeout(timeout);
     if (!res.ok) return null;
     const rawBuffer = Buffer.from(await res.arrayBuffer());
-    // Auto-rotar según EXIF, reducir resolución y convertir a JPEG
-    const correctedBuffer = await sharp(rawBuffer)
-      .rotate() // auto-rotate based on EXIF orientation
-      .resize(400, 400, { fit: "inside", withoutEnlargement: true })
+    const { data, info } = await sharp(rawBuffer)
+      .rotate()
+      .resize(500, 500, { fit: "inside", withoutEnlargement: true })
       .jpeg({ quality: 80 })
-      .toBuffer();
-    const base64 = correctedBuffer.toString("base64");
-    return `data:image/jpeg;base64,${base64}`;
+      .toBuffer({ resolveWithObject: true });
+    return {
+      dataUrl: `data:image/jpeg;base64,${data.toString("base64")}`,
+      ancho: info.width,
+      alto: info.height,
+    };
   } catch {
     return null;
   }
 }
 
+/**
+ * Normaliza una firma a trazo negro sobre fondo transparente.
+ * Las firmas del canvas llegan en tres variantes: trazo negro sobre blanco,
+ * trazo blanco sobre negro y trazo blanco sobre transparente. Se decide por el
+ * brillo promedio de lo visible y luego el trazo se reconstruye en negro, con
+ * la opacidad derivada de la luminancia — así el fondo de la fila se conserva.
+ */
+async function normalizarFirma(dataUrl: string): Promise<string | null> {
+  const match = dataUrl.match(/^data:image\/(png|jpeg|jpg);base64,(.+)$/);
+  if (!match) return null;
+
+  const input = Buffer.from(match[2], "base64");
+  try {
+    const { data, info } = await sharp(input)
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    const total = info.width * info.height;
+    let visibles = 0;
+    let brilloVisible = 0;
+
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i + 3] < 30) continue; // pixel transparente
+      visibles++;
+      brilloVisible += (data[i] + data[i + 1] + data[i + 2]) / 3;
+    }
+
+    const mayoriaTransparente = visibles < total * 0.5;
+    const promedioVisible = visibles > 0 ? brilloVisible / visibles : 255;
+    // Trazo claro sobre fondo transparente, o lienzo mayoritariamente oscuro
+    const hayQueInvertir = mayoriaTransparente
+      ? promedioVisible > 128
+      : promedioVisible < 100;
+
+    const salida = Buffer.alloc(total * 4);
+    for (let i = 0; i < data.length; i += 4) {
+      const transparente = data[i + 3] < 30;
+      let brillo = (data[i] + data[i + 1] + data[i + 2]) / 3;
+      if (hayQueInvertir) brillo = 255 - brillo;
+      // Un pixel transparente es fondo: cuenta como blanco tras invertir o no
+      if (transparente) brillo = 255;
+
+      salida[i] = 0;
+      salida[i + 1] = 0;
+      salida[i + 2] = 0;
+      salida[i + 3] = 255 - Math.round(brillo); // oscuro → opaco
+    }
+
+    const png = await sharp(salida, {
+      raw: { width: info.width, height: info.height, channels: 4 },
+    })
+      .png()
+      .toBuffer();
+
+    return `data:image/png;base64,${png.toString("base64")}`;
+  } catch {
+    return dataUrl;
+  }
+}
+
 // ══════════════════════════════════════════════════════════
-// Colores institucionales
+// Colores Marca Sirius (Manual de Marca 2023) — mismos del Excel
 // ══════════════════════════════════════════════════════════
+type RGB = [number, number, number];
+
 const BRAND = {
-  AZUL: [1, 84, 172] as [number, number, number],
-  AZUL_CLARO: [188, 215, 234] as [number, number, number],
-  FONDO_CLARO: [236, 241, 244] as [number, number, number],
-  OSCURO: [26, 26, 51] as [number, number, number],
-  VERDE: [0, 182, 2] as [number, number, number],
-  BLANCO: [255, 255, 255] as [number, number, number],
-  GRIS_BORDE: [176, 196, 222] as [number, number, number],
-  GRIS_TEXTO: [100, 100, 100] as [number, number, number],
+  AZUL_BARRANCA: [1, 84, 172] as RGB, // Primario — headers
+  AZUL_CIELO: [0, 163, 255] as RGB, // Secundario
+  SUTILEZA: [188, 215, 234] as RGB, // Fondo claro azul
+  COTILEDON: [236, 241, 244] as RGB, // Fondo muy claro (filas alternas)
+  IMPERIAL: [26, 26, 51] as RGB, // Texto fuerte
+  VERDE_ALEGRIA: [0, 182, 2] as RGB, // Acento
+  BLANCO: [255, 255, 255] as RGB,
+  BORDE: [203, 213, 225] as RGB,
+  BORDE_FUERTE: [148, 163, 184] as RGB,
+  GRIS_TEXTO: [100, 116, 139] as RGB,
 };
+
+// Datos de la empresa (mismas variables que src/lib/pdf/corporativo.ts)
+const EMPRESA_RAZON_SOCIAL =
+  process.env.EMPRESA_RAZON_SOCIAL || "SIRIUS REGENERATIVE SOLUTIONS S.A.S. ZOMAC";
+const EMPRESA_NIT = process.env.EMPRESA_NIT || "901.377.064-8";
+
+const TEXTO_CERTIFICACION =
+  "Certifico que recibo a satisfacción los elementos de dotación Personal nombrados anteriormente en buen estado, y haber sido informado de los trabajos y zonas en los que deberá utilizar dicha dotación, así como haber recibido instrucciones para su correcto uso y aceptando los siguientes compromisos.";
+const COMPROMISO_A =
+  "a) Mantenerlos en buen estado y hacer buen uso de ellos, durante el tiempo de vida útil.";
+const COMPROMISO_B =
+  "b) Utilizar esta dotación durante la jornada de trabajo en las áreas cuya obligatoriedad de uso se encuentra establecido.";
+const NOTA_LEGAL =
+  "De acuerdo a lo estipulado en la ley 11/84. Art. 230 establece el deber de todo empleador de suministrar cada cuatro meses, en forma gratuita una dotación (un par de zapatos y un vestido de labor) cuando tenga a su cargo uno o más trabajadores permanentes, cuya remuneración mensual sea hasta dos veces el salario mínimo más alto vigente, y que haya cumplido más de tres meses al servicio de este.";
 
 // ══════════════════════════════════════════════════════════
 // GET /api/entregas-epp/exportar-pdf
-// Query: mes (YYYY-MM), idEmpleado (optional), tipo (epp|dotacion)
-// Returns: PDF binary
+//
+// Query: tipo (epp|dotacion), mes (YYYY-MM, opcional), idEmpleado (opcional)
+// Genera el mismo formato del Excel (FT-SST-023 / FT-SST-029)
+// con una página por trabajador.
 // ══════════════════════════════════════════════════════════
 export async function GET(req: NextRequest) {
+  const authResult = await requireAuth(req);
+  if (!authResult.authenticated) return authResult.response;
+
   try {
     const mes = req.nextUrl.searchParams.get("mes");
     const idEmpleadoFilter = req.nextUrl.searchParams.get("idEmpleado");
     const tipo = req.nextUrl.searchParams.get("tipo") || "dotacion";
+    const esDotacion = tipo === "dotacion";
 
-    if (!mes || !/^\d{4}-\d{2}$/.test(mes)) {
+    if (mes && !/^\d{4}-\d{2}$/.test(mes)) {
       return NextResponse.json(
-        { success: false, message: "Parámetro 'mes' requerido (formato YYYY-MM)" },
+        { success: false, message: "El parámetro 'mes' debe tener el formato YYYY-MM" },
         { status: 400 }
       );
     }
@@ -207,43 +329,57 @@ export async function GET(req: NextRequest) {
     const authHeaders = getAirtableHeaders();
 
     const {
-      entregasTableId, entregasFields,
-      detalleTableId, detalleFields,
-      tokensTableId, tokensFields,
+      entregasTableId,
+      entregasFields,
+      detalleTableId,
+      detalleFields,
+      tokensTableId,
+      tokensFields,
     } = airtableSGSSTConfig;
 
     const { insumoTableId, insumoFields, categoriaTableId, categoriaFields } =
       airtableInsumosConfig;
     const { personalTableId, personalFields } = airtableConfig;
 
-    // ── 1. Filtro por mes ───────────────────────────────
-    const [year, month] = mes.split("-").map(Number);
+    // ── 1. Filtros ──────────────────────────────────────
     const entregasExtraParams: Record<string, string> = {
       [`sort[0][field]`]: entregasFields.FECHA_ENTREGA,
-      [`sort[0][direction]`]: "asc",
+      [`sort[0][direction]`]: "desc",
     };
 
-    let filterFormula = `AND(YEAR({${entregasFields.FECHA_ENTREGA}})=${year},MONTH({${entregasFields.FECHA_ENTREGA}})=${month})`;
-
-    // Si filtran por empleado, agregar condición
+    const condiciones: string[] = [];
+    if (mes) {
+      const [year, month] = mes.split("-").map(Number);
+      condiciones.push(
+        `YEAR({${entregasFields.FECHA_ENTREGA}})=${year}`,
+        `MONTH({${entregasFields.FECHA_ENTREGA}})=${month}`
+      );
+    }
     if (idEmpleadoFilter) {
-      filterFormula = `AND(${filterFormula},{${entregasFields.ID_EMPLEADO_CORE}}='${idEmpleadoFilter.replace(/'/g, "\\'")}')`;
+      condiciones.push(
+        `{${entregasFields.ID_EMPLEADO_CORE}}='${idEmpleadoFilter.replace(/'/g, "\\'")}'`
+      );
+    }
+    if (condiciones.length > 0) {
+      entregasExtraParams.filterByFormula = `AND(${condiciones.join(",")})`;
     }
 
-    entregasExtraParams.filterByFormula = filterFormula;
-
-    // ── 2. Fetch data en paralelo ───────────────────────
-    const [allEntregas, allInsumos, allPersonal, allCategorias] =
-      await Promise.all([
-        fetchAllRecords(getSGSSTUrl(entregasTableId), sgHeaders, entregasExtraParams),
-        fetchAllRecords(getInsumosUrl(insumoTableId), insHeaders),
-        fetchAllRecords(getAirtableUrl(personalTableId), authHeaders),
-        fetchAllRecords(getInsumosUrl(categoriaTableId), insHeaders),
-      ]);
+    // ── 2. Traer datos en paralelo ──────────────────────
+    const [allEntregas, allInsumos, allPersonal, allCategorias] = await Promise.all([
+      fetchAllRecords(getSGSSTUrl(entregasTableId), sgHeaders, entregasExtraParams),
+      fetchAllRecords(getInsumosUrl(insumoTableId), insHeaders),
+      fetchAllRecords(getAirtableUrl(personalTableId), authHeaders),
+      fetchAllRecords(getInsumosUrl(categoriaTableId), insHeaders),
+    ]);
 
     if (allEntregas.length === 0) {
       return NextResponse.json(
-        { success: false, message: `No hay entregas para ${getMesNombre(mes)}${idEmpleadoFilter ? " de este empleado" : ""}` },
+        {
+          success: false,
+          message: mes
+            ? `No hay entregas para ${getMesNombre(mes)}`
+            : "No hay entregas registradas",
+        },
         { status: 404 }
       );
     }
@@ -254,36 +390,43 @@ export async function GET(req: NextRequest) {
       categoryTipoMap.set(cat.id, (cat.fields[categoriaFields.TIPO] as string) || "");
     }
 
-    const insumoMap = new Map<string, { nombre: string; referencia: string; codigo: string; categoriaIds: string[] }>();
+    const insumoMap = new Map<
+      string,
+      { nombre: string; referencia: string; categoriaIds: string[] }
+    >();
     for (const r of allInsumos) {
       const f = r.fields;
       const codigo = (f[insumoFields.CODIGO] as string) || "";
       insumoMap.set(codigo, {
         nombre: (f[insumoFields.NOMBRE] as string) || codigo,
         referencia: parseReferenciaComercial(f[insumoFields.REFERENCIA_COMERCIAL]),
-        codigo,
         categoriaIds: (f[insumoFields.CATEGORIA] as string[]) || [],
       });
     }
 
-    // Filtro por tipo (EPP/Dotación)
+    // Códigos de insumo que pertenecen al tipo solicitado (EPP / Dotación)
     const normalize = (s: string) =>
       s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const targetNorm = normalize(tipo);
+    const tipoFilterCodes = new Set<string>();
+    for (const [codigo, info] of insumoMap) {
+      const coincide = info.categoriaIds.some(
+        (catId) => normalize(categoryTipoMap.get(catId) || "") === targetNorm
+      );
+      if (coincide) tipoFilterCodes.add(codigo);
+    }
 
-    const personalMap = new Map<string, { nombre: string; documento: string; cargo: string }>();
+    const personalMap = new Map<string, { nombre: string; documento: string }>();
     for (const r of allPersonal) {
       const f = r.fields;
       const idEmp = (f[personalFields.ID_EMPLEADO] as string) || "";
-      const rawRol = f[personalFields.ROL_LOOKUP];
-      const cargo = Array.isArray(rawRol) ? (rawRol[0] as string) || "" : (rawRol as string) || "";
       personalMap.set(idEmp, {
         nombre: (f[personalFields.NOMBRE_COMPLETO] as string) || idEmp,
         documento: (f[personalFields.NUMERO_DOCUMENTO] as string) || "",
-        cargo,
       });
     }
 
-    // ── 4. Collect linked IDs ───────────────────────────
+    // ── 4. Enlaces de detalle y tokens ──────────────────
     const detalleIds = new Set<string>();
     const tokenIds = new Set<string>();
     for (const ent of allEntregas) {
@@ -298,67 +441,47 @@ export async function GET(req: NextRequest) {
       fetchRecordsByIds(getSGSSTUrl(tokensTableId), sgHeaders, Array.from(tokenIds)),
     ]);
 
-    // ── 5. Agrupar entregas por empleado ────────────────
-    interface EntregaInfo {
-      idEntrega: string;
+    // ── 5. Agrupar por trabajador (mismo criterio del Excel) ──
+    interface EntregaRow {
+      eppNombre: string;
+      cantidad: number;
+      referencia: string;
       fechaEntrega: string;
       motivo: string;
       estado: string;
-      responsable: string;
-      observaciones: string;
-      fotoUrls: string[];
-      signatureDataUrl: string;
-      detalles: { nombre: string; referencia: string; cantidad: number; talla: string; condicion: string }[];
+      signatureDataUrl?: string;
     }
 
     interface EmpleadoGroup {
       nombre: string;
       documento: string;
-      cargo: string;
-      entregas: EntregaInfo[];
+      rows: EntregaRow[];
+      fotoUrls: string[];
     }
 
     const empleadoGroups = new Map<string, EmpleadoGroup>();
 
     for (const ent of allEntregas) {
       const f = ent.fields;
-
-      // Filtro 1: Motivo de entrega (dotación vs epp)
-      const motivo = (f[entregasFields.MOTIVO] as string) || "";
-      if (tipo === "dotacion") {
-        const motivoNorm = normalize(motivo);
-        // Solo entregas cuyo motivo incluya "dotación"
-        if (!motivoNorm.includes("dotacion")) continue;
-      }
-
-      // Filtro 2: Empleado (opcional)
       const idEmp = (f[entregasFields.ID_EMPLEADO_CORE] as string) || "Desconocido";
-      const empInfo = personalMap.get(idEmp) || { nombre: idEmp, documento: "", cargo: "" };
-      if (idEmpleadoFilter && idEmp !== idEmpleadoFilter) continue;
+      const fechaEntrega = (f[entregasFields.FECHA_ENTREGA] as string) || "";
+      const motivo = (f[entregasFields.MOTIVO] as string) || "";
+      const estado = (f[entregasFields.ESTADO] as string) || "";
 
+      const empInfo = personalMap.get(idEmp) || { nombre: idEmp, documento: "" };
 
       if (!empleadoGroups.has(idEmp)) {
         empleadoGroups.set(idEmp, {
           nombre: empInfo.nombre,
           documento: empInfo.documento,
-          cargo: empInfo.cargo,
-          entregas: [],
+          rows: [],
+          fotoUrls: [],
         });
       }
+      const group = empleadoGroups.get(idEmp)!;
 
-      // Fotos de evidencia (attachment array)
-      const rawFotos = f[entregasFields.FOTO_EVIDENCIA_URL];
-      const fotoUrls: string[] = [];
-      if (Array.isArray(rawFotos)) {
-        for (const att of rawFotos) {
-          if (att && typeof att === "object" && "url" in att) {
-            fotoUrls.push((att as { url: string }).url);
-          }
-        }
-      }
-
-      // Firma descifrada
-      let signatureDataUrl = "";
+      // Firma descifrada — se repite en todas las filas de la entrega
+      let signatureDataUrl: string | undefined;
       const tLinks = (f[entregasFields.TOKENS_LINK] as string[]) || [];
       for (const tId of tLinks) {
         const tokRec = tokenMap.get(tId);
@@ -367,472 +490,491 @@ export async function GET(req: NextRequest) {
         const hashFirma = (tf[tokensFields.HASH_FIRMA] as string) || "";
         const tokEstado = (tf[tokensFields.ESTADO] as string) || "";
         if (hashFirma && tokEstado === "Usado") {
-          signatureDataUrl = tryDecryptSignature(hashFirma);
+          signatureDataUrl = tryDecryptSignature(hashFirma) || undefined;
           break;
         }
       }
 
-      // Detalles
+      const rowCountBefore = group.rows.length;
       const dLinks = (f[entregasFields.DETALLE_LINK] as string[]) || [];
-      const detalles: EntregaInfo["detalles"] = [];
       for (const dId of dLinks) {
         const detRec = detalleMap.get(dId);
         if (!detRec) continue;
         const df = detRec.fields;
         const codigoInsumo = (df[detalleFields.CODIGO_INSUMO] as string) || "";
 
+        // Filtrar por tipo de insumo (EPP / Dotación)
+        if (tipoFilterCodes.size > 0 && !tipoFilterCodes.has(codigoInsumo)) continue;
+
         const insumoInfo = insumoMap.get(codigoInsumo);
-        detalles.push({
-          nombre: insumoInfo?.nombre || codigoInsumo || "—",
-          referencia: insumoInfo?.referencia || "—",
+        group.rows.push({
+          eppNombre: insumoInfo?.nombre || codigoInsumo || "—",
           cantidad: (df[detalleFields.CANTIDAD] as number) || 0,
-          talla: (df[detalleFields.TALLA] as string) || "Única",
-          condicion: (df[detalleFields.CONDICION] as string) || "Nuevo",
-        });
-      }
-
-      // Solo agregar si tiene detalles del tipo solicitado
-      if (detalles.length > 0) {
-        empleadoGroups.get(idEmp)!.entregas.push({
-          idEntrega: (f[entregasFields.ID_ENTREGA] as string) || "",
-          fechaEntrega: (f[entregasFields.FECHA_ENTREGA] as string) || "",
-          motivo: (f[entregasFields.MOTIVO] as string) || "",
-          estado: (f[entregasFields.ESTADO] as string) || "",
-          responsable: (f[entregasFields.RESPONSABLE] as string) || "",
-          observaciones: (f[entregasFields.OBSERVACIONES] as string) || "",
-          fotoUrls,
+          referencia: insumoInfo?.referencia || "—",
+          fechaEntrega,
+          motivo,
+          estado,
           signatureDataUrl,
-          detalles,
         });
+      }
+
+      // Fotos: solo de la entrega más reciente que aporte filas al tipo actual
+      if (group.rows.length > rowCountBefore && group.fotoUrls.length === 0) {
+        const fotoField = f[entregasFields.FOTO_EVIDENCIA_URL];
+        if (Array.isArray(fotoField)) {
+          const urls = (fotoField as { url?: string }[])
+            .map((a) => a?.url)
+            .filter((u): u is string => Boolean(u));
+          group.fotoUrls.push(...urls);
+        }
       }
     }
 
-    // Eliminar empleados sin entregas después del filtrado
     for (const [key, group] of empleadoGroups) {
-      if (group.entregas.length === 0) empleadoGroups.delete(key);
+      if (group.rows.length === 0) empleadoGroups.delete(key);
     }
+
+    const tipoLabel = esDotacion ? "Dotación" : "EPP";
 
     if (empleadoGroups.size === 0) {
-      const motivoLabel = tipo === "dotacion"
-        ? "entregas con motivo 'Dotación'"
-        : "entregas de EPP";
-      const mesFormatted = getMesNombre(mes) || mes;
       return NextResponse.json(
         {
           success: false,
-          message: `No hay ${motivoLabel} para ${mesFormatted}${idEmpleadoFilter ? " de este empleado" : ""}`,
-          detail: `Se encontraron ${allEntregas.length} entrega(s) en total pero ninguna cumplió con el filtro de tipo '${tipo}'`
+          message: `No hay entregas de ${tipoLabel} para el período seleccionado`,
+          detail: `Se encontraron ${allEntregas.length} entrega(s) en total, pero ninguna incluye insumos de la categoría '${tipoLabel}'`,
         },
         { status: 404 }
       );
     }
 
-    // ── 6. Pre-cargar imágenes ──────────────────────────
-    // Recolectar todas las URLs únicas de fotos
-    const allPhotoUrls = new Set<string>();
-    for (const group of empleadoGroups.values()) {
-      for (const ent of group.entregas) {
-        ent.fotoUrls.forEach((u) => allPhotoUrls.add(u));
-      }
-    }
-
-    // Descargar en paralelo (máx 10 a la vez)
-    const photoCache = new Map<string, string>();
-    const urlArray = Array.from(allPhotoUrls);
+    // ── 6. Precargar imágenes ───────────────────────────
+    const photoCache = new Map<string, Evidencia>();
+    const urls = Array.from(
+      new Set(Array.from(empleadoGroups.values()).flatMap((g) => g.fotoUrls.slice(0, 3)))
+    );
     const BATCH = 10;
-    for (let i = 0; i < urlArray.length; i += BATCH) {
-      const batch = urlArray.slice(i, i + BATCH);
-      const results = await Promise.all(batch.map((u) => fetchImageAsBase64(u)));
+    for (let i = 0; i < urls.length; i += BATCH) {
+      const batch = urls.slice(i, i + BATCH);
+      const results = await Promise.all(batch.map((u) => fetchEvidencia(u)));
       batch.forEach((u, idx) => {
         if (results[idx]) photoCache.set(u, results[idx]!);
       });
     }
 
-    // ── 7. Imágenes corporativas ───────────────────────────
-    let encabezadoBase64 = "";
-    let pieBase64 = "";
-    try {
-      const encabezadoPath = path.join(process.cwd(), "public", "Encabezado Sirius.png");
-      const encabezadoBuf = fs.readFileSync(encabezadoPath);
-      encabezadoBase64 = `data:image/png;base64,${encabezadoBuf.toString("base64")}`;
-
-      const piePath = path.join(process.cwd(), "public", "Pie de pagina Sirius.png");
-      const pieBuf = fs.readFileSync(piePath);
-      pieBase64 = `data:image/png;base64,${pieBuf.toString("base64")}`;
-    } catch (e) {
-      console.warn("No se pudieron cargar las imágenes corporativas:", e);
+    // Firmas normalizadas (una sola vez por data URL)
+    const firmaCache = new Map<string, string>();
+    const firmasUnicas = new Set<string>();
+    for (const group of empleadoGroups.values()) {
+      for (const row of group.rows) {
+        if (row.signatureDataUrl) firmasUnicas.add(row.signatureDataUrl);
+      }
+    }
+    for (const firma of firmasUnicas) {
+      const normalizada = await normalizarFirma(firma);
+      if (normalizada) firmaCache.set(firma, normalizada);
     }
 
-    // ── 8. Generar PDF con jsPDF ────────────────────────
-    const tipoLabel = tipo === "dotacion" ? "Dotación" : "EPP";
-    const mesLabel = getMesNombre(mes);
-    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" });
+    // Logo Sirius
+    let logoBase64 = "";
+    try {
+      const logoBuf = fs.readFileSync(path.join(process.cwd(), "public", "logo.png"));
+      logoBase64 = `data:image/png;base64,${logoBuf.toString("base64")}`;
+    } catch (err) {
+      console.warn("No se pudo cargar el logo Sirius:", err);
+    }
+
+    // ── 7. Generar PDF ──────────────────────────────────
+    const doc = new jsPDF({
+      orientation: "landscape",
+      unit: "mm",
+      format: "letter",
+      compress: true,
+    });
     const PAGE_W = doc.internal.pageSize.getWidth();
     const PAGE_H = doc.internal.pageSize.getHeight();
-    const MARGIN = 15;
+    const MARGIN = 12;
     const CONTENT_W = PAGE_W - MARGIN * 2;
-    let isFirstPage = true;
+    const LIMITE_Y = PAGE_H - MARGIN;
 
-    // Helpers PDF
-    const addFooter = () => {
-      const pageCount = doc.getNumberOfPages();
-      for (let i = 1; i <= pageCount; i++) {
-        doc.setPage(i);
+    // Anchos proporcionales a las 5 columnas del Excel (34/14/24/18/50)
+    const COL_W = [0.243, 0.1, 0.171, 0.129, 0.357].map((p) =>
+      Number((CONTENT_W * p).toFixed(2))
+    );
 
-        if (pieBase64) {
-          // Usar imagen corporativa del pie de página
-          // Dimensiones originales: 815 x 109 (proporción ~7.5:1)
-          const footerH = 22; // Altura del pie en mm (aumentado de 18 a 22mm)
-          const footerW = PAGE_W;
-          const footerY = PAGE_H - footerH;
-          try {
-            doc.addImage(pieBase64, "PNG", 0, footerY, footerW, footerH);
-          } catch (e) {
-            console.warn("Error al agregar imagen del pie:", e);
-          }
+    const setFill = (c: RGB) => doc.setFillColor(c[0], c[1], c[2]);
+    const setText = (c: RGB) => doc.setTextColor(c[0], c[1], c[2]);
+    const setDraw = (c: RGB) => doc.setDrawColor(c[0], c[1], c[2]);
+
+    /** Barra de una sola celda: fondo + borde + texto. Devuelve la nueva y. */
+    const barra = (
+      y: number,
+      alto: number,
+      texto: string,
+      opts: {
+        fondo?: RGB;
+        color?: RGB;
+        tamano?: number;
+        negrita?: boolean;
+        centrado?: boolean;
+        subrayado?: boolean;
+        x?: number;
+        ancho?: number;
+      } = {}
+    ): number => {
+      const x = opts.x ?? MARGIN;
+      const ancho = opts.ancho ?? CONTENT_W;
+      if (opts.fondo) {
+        setFill(opts.fondo);
+        doc.rect(x, y, ancho, alto, "F");
+      }
+      setDraw(BRAND.BORDE);
+      doc.setLineWidth(0.2);
+      doc.rect(x, y, ancho, alto, "S");
+
+      if (texto) {
+        doc.setFont("helvetica", opts.negrita ? "bold" : "normal");
+        doc.setFontSize(opts.tamano ?? 9);
+        setText(opts.color ?? BRAND.IMPERIAL);
+        const ty = y + alto / 2 + (opts.tamano ?? 9) * 0.13;
+        if (opts.centrado) {
+          doc.text(texto, x + ancho / 2, ty, { align: "center" });
         } else {
-          // Fallback: pie de página con texto
-          doc.setFontSize(7);
-          doc.setTextColor(...BRAND.GRIS_TEXTO);
-          doc.text(
-            `Sirius SG-SST · Entregas de ${tipoLabel} · ${mesLabel}`,
-            MARGIN,
-            PAGE_H - 8
-          );
-          doc.text(`Página ${i} de ${pageCount}`, PAGE_W - MARGIN, PAGE_H - 8, {
-            align: "right",
-          });
-          // Línea separadora footer
-          doc.setDrawColor(...BRAND.GRIS_BORDE);
-          doc.setLineWidth(0.3);
-          doc.line(MARGIN, PAGE_H - 12, PAGE_W - MARGIN, PAGE_H - 12);
+          doc.text(texto, x + 2.5, ty);
+        }
+        if (opts.subrayado) {
+          const w = doc.getTextWidth(texto);
+          setDraw(opts.color ?? BRAND.IMPERIAL);
+          doc.setLineWidth(0.25);
+          doc.line(x + 2.5, ty + 1, x + 2.5 + w, ty + 1);
         }
       }
+      return y + alto;
     };
 
-    const addHeaderToCurrentPage = () => {
-      if (encabezadoBase64) {
-        const headerH = 35; // Aumentado de 30 a 35mm para más presencia
-        const headerW = PAGE_W;
-        try {
-          doc.addImage(encabezadoBase64, "PNG", 0, 0, headerW, headerH);
-        } catch (e) {
-          console.warn("Error al agregar imagen del encabezado:", e);
-        }
+    /** Párrafo con fondo opcional, ajustado al ancho del documento. */
+    const parrafo = (
+      y: number,
+      texto: string,
+      opts: { fondo?: RGB; tamano?: number; negrita?: boolean; sangria?: number } = {}
+    ): number => {
+      const tamano = opts.tamano ?? 8;
+      const sangria = opts.sangria ?? 0;
+      doc.setFont("helvetica", opts.negrita ? "bold" : "normal");
+      doc.setFontSize(tamano);
+      const lineas = doc.splitTextToSize(texto, CONTENT_W - 6 - sangria) as string[];
+      const alto = lineas.length * (tamano * 0.42) + 4;
+
+      if (opts.fondo) {
+        setFill(opts.fondo);
+        doc.rect(MARGIN, y, CONTENT_W, alto, "F");
       }
+      setDraw(BRAND.BORDE);
+      doc.setLineWidth(0.2);
+      doc.rect(MARGIN, y, CONTENT_W, alto, "S");
+
+      setText(BRAND.IMPERIAL);
+      doc.text(lineas, MARGIN + 3 + sangria, y + tamano * 0.42 + 0.6);
+      return y + alto;
     };
 
-    const checkSpace = (needed: number, y: number): number => {
-      // Dejar espacio para el pie de página (26mm si hay imagen, 18mm si no)
-      const footerSpace = pieBase64 ? 26 : 18; // Aumentado de 22 a 26mm
-      if (y + needed > PAGE_H - footerSpace) {
-        doc.addPage();
-        addHeaderToCurrentPage(); // Agregar encabezado a la nueva página
-        // Si hay encabezado corporativo, empezar después de él
-        return encabezadoBase64 ? 43 : MARGIN + 5; // Actualizado de 38 a 43mm
-      }
-      return y;
-    };
-
-    // Iterar por cada empleado
     const sortedGroups = Array.from(empleadoGroups.values()).sort((a, b) =>
       a.nombre.localeCompare(b.nombre)
     );
 
+    let primeraPagina = true;
+
     for (const group of sortedGroups) {
-      // Nueva página por empleado (excepto la primera)
-      if (!isFirstPage) {
-        doc.addPage();
+      // Una página por trabajador
+      if (!primeraPagina) doc.addPage();
+      primeraPagina = false;
+
+      let y = MARGIN;
+
+      // ── Encabezado: logo + razón social ───────────────
+      const HEAD_H = 15;
+      const LOGO_W = COL_W[0];
+      setFill(BRAND.AZUL_BARRANCA);
+      doc.rect(MARGIN, y, CONTENT_W, HEAD_H, "F");
+      if (logoBase64) {
+        try {
+          const logoH = HEAD_H - 3;
+          const logoW = logoH * 2;
+          doc.addImage(
+            logoBase64,
+            "PNG",
+            MARGIN + (LOGO_W - logoW) / 2,
+            y + 1.5,
+            logoW,
+            logoH
+          );
+        } catch (err) {
+          console.warn("Error al dibujar el logo:", err);
+        }
       }
-      isFirstPage = false;
-
-      // Agregar encabezado corporativo a la página actual
-      addHeaderToCurrentPage();
-
-      // Posición inicial después del encabezado
-      let y = encabezadoBase64 ? 43 : MARGIN;
-
-      // ── DATOS DEL EMPLEADO ────────────────────────────
-      doc.setFillColor(...BRAND.FONDO_CLARO);
-      doc.roundedRect(MARGIN, y, CONTENT_W, 26, 2, 2, "F");
-      doc.setDrawColor(...BRAND.GRIS_BORDE);
-      doc.roundedRect(MARGIN, y, CONTENT_W, 26, 2, 2, "S");
-
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      doc.setTextColor(...BRAND.OSCURO);
-      doc.text("DATOS DEL TRABAJADOR", MARGIN + 4, y + 6);
+      doc.setFontSize(13);
+      setText(BRAND.BLANCO);
+      doc.text(
+        EMPRESA_RAZON_SOCIAL.toUpperCase(),
+        MARGIN + LOGO_W + (CONTENT_W - LOGO_W) / 2,
+        y + HEAD_H / 2 + 1.7,
+        { align: "center" }
+      );
+      y += HEAD_H;
 
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      doc.setTextColor(...BRAND.GRIS_TEXTO);
+      // ── NIT + código del formato ──────────────────────
+      const anchoNit = COL_W[0] + COL_W[1] + COL_W[2];
+      barra(y, 7, `NIT: ${EMPRESA_NIT}`, {
+        fondo: BRAND.BLANCO,
+        color: BRAND.AZUL_BARRANCA,
+        tamano: 8.5,
+        centrado: true,
+        ancho: anchoNit,
+      });
+      y = barra(y, 7, esDotacion ? "CÓDIGO: FT-SST-023" : "CÓDIGO: FT-SST-029", {
+        fondo: BRAND.BLANCO,
+        color: BRAND.AZUL_BARRANCA,
+        tamano: 8.5,
+        negrita: true,
+        centrado: true,
+        x: MARGIN + anchoNit,
+        ancho: CONTENT_W - anchoNit,
+      });
 
-      const col1 = MARGIN + 4;
-      const col2 = MARGIN + CONTENT_W / 2;
+      // ── Título del formato ────────────────────────────
+      y = barra(
+        y,
+        10,
+        esDotacion
+          ? "FORMATO DE ENTREGA DE DOTACIÓN"
+          : "FORMATO DE ENTREGA DE ELEMENTOS DE PROTECCIÓN PERSONAL",
+        {
+          fondo: BRAND.AZUL_BARRANCA,
+          color: BRAND.BLANCO,
+          tamano: 12,
+          negrita: true,
+          centrado: true,
+        }
+      );
 
-      doc.text(`Nombre: `, col1, y + 13);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(...BRAND.OSCURO);
-      doc.text(group.nombre, col1 + doc.getTextWidth("Nombre: "), y + 13);
+      // ── Trabajador + documento ────────────────────────
+      const anchoNombre = COL_W[0] + COL_W[1] + COL_W[2];
+      barra(y, 9, `TRABAJADOR:  ${group.nombre}`, {
+        fondo: BRAND.COTILEDON,
+        color: BRAND.AZUL_BARRANCA,
+        tamano: 10,
+        negrita: true,
+        ancho: anchoNombre,
+      });
+      y = barra(y, 9, `C.C:  ${group.documento || "—"}`, {
+        fondo: BRAND.COTILEDON,
+        color: BRAND.AZUL_BARRANCA,
+        tamano: 10,
+        negrita: true,
+        x: MARGIN + anchoNombre,
+        ancho: CONTENT_W - anchoNombre,
+      });
 
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(...BRAND.GRIS_TEXTO);
-      doc.text(`Documento: `, col2, y + 13);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(...BRAND.OSCURO);
-      doc.text(group.documento || "—", col2 + doc.getTextWidth("Documento: "), y + 13);
-
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(...BRAND.GRIS_TEXTO);
-      doc.text(`Cargo: `, col1, y + 20);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(...BRAND.OSCURO);
-      doc.text(group.cargo || "—", col1 + doc.getTextWidth("Cargo: "), y + 20);
-
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(...BRAND.GRIS_TEXTO);
-      doc.text(`Total entregas: `, col2, y + 20);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(...BRAND.OSCURO);
-      doc.text(String(group.entregas.length), col2 + doc.getTextWidth("Total entregas: "), y + 20);
-
-      y += 32;
-
-      // ── CADA ENTREGA ──────────────────────────────────
-      for (let entIdx = 0; entIdx < group.entregas.length; entIdx++) {
-        const ent = group.entregas[entIdx];
-
-        y = checkSpace(50, y);
-
-        // Subtítulo de la entrega
-        doc.setFillColor(...BRAND.AZUL_CLARO);
-        doc.roundedRect(MARGIN, y, CONTENT_W, 8, 1.5, 1.5, "F");
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(9);
-        doc.setTextColor(...BRAND.OSCURO);
-        doc.text(
-          `Entrega ${entIdx + 1}: ${ent.idEntrega || "S/N"}  —  ${formatFechaColombia(ent.fechaEntrega)}  —  ${ent.motivo || ""}`,
-          MARGIN + 3,
-          y + 5.5
-        );
-
-        // Badge de estado
-        const estadoText = ent.estado || "—";
-        const estadoW = doc.getTextWidth(estadoText) + 6;
-        if (ent.estado === "Confirmada") doc.setFillColor(...BRAND.VERDE);
-        else if (ent.estado === "Pendiente") doc.setFillColor(245, 158, 11);
-        else doc.setFillColor(...BRAND.GRIS_TEXTO);
-        doc.roundedRect(PAGE_W - MARGIN - estadoW - 2, y + 1, estadoW, 5.5, 1, 1, "F");
-        doc.setFontSize(7);
-        doc.setTextColor(...BRAND.BLANCO);
-        doc.text(estadoText, PAGE_W - MARGIN - estadoW / 2 - 2, y + 5, { align: "center" });
-
-        y += 12;
-
-        // ── Tabla de detalles ───────────────────────────
-        const tableBody = ent.detalles.map((d, i) => [
-          String(i + 1),
-          d.nombre,
-          d.referencia,
-          String(d.cantidad),
-          d.talla,
-          d.condicion,
-        ]);
-
-        autoTable(doc, {
-          startY: y,
-          margin: { left: MARGIN, right: MARGIN },
-          head: [["#", `${tipoLabel} Entregado`, "Referencia", "Cant.", "Talla", "Condición"]],
-          body: tableBody,
-          theme: "grid",
-          styles: {
-            fontSize: 8,
-            cellPadding: 2,
-            lineColor: BRAND.GRIS_BORDE,
-            lineWidth: 0.2,
-          },
-          headStyles: {
-            fillColor: BRAND.AZUL,
-            textColor: BRAND.BLANCO,
-            fontStyle: "bold",
-            fontSize: 8,
-          },
-          alternateRowStyles: {
-            fillColor: BRAND.FONDO_CLARO,
-          },
-          columnStyles: {
-            0: { cellWidth: 8, halign: "center" },
-            1: { cellWidth: "auto" },
-            2: { cellWidth: 40 },
-            3: { cellWidth: 14, halign: "center" },
-            4: { cellWidth: 18, halign: "center" },
-            5: { cellWidth: 22, halign: "center" },
-          },
+      // ── Textos normativos previos (solo dotación) ─────
+      if (esDotacion) {
+        y = barra(y, 9, "ACTA DE ENTREGA DE DOTACIÓN", {
+          fondo: BRAND.SUTILEZA,
+          color: BRAND.AZUL_BARRANCA,
+          tamano: 11,
+          negrita: true,
+          centrado: true,
         });
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        y = (doc as any).lastAutoTable.finalY + 4;
+        const fechaCorte = formatFechaLarga(group.rows[0]?.fechaEntrega || "");
+        y = barra(
+          y,
+          7,
+          fechaCorte
+            ? `Ref. Entrega de Dotación con Corte ${fechaCorte}.`
+            : "Ref. Entrega de Dotación.",
+          { tamano: 9, negrita: true, subrayado: true }
+        );
 
-        // ── Observaciones ───────────────────────────────
-        if (ent.observaciones) {
-          y = checkSpace(14, y);
-          doc.setFontSize(7.5);
-          doc.setFont("helvetica", "bold");
-          doc.setTextColor(...BRAND.GRIS_TEXTO);
-          doc.text("Observaciones:", MARGIN, y);
-          doc.setFont("helvetica", "normal");
-          const obsLines = doc.splitTextToSize(ent.observaciones, CONTENT_W - 30);
-          doc.text(obsLines, MARGIN + 28, y);
-          y += obsLines.length * 3.5 + 3;
-        }
+        y = barra(
+          y,
+          7,
+          "Por medio de la presente se hace entrega de los siguientes Elementos de Dotación Personal.",
+          { tamano: 9 }
+        );
+      }
 
-        // ── Responsable ─────────────────────────────────
-        if (ent.responsable) {
-          y = checkSpace(8, y);
-          doc.setFontSize(7.5);
-          doc.setFont("helvetica", "bold");
-          doc.setTextColor(...BRAND.GRIS_TEXTO);
-          doc.text("Responsable:", MARGIN, y);
-          doc.setFont("helvetica", "normal");
-          doc.text(ent.responsable, MARGIN + 26, y);
-          y += 5;
-        }
+      // ── Tabla de elementos entregados ─────────────────
+      const hayFirmas = group.rows.some((r) => r.signatureDataUrl);
+      const filas = group.rows.map((row) => [
+        row.eppNombre,
+        String(row.cantidad),
+        row.referencia,
+        formatFechaCorta(row.fechaEntrega),
+        row.signatureDataUrl ? "" : row.estado === "Pendiente" ? "Pendiente" : "",
+      ]);
 
-        // ── Fotos de evidencia ──────────────────────────
-        if (ent.fotoUrls.length > 0) {
-          y = checkSpace(15, y);
-
-          doc.setFontSize(8);
-          doc.setFont("helvetica", "bold");
-          doc.setTextColor(...BRAND.OSCURO);
-          doc.text("Evidencias fotográficas:", MARGIN, y);
-          y += 5;
-
-          // Grid: máximo 3 fotos por fila, tamaño máx 35mm
-          const PER_ROW = 3;
-          const IMG_GAP = 4;
-          const IMG_SIZE = Math.min(35, Math.floor((CONTENT_W - IMG_GAP * (PER_ROW - 1)) / PER_ROW));
-
-          for (let rowStart = 0; rowStart < ent.fotoUrls.length; rowStart += PER_ROW) {
-            const rowUrls = ent.fotoUrls.slice(rowStart, rowStart + PER_ROW);
-            y = checkSpace(IMG_SIZE + 6, y);
-            let imgX = MARGIN;
-
-            for (const fotoUrl of rowUrls) {
-              const imgData = photoCache.get(fotoUrl);
-              if (imgData) {
-                try {
-                  doc.setDrawColor(...BRAND.GRIS_BORDE);
-                  doc.setLineWidth(0.3);
-                  doc.roundedRect(imgX - 0.5, y - 0.5, IMG_SIZE + 1, IMG_SIZE + 1, 1, 1, "S");
-                  doc.addImage(imgData, "JPEG", imgX, y, IMG_SIZE, IMG_SIZE);
-                } catch {
-                  doc.setFillColor(...BRAND.FONDO_CLARO);
-                  doc.rect(imgX, y, IMG_SIZE, IMG_SIZE, "F");
-                  doc.setFontSize(7);
-                  doc.setTextColor(...BRAND.GRIS_TEXTO);
-                  doc.text("Imagen no\ndisponible", imgX + IMG_SIZE / 2, y + IMG_SIZE / 2, { align: "center" });
-                }
-              } else {
-                doc.setFillColor(...BRAND.FONDO_CLARO);
-                doc.roundedRect(imgX, y, IMG_SIZE, IMG_SIZE, 1, 1, "F");
-                doc.setFontSize(7);
-                doc.setTextColor(...BRAND.GRIS_TEXTO);
-                doc.text("Imagen no\ndisponible", imgX + IMG_SIZE / 2, y + IMG_SIZE / 2, { align: "center" });
-              }
-              imgX += IMG_SIZE + IMG_GAP;
-            }
-            y += IMG_SIZE + 4;
-          }
-
-          y += 2;
-        }
-
-        // ── Firma del empleado ──────────────────────────
-        if (ent.signatureDataUrl) {
-          y = checkSpace(35, y);
-
-          doc.setFontSize(8);
-          doc.setFont("helvetica", "bold");
-          doc.setTextColor(...BRAND.OSCURO);
-          doc.text("Firma del trabajador:", MARGIN, y);
-          y += 3;
-
+      autoTable(doc, {
+        startY: y,
+        margin: { left: MARGIN, right: MARGIN, bottom: MARGIN },
+        head: [
+          [
+            esDotacion ? "DOTACIÓN ENTREGADA" : "EPP ENTREGADO",
+            "CANTIDAD",
+            "REFERENCIA COMERCIAL",
+            "FECHA DE ENTREGA",
+            "FIRMA DEL TRABAJADOR",
+          ],
+        ],
+        body: filas,
+        theme: "grid",
+        styles: {
+          font: "helvetica",
+          fontSize: 9,
+          cellPadding: 1.8,
+          lineColor: BRAND.BORDE,
+          lineWidth: 0.2,
+          textColor: BRAND.IMPERIAL,
+          valign: "middle",
+          minCellHeight: hayFirmas ? 16 : 7,
+        },
+        headStyles: {
+          fillColor: BRAND.AZUL_BARRANCA,
+          textColor: BRAND.BLANCO,
+          fontStyle: "bold",
+          fontSize: 9,
+          halign: "center",
+          valign: "middle",
+          minCellHeight: 8,
+        },
+        alternateRowStyles: { fillColor: BRAND.COTILEDON },
+        columnStyles: {
+          0: { cellWidth: COL_W[0] },
+          1: { cellWidth: COL_W[1], halign: "center", fontStyle: "bold", textColor: BRAND.AZUL_BARRANCA },
+          2: { cellWidth: COL_W[2], halign: "center", fontSize: 8 },
+          3: { cellWidth: COL_W[3], halign: "center" },
+          4: {
+            cellWidth: COL_W[4],
+            halign: "center",
+            fontSize: 8,
+            textColor: BRAND.GRIS_TEXTO,
+            fontStyle: "italic",
+          },
+        },
+        didDrawCell: (data) => {
+          if (data.section !== "body" || data.column.index !== 4) return;
+          const firmaOriginal = group.rows[data.row.index]?.signatureDataUrl;
+          if (!firmaOriginal) return;
+          const firma = firmaCache.get(firmaOriginal) || firmaOriginal;
           try {
-            const sigW = 50;
-            const sigH = 20;
-            doc.addImage(ent.signatureDataUrl, "PNG", MARGIN, y, sigW, sigH);
-            // Línea bajo la firma
-            doc.setDrawColor(...BRAND.OSCURO);
-            doc.setLineWidth(0.3);
-            doc.line(MARGIN, y + sigH + 1, MARGIN + sigW, y + sigH + 1);
-            doc.setFontSize(7);
-            doc.setTextColor(...BRAND.GRIS_TEXTO);
-            doc.text(group.nombre, MARGIN, y + sigH + 5);
-            doc.text(`CC: ${group.documento}`, MARGIN, y + sigH + 9);
-            y += sigH + 14;
-          } catch {
-            doc.setFontSize(7);
-            doc.setTextColor(...BRAND.GRIS_TEXTO);
-            doc.text("(Firma no disponible)", MARGIN, y + 4);
-            y += 10;
+            const pad = 1;
+            const alto = data.cell.height - pad * 2;
+            const ancho = Math.min(data.cell.width - pad * 2, alto * 3.5);
+            doc.addImage(
+              firma,
+              "PNG",
+              data.cell.x + (data.cell.width - ancho) / 2,
+              data.cell.y + pad,
+              ancho,
+              alto
+            );
+          } catch (err) {
+            console.warn("Error al dibujar la firma:", err);
           }
-        } else {
-          // Espacio para firma manual
-          y = checkSpace(25, y);
-          doc.setDrawColor(...BRAND.OSCURO);
-          doc.setLineWidth(0.3);
-          doc.line(MARGIN, y + 15, MARGIN + 60, y + 15);
-          doc.setFontSize(7);
-          doc.setTextColor(...BRAND.GRIS_TEXTO);
-          doc.text("Firma del trabajador", MARGIN, y + 19);
-          doc.text(group.nombre, MARGIN, y + 23);
-          y += 28;
-        }
+        },
+      });
 
-        // Separador entre entregas
-        if (entIdx < group.entregas.length - 1) {
-          y = checkSpace(8, y);
-          doc.setDrawColor(...BRAND.AZUL_CLARO);
-          doc.setLineWidth(0.5);
-          doc.setLineDashPattern([2, 2], 0);
-          doc.line(MARGIN + 10, y, PAGE_W - MARGIN - 10, y);
-          doc.setLineDashPattern([], 0);
-          y += 6;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      y = (doc as any).lastAutoTable.finalY;
+
+      /** Reserva espacio; si no cabe, abre página nueva. */
+      const espacio = (alto: number) => {
+        if (y + alto > LIMITE_Y) {
+          doc.addPage();
+          y = MARGIN;
         }
+      };
+
+      // ── Textos normativos posteriores (solo dotación) ─
+      if (esDotacion) {
+        espacio(46);
+        y = parrafo(y, TEXTO_CERTIFICACION, { fondo: BRAND.COTILEDON });
+        y = parrafo(y, COMPROMISO_A, { sangria: 4 });
+        y = parrafo(y, COMPROMISO_B, { sangria: 4 });
+        espacio(16);
+        y = parrafo(y, NOTA_LEGAL, { fondo: BRAND.SUTILEZA, tamano: 7.5, negrita: true });
       }
 
-      // ── Texto normativo al final (tipo dotación) ──────
-      if (tipo === "dotacion") {
-        y = checkSpace(40, y + 5);
-        doc.setFillColor(255, 250, 240);
-        doc.setDrawColor(...BRAND.GRIS_BORDE);
-        doc.roundedRect(MARGIN, y, CONTENT_W, 35, 2, 2, "FD");
+      // ── Evidencias fotográficas ───────────────────────
+      // Se ajustan al espacio que quede libre reservando el pie (12 mm), para
+      // no empujar el motivo de entrega a una segunda página del trabajador.
+      const fotos = group.fotoUrls.slice(0, 3).filter((u) => photoCache.has(u));
+      const espacioFotos = LIMITE_Y - y - 7 - 12;
+      const FOTO_H = Math.min(60, espacioFotos);
 
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(7.5);
-        doc.setTextColor(...BRAND.OSCURO);
-        doc.text("DECLARACIÓN DEL TRABAJADOR", MARGIN + 4, y + 6);
+      if (fotos.length > 0 && FOTO_H >= 18) {
+        y = barra(y, 7, `Evidencias Fotográficas (${fotos.length})`, {
+          fondo: BRAND.AZUL_CIELO,
+          color: BRAND.BLANCO,
+          tamano: 9,
+          negrita: true,
+          centrado: true,
+        });
 
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(7);
-        doc.setTextColor(...BRAND.GRIS_TEXTO);
-        const declaracion = "Certifico que recibo a satisfacción los elementos de dotación personal nombrados anteriormente en buen estado, y haber sido informado de los trabajos y zonas en los que deberá utilizar dicha dotación, así como haber recibido instrucciones para su correcto uso y aceptando los siguientes compromisos: Usarla durante toda la jornada laboral, mantenerla en buen estado, reportar su deterioro oportunamente y devolverla al término de su relación laboral.";
-        const decLines = doc.splitTextToSize(declaracion, CONTENT_W - 8);
-        doc.text(decLines, MARGIN + 4, y + 12);
+        setDraw(BRAND.BORDE);
+        doc.setLineWidth(0.2);
+        doc.rect(MARGIN, y, CONTENT_W, FOTO_H, "S");
+
+        const GAP = 3;
+        const celdaW = (CONTENT_W - GAP * (fotos.length + 1)) / fotos.length;
+        const celdaH = FOTO_H - 4;
+        let fx = MARGIN + GAP;
+        for (const url of fotos) {
+          const foto = photoCache.get(url)!;
+          try {
+            // Contener sin deformar: se escala al lado que primero topa
+            const escala = Math.min(celdaW / foto.ancho, celdaH / foto.alto);
+            const w = foto.ancho * escala;
+            const h = foto.alto * escala;
+            doc.addImage(
+              foto.dataUrl,
+              "JPEG",
+              fx + (celdaW - w) / 2,
+              y + 2 + (celdaH - h) / 2,
+              w,
+              h
+            );
+          } catch (err) {
+            console.warn("Error al dibujar la evidencia:", err);
+          }
+          fx += celdaW + GAP;
+        }
+        y += FOTO_H;
       }
+
+      // ── Pie: motivo de entrega + línea de acento ──────
+      espacio(12);
+      const motivos = [...new Set(group.rows.map((r) => r.motivo).filter(Boolean))];
+      y = barra(y, 8, `Motivo de entrega: ${motivos.join(", ") || "—"}`, {
+        fondo: BRAND.COTILEDON,
+        color: BRAND.AZUL_BARRANCA,
+        tamano: 9,
+      });
+
+      setFill(BRAND.VERDE_ALEGRIA);
+      doc.rect(MARGIN, y, CONTENT_W, 2, "F");
     }
 
-    // Agregar pies de página después de generar todo
-    addFooter();
-
-    // ── 9. Retornar PDF ─────────────────────────────────
+    // ── 8. Retornar PDF ─────────────────────────────────
     const pdfBuffer = Buffer.from(doc.output("arraybuffer"));
 
+    const tipoSuffix = esDotacion ? "Dotacion" : "EPP";
     const empleadoLabel = idEmpleadoFilter
-      ? `_${(personalMap.get(idEmpleadoFilter)?.nombre || idEmpleadoFilter).replace(/\s+/g, "_").slice(0, 30)}`
+      ? `_${(personalMap.get(idEmpleadoFilter)?.nombre || idEmpleadoFilter)
+          .replace(/\s+/g, "_")
+          .slice(0, 30)}`
       : "";
-    const filename = `Entregas_${tipoLabel}${empleadoLabel}_${mes}.pdf`;
+    const fileSuffix = mes || new Date().toISOString().slice(0, 10);
+    const filename = `Entregas_${tipoSuffix}${empleadoLabel}_Sirius_${fileSuffix}.pdf`;
 
     return new NextResponse(pdfBuffer, {
       status: 200,
@@ -845,7 +987,10 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     console.error("Error generando PDF de entregas:", error);
     return NextResponse.json(
-      { success: false, message: error instanceof Error ? error.message : "Error generando PDF" },
+      {
+        success: false,
+        message: error instanceof Error ? error.message : "Error generando PDF",
+      },
       { status: 500 }
     );
   }
