@@ -289,6 +289,15 @@ firma descifrada dentro de la tabla y hasta 3 evidencias fotográficas.
 - `npm run probar:excel-entregas` verifica saltos, área de impresión y que
   ninguna acta se desborde
 
+**Filtros y alcance de las descargas.** Ambos endpoints aceptan `tipo`,
+`mes` (opcional — sin él va todo el histórico) e `idEmpleado`. El PDF acepta
+además `entrega=<ID legible|recordId>`, que genera el acta de un solo evento:
+ahí no se filtra por categoría (lleva todo lo entregado ese día) y el formato
+—con sus textos de ley y su código— se decide según contenga o no elementos
+de dotación. La pantalla `inventario-epp/entregas` filtra por colaborador,
+estado, firma y periodo, y esos filtros son los que viajan a las descargas:
+lo que se ve en pantalla es lo que se imprime.
+
 ### Módulos de Inspecciones (Completados)
 
 | Módulo | API | Dashboard | Estado | Detalles |
@@ -540,6 +549,7 @@ npm run audit:airtable           # Contrasta el código contra el esquema REAL d
 npm run ver:tabla <q>            # Muestra los campos de una tabla (busca por nombre o ID)
 npm run probar:informe           # Genera el informe mensual contra Airtable real
 npm run probar:excel-entregas [tipo] [YYYY-MM]  # Excel de entregas + chequeo de paginación
+npm run probar:filtros-entregas                 # Acta por evento y descargas por colaborador
 npm run probar:pdf-entregas   [tipo] [YYYY-MM]  # PDF de entregas (una hoja por trabajador)
 npm run gen:env-example          # Regenera .env.example desde .env.local
 

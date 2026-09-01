@@ -451,14 +451,27 @@ export async function GET(req: NextRequest) {
     // ── Optional filters ────────────────────────────────
     const mes = req.nextUrl.searchParams.get("mes");
     const tipo = req.nextUrl.searchParams.get("tipo"); // "epp" | "dotacion"
+    const idEmpleadoFilter = req.nextUrl.searchParams.get("idEmpleado");
     const entregasExtraParams: Record<string, string> = {
       [`sort[0][field]`]: entregasFields.FECHA_ENTREGA,
       [`sort[0][direction]`]: "desc",
     };
+
+    const condiciones: string[] = [];
     if (mes && /^\d{4}-\d{2}$/.test(mes)) {
       const [year, month] = mes.split("-").map(Number);
-      entregasExtraParams.filterByFormula =
-        `AND(YEAR({${entregasFields.FECHA_ENTREGA}})=${year},MONTH({${entregasFields.FECHA_ENTREGA}})=${month})`;
+      condiciones.push(
+        `YEAR({${entregasFields.FECHA_ENTREGA}})=${year}`,
+        `MONTH({${entregasFields.FECHA_ENTREGA}})=${month}`
+      );
+    }
+    if (idEmpleadoFilter) {
+      condiciones.push(
+        `{${entregasFields.ID_EMPLEADO_CORE}}='${idEmpleadoFilter.replace(/'/g, "\\'")}'`
+      );
+    }
+    if (condiciones.length > 0) {
+      entregasExtraParams.filterByFormula = `AND(${condiciones.join(",")})`;
     }
 
     // ── 1. Fetch all data in parallel ───────────────────
@@ -1316,9 +1329,15 @@ export async function GET(req: NextRequest) {
     const buffer = await workbook.xlsx.writeBuffer();
 
     // ── 9. Return as downloadable file ──────────────────
-    const fileSuffix = mes || new Date().toISOString().slice(0, 10);
+    const fileSuffix = mes || "Historico";
     const tipoSuffix = tipo === "dotacion" ? "Dotacion" : "EPP";
-    const filename = `Entregas_${tipoSuffix}_Sirius_${fileSuffix}.xlsx`;
+    const empleadoLabel = idEmpleadoFilter
+      ? `_${(personalMap.get(idEmpleadoFilter)?.nombre || idEmpleadoFilter)
+          .replace(/\s+/g, "_")
+          .replace(/[^\w\-.]/g, "")
+          .slice(0, 30)}`
+      : "";
+    const filename = `Entregas_${tipoSuffix}${empleadoLabel}_Sirius_${fileSuffix}.xlsx`;
 
     return new NextResponse(buffer, {
       status: 200,

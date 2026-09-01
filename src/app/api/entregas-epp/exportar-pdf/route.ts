@@ -303,7 +303,14 @@ const NOTA_LEGAL =
 // ══════════════════════════════════════════════════════════
 // GET /api/entregas-epp/exportar-pdf
 //
-// Query: tipo (epp|dotacion), mes (YYYY-MM, opcional), idEmpleado (opcional)
+// Query:
+//   tipo       epp | dotacion (por defecto dotacion)
+//   mes        YYYY-MM — opcional; sin él se toma todo el histórico
+//   idEmpleado opcional — todas las entregas de un colaborador
+//   entrega    opcional — un solo evento de entrega (ID legible o recordId).
+//              En ese modo se incluyen todos sus elementos, sin filtrar por
+//              categoría, y el formato se decide por lo que contenga.
+//
 // Genera el mismo formato del Excel (FT-SST-023 / FT-SST-029)
 // con una página por trabajador.
 // ══════════════════════════════════════════════════════════
@@ -314,8 +321,10 @@ export async function GET(req: NextRequest) {
   try {
     const mes = req.nextUrl.searchParams.get("mes");
     const idEmpleadoFilter = req.nextUrl.searchParams.get("idEmpleado");
+    const entregaFilter = req.nextUrl.searchParams.get("entrega");
     const tipo = req.nextUrl.searchParams.get("tipo") || "dotacion";
-    const esDotacion = tipo === "dotacion";
+    // Con un evento puntual el tipo se deduce de sus elementos
+    let esDotacion = tipo === "dotacion";
 
     if (mes && !/^\d{4}-\d{2}$/.test(mes)) {
       return NextResponse.json(
@@ -348,7 +357,13 @@ export async function GET(req: NextRequest) {
     };
 
     const condiciones: string[] = [];
-    if (mes) {
+    if (entregaFilter) {
+      const valor = entregaFilter.replace(/'/g, "\\'");
+      condiciones.push(
+        `OR(RECORD_ID()='${valor}',{${entregasFields.ID_ENTREGA}}='${valor}')`
+      );
+    }
+    if (mes && !entregaFilter) {
       const [year, month] = mes.split("-").map(Number);
       condiciones.push(
         `YEAR({${entregasFields.FECHA_ENTREGA}})=${year}`,
@@ -373,15 +388,19 @@ export async function GET(req: NextRequest) {
     ]);
 
     if (allEntregas.length === 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: mes
-            ? `No hay entregas para ${getMesNombre(mes)}`
-            : "No hay entregas registradas",
-        },
-        { status: 404 }
-      );
+      let mensaje: string;
+      if (entregaFilter) {
+        mensaje = `No se encontró la entrega ${entregaFilter}`;
+      } else if (idEmpleadoFilter) {
+        mensaje = mes
+          ? `Este colaborador no tiene entregas en ${getMesNombre(mes)}`
+          : "Este colaborador no tiene entregas registradas";
+      } else {
+        mensaje = mes
+          ? `No hay entregas para ${getMesNombre(mes)}`
+          : "No hay entregas registradas";
+      }
+      return NextResponse.json({ success: false, message: mensaje }, { status: 404 });
     }
 
     // ── 3. Mapas de lookup ──────────────────────────────
@@ -404,17 +423,25 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Códigos de insumo que pertenecen al tipo solicitado (EPP / Dotación)
     const normalize = (s: string) =>
-      s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    const targetNorm = normalize(tipo);
-    const tipoFilterCodes = new Set<string>();
-    for (const [codigo, info] of insumoMap) {
-      const coincide = info.categoriaIds.some(
-        (catId) => normalize(categoryTipoMap.get(catId) || "") === targetNorm
-      );
-      if (coincide) tipoFilterCodes.add(codigo);
-    }
+      s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+    /** Códigos de insumo que pertenecen a una categoría ("epp" | "dotacion"). */
+    const codigosDeTipo = (nombreTipo: string): Set<string> => {
+      const objetivo = normalize(nombreTipo);
+      const codigos = new Set<string>();
+      for (const [codigo, info] of insumoMap) {
+        const coincide = info.categoriaIds.some(
+          (catId) => normalize(categoryTipoMap.get(catId) || "") === objetivo
+        );
+        if (coincide) codigos.add(codigo);
+      }
+      return codigos;
+    };
+
+    // Con `entrega` no se filtra por categoría: el acta del evento lleva todo
+    // lo que se entregó ese día, y el formato se decide después.
+    const tipoFilterCodes = entregaFilter ? new Set<string>() : codigosDeTipo(tipo);
 
     const personalMap = new Map<string, { nombre: string; documento: string }>();
     for (const r of allPersonal) {
@@ -440,6 +467,16 @@ export async function GET(req: NextRequest) {
       fetchRecordsByIds(getSGSSTUrl(detalleTableId), sgHeaders, Array.from(detalleIds)),
       fetchRecordsByIds(getSGSSTUrl(tokensTableId), sgHeaders, Array.from(tokenIds)),
     ]);
+
+    // Acta de un evento: si incluye algún elemento de dotación se usa el
+    // formato de dotación (con su acta y sus textos de ley); si no, el de EPP.
+    if (entregaFilter) {
+      const codigosDotacion = codigosDeTipo("dotacion");
+      esDotacion = Array.from(detalleMap.values()).some((det) => {
+        const codigo = (det.fields[detalleFields.CODIGO_INSUMO] as string) || "";
+        return codigosDotacion.has(codigo);
+      });
+    }
 
     // ── 5. Agrupar por trabajador (mismo criterio del Excel) ──
     interface EntregaRow {
@@ -538,6 +575,15 @@ export async function GET(req: NextRequest) {
     const codigoFormato = esDotacion ? "FT-SST-023" : "FT-SST-029";
 
     if (empleadoGroups.size === 0) {
+      if (entregaFilter) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: `La entrega ${entregaFilter} no tiene elementos para generar el acta`,
+          },
+          { status: 404 }
+        );
+      }
       return NextResponse.json(
         {
           success: false,
@@ -982,14 +1028,25 @@ export async function GET(req: NextRequest) {
     // ── 9. Retornar PDF ─────────────────────────────────
     const pdfBuffer = Buffer.from(doc.output("arraybuffer"));
 
+    const limpiar = (texto: string) =>
+      texto.replace(/\s+/g, "_").replace(/[^\w\-.]/g, "").slice(0, 30);
+
     const tipoSuffix = esDotacion ? "Dotacion" : "EPP";
-    const empleadoLabel = idEmpleadoFilter
-      ? `_${(personalMap.get(idEmpleadoFilter)?.nombre || idEmpleadoFilter)
-          .replace(/\s+/g, "_")
-          .slice(0, 30)}`
-      : "";
-    const fileSuffix = mes || new Date().toISOString().slice(0, 10);
-    const filename = `Entregas_${tipoSuffix}${empleadoLabel}_Sirius_${fileSuffix}.pdf`;
+    let filename: string;
+
+    if (entregaFilter) {
+      // Acta de un evento puntual
+      const trabajador = sortedGroups[0]?.nombre || "";
+      filename = `Acta_${tipoSuffix}_${limpiar(entregaFilter)}${
+        trabajador ? `_${limpiar(trabajador)}` : ""
+      }.pdf`;
+    } else {
+      const empleadoLabel = idEmpleadoFilter
+        ? `_${limpiar(personalMap.get(idEmpleadoFilter)?.nombre || idEmpleadoFilter)}`
+        : "";
+      const fileSuffix = mes || "Historico";
+      filename = `Entregas_${tipoSuffix}${empleadoLabel}_Sirius_${fileSuffix}.pdf`;
+    }
 
     return new NextResponse(pdfBuffer, {
       status: 200,

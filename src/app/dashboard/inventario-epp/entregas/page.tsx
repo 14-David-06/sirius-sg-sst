@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
@@ -671,6 +671,8 @@ export default function EntregasListPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterEstado, setFilterEstado] = useState<string>("todos");
+  const [filterEmpleado, setFilterEmpleado] = useState<string>("todos");
+  const [filterFirma, setFilterFirma] = useState<string>("todas");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // Modal de firma
@@ -684,10 +686,13 @@ export default function EntregasListPage() {
   // Exportar Excel / PDF
   const [exportingTipo, setExportingTipo] = useState<string | null>(null);
   const [exportingPdf, setExportingPdf] = useState<string | null>(null);
+  const [actaEnCurso, setActaEnCurso] = useState<string | null>(null);
+  // Mes del periodo; vacío = todo el histórico. Filtra la lista y lo exportado.
   const [exportMes, setExportMes] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   });
+  const [todoElHistorico, setTodoElHistorico] = useState(false);
 
   // ── Fetch entregas ────────────────────────────────────
   const fetchEntregas = useCallback(async () => {
@@ -750,13 +755,35 @@ export default function EntregasListPage() {
     setDecryptError("");
   };
 
+  // Filtros que viajan a las exportaciones: lo que se ve es lo que se imprime
+  const paramsDeExportacion = (tipo: "epp" | "dotacion") => {
+    const params = new URLSearchParams({ tipo });
+    if (!todoElHistorico && exportMes) params.set("mes", exportMes);
+    if (filterEmpleado !== "todos") params.set("idEmpleado", filterEmpleado);
+    return params;
+  };
+
+  /** Descarga la respuesta como archivo, con el nombre que envía el servidor. */
+  const descargar = async (res: Response, nombrePorDefecto: string) => {
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    const disposition = res.headers.get("Content-Disposition");
+    const match = disposition?.match(/filename="(.+?)"/);
+    a.download = match?.[1] || nombrePorDefecto;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(blobUrl);
+  };
+
   // ── Exportar Excel ────────────────────────────────────
   const handleExportExcel = async (tipo: "epp" | "dotacion") => {
     setExportingTipo(tipo);
     setError(null);
     try {
-      const params = new URLSearchParams({ tipo });
-      if (exportMes) params.set("mes", exportMes);
+      const params = paramsDeExportacion(tipo);
       const fetchUrl = `/api/entregas-epp/exportar?${params.toString()}`;
       const res = await fetch(fetchUrl);
       if (!res.ok) {
@@ -772,20 +799,12 @@ export default function EntregasListPage() {
         throw new Error(errorMsg);
       }
 
-      const blob = await res.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = blobUrl;
-
-      // Extract filename from Content-Disposition header
-      const disposition = res.headers.get("Content-Disposition");
-      const match = disposition?.match(/filename="(.+?)"/);
-      a.download = match?.[1] || `Entregas_${tipo === "dotacion" ? "Dotacion" : "EPP"}_${new Date().toISOString().slice(0, 10)}.xlsx`;
-
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(blobUrl);
+      await descargar(
+        res,
+        `Entregas_${tipo === "dotacion" ? "Dotacion" : "EPP"}_${new Date()
+          .toISOString()
+          .slice(0, 10)}.xlsx`
+      );
     } catch (err) {
       console.error("Error exporting:", err);
       setError(err instanceof Error ? err.message : "Error al exportar las entregas a Excel");
@@ -799,8 +818,7 @@ export default function EntregasListPage() {
     setExportingPdf(tipo);
     setError(null);
     try {
-      const params = new URLSearchParams({ tipo });
-      if (exportMes) params.set("mes", exportMes);
+      const params = paramsDeExportacion(tipo);
       const res = await fetch(`/api/entregas-epp/exportar-pdf?${params.toString()}`);
       if (!res.ok) {
         const json = await res.json().catch(() => null);
@@ -808,26 +826,19 @@ export default function EntregasListPage() {
 
         // Si es un 404 (no hay entregas), mostrar alerta informativa
         if (res.status === 404) {
-          alert(`ℹ️ Información\n\n${errorMsg}\n\n${json?.detail || "Intente con otro mes."}`);
+          alert(`ℹ️ Información\n\n${errorMsg}\n\n${json?.detail || "Intente con otro filtro."}`);
           return; // No establecer error global
         }
 
         throw new Error(errorMsg);
       }
 
-      const blob = await res.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = blobUrl;
-
-      const disposition = res.headers.get("Content-Disposition");
-      const match = disposition?.match(/filename="(.+?)"/);
-      a.download = match?.[1] || `Entregas_${tipo === "dotacion" ? "Dotacion" : "EPP"}_${exportMes}.pdf`;
-
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(blobUrl);
+      await descargar(
+        res,
+        `Entregas_${tipo === "dotacion" ? "Dotacion" : "EPP"}_${
+          todoElHistorico ? "Historico" : exportMes
+        }.pdf`
+      );
     } catch (err) {
       console.error("Error exporting PDF:", err);
       setError(err instanceof Error ? err.message : "Error al exportar las entregas a PDF");
@@ -836,29 +847,100 @@ export default function EntregasListPage() {
     }
   };
 
+  // ── Acta en PDF de un evento de entrega ───────────────
+  const handleActaEntrega = async (ent: EntregaEPP) => {
+    setActaEnCurso(ent.id);
+    setError(null);
+    try {
+      const params = new URLSearchParams({ entrega: ent.id });
+      const res = await fetch(`/api/entregas-epp/exportar-pdf?${params.toString()}`);
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        const errorMsg = json?.message || "Error al generar el acta";
+        if (res.status === 404) {
+          alert(`ℹ️ Información\n\n${errorMsg}`);
+          return;
+        }
+        throw new Error(errorMsg);
+      }
+
+      await descargar(res, `Acta_${ent.idEntrega || ent.id}.pdf`);
+    } catch (err) {
+      console.error("Error generando acta:", err);
+      setError(err instanceof Error ? err.message : "Error al generar el acta de la entrega");
+    } finally {
+      setActaEnCurso(null);
+    }
+  };
+
   // ── Filtros ───────────────────────────────────────────
+  const tieneFirma = (ent: EntregaEPP) =>
+    ent.tokens.some((t) => t.hashFirma && t.estado === "Usado");
+
   const filtered = entregas.filter((ent) => {
+    const q = searchQuery.toLowerCase();
     const matchSearch =
       !searchQuery ||
-      ent.idEntrega.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ent.idEmpleadoCore.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ent.nombreEmpleado.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ent.responsable.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ent.motivo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ent.observaciones.toLowerCase().includes(searchQuery.toLowerCase());
+      ent.idEntrega.toLowerCase().includes(q) ||
+      ent.idEmpleadoCore.toLowerCase().includes(q) ||
+      ent.nombreEmpleado.toLowerCase().includes(q) ||
+      ent.responsable.toLowerCase().includes(q) ||
+      ent.motivo.toLowerCase().includes(q) ||
+      ent.observaciones.toLowerCase().includes(q) ||
+      ent.detalles.some((d) => d.nombreInsumo.toLowerCase().includes(q));
 
-    const matchEstado =
-      filterEstado === "todos" || ent.estado === filterEstado;
+    const matchEstado = filterEstado === "todos" || ent.estado === filterEstado;
 
-    return matchSearch && matchEstado;
+    const matchEmpleado =
+      filterEmpleado === "todos" || ent.idEmpleadoCore === filterEmpleado;
+
+    const matchPeriodo =
+      todoElHistorico || !exportMes || ent.fechaEntrega?.startsWith(exportMes);
+
+    const matchFirma =
+      filterFirma === "todas" ||
+      (filterFirma === "con" ? tieneFirma(ent) : !tieneFirma(ent));
+
+    return matchSearch && matchEstado && matchEmpleado && matchPeriodo && matchFirma;
   });
 
-  // ── Contadores ────────────────────────────────────────
-  const totalConfirmadas = entregas.filter((e) => e.estado === "Confirmada").length;
-  const totalPendientes = entregas.filter((e) => e.estado === "Pendiente").length;
-  const totalConFirma = entregas.filter((e) =>
-    e.tokens.some((t) => t.hashFirma && t.estado === "Usado")
-  ).length;
+  // Colaboradores presentes en las entregas cargadas
+  const empleadosUnicos = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const ent of entregas) {
+      if (ent.idEmpleadoCore) {
+        map.set(ent.idEmpleadoCore, ent.nombreEmpleado || ent.idEmpleadoCore);
+      }
+    }
+    return Array.from(map.entries())
+      .map(([id, nombre]) => ({ id, nombre }))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre));
+  }, [entregas]);
+
+  const empleadoSeleccionado =
+    filterEmpleado === "todos"
+      ? null
+      : empleadosUnicos.find((e) => e.id === filterEmpleado) ?? null;
+
+  const hayFiltrosActivos =
+    !!searchQuery ||
+    filterEstado !== "todos" ||
+    filterEmpleado !== "todos" ||
+    filterFirma !== "todas" ||
+    !todoElHistorico;
+
+  const limpiarFiltros = () => {
+    setSearchQuery("");
+    setFilterEstado("todos");
+    setFilterEmpleado("todos");
+    setFilterFirma("todas");
+    setTodoElHistorico(true);
+  };
+
+  // ── Contadores (sobre lo filtrado, para que acompañen la vista) ──
+  const totalConfirmadas = filtered.filter((e) => e.estado === "Confirmada").length;
+  const totalPendientes = filtered.filter((e) => e.estado === "Pendiente").length;
+  const totalConFirma = filtered.filter(tieneFirma).length;
 
   // ══════════════════════════════════════════════════════
   // RENDER
@@ -907,73 +989,10 @@ export default function EntregasListPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <input
-                type="month"
-                value={exportMes}
-                onChange={(e) => setExportMes(e.target.value)}
-                className="px-2 py-1.5 rounded-lg bg-white/10 border border-white/15 text-white text-sm focus:outline-none focus:ring-1 focus:ring-green-400/40 [color-scheme:dark]"
-              />
-              <button
-                onClick={() => handleExportExcel("epp")}
-                disabled={!!exportingTipo || loading}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-500/15 border border-green-400/25 text-green-300 text-sm font-semibold hover:bg-green-500/25 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {exportingTipo === "epp" ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <FileSpreadsheet className="w-4 h-4" />
-                )}
-                <span className="hidden sm:inline">
-                  {exportingTipo === "epp" ? "Exportando..." : "EPP"}
-                </span>
-              </button>
-              <button
-                onClick={() => handleExportExcel("dotacion")}
-                disabled={!!exportingTipo || loading}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-500/15 border border-purple-400/25 text-purple-300 text-sm font-semibold hover:bg-purple-500/25 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {exportingTipo === "dotacion" ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <FileSpreadsheet className="w-4 h-4" />
-                )}
-                <span className="hidden sm:inline">
-                  {exportingTipo === "dotacion" ? "Exportando..." : "Dotación"}
-                </span>
-              </button>
-              <button
-                onClick={() => handleExportPdf("epp")}
-                disabled={!!exportingPdf || !!exportingTipo || loading}
-                title="PDF de EPP — una página por trabajador"
-                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/15 border border-red-400/25 text-red-300 text-sm font-semibold hover:bg-red-500/25 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {exportingPdf === "epp" ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <FileText className="w-4 h-4" />
-                )}
-                <span className="hidden sm:inline">
-                  {exportingPdf === "epp" ? "Generando..." : "PDF EPP"}
-                </span>
-              </button>
-              <button
-                onClick={() => handleExportPdf("dotacion")}
-                disabled={!!exportingPdf || !!exportingTipo || loading}
-                title="PDF de dotación — una página por trabajador"
-                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/15 border border-red-400/25 text-red-300 text-sm font-semibold hover:bg-red-500/25 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {exportingPdf === "dotacion" ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <FileText className="w-4 h-4" />
-                )}
-                <span className="hidden sm:inline">
-                  {exportingPdf === "dotacion" ? "Generando..." : "PDF Dotación"}
-                </span>
-              </button>
               <button
                 onClick={fetchEntregas}
                 disabled={loading}
+                title="Recargar entregas"
                 className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/10 border border-white/15 text-white/60 text-sm hover:bg-white/20 transition-all cursor-pointer disabled:opacity-40"
               >
                 <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
@@ -1009,39 +1028,165 @@ export default function EntregasListPage() {
         </div>
 
         {/* ── Búsqueda y filtros ──────────────────────── */}
-        <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/15 p-4 mb-6">
+        <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/15 p-4 mb-4">
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
               <input
                 type="text"
-                placeholder="Buscar por ID, empleado, responsable, motivo..."
+                placeholder="Buscar por ID, colaborador, responsable, motivo o elemento..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/10 border border-white/15 text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-orange-400/50 transition-all"
               />
             </div>
             <select
+              value={filterEmpleado}
+              onChange={(e) => setFilterEmpleado(e.target.value)}
+              className="sm:w-64 px-4 py-2.5 rounded-xl bg-white/10 border border-white/15 text-white text-sm focus:outline-none focus:border-orange-400/50 transition-all cursor-pointer appearance-none"
+            >
+              <option value="todos" className="bg-gray-900">
+                Todos los colaboradores
+              </option>
+              {empleadosUnicos.map((emp) => (
+                <option key={emp.id} value={emp.id} className="bg-gray-900">
+                  {emp.nombre}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 mt-3">
+            <select
               value={filterEstado}
               onChange={(e) => setFilterEstado(e.target.value)}
               className="px-4 py-2.5 rounded-xl bg-white/10 border border-white/15 text-white text-sm focus:outline-none focus:border-orange-400/50 transition-all cursor-pointer appearance-none"
             >
-              <option value="todos" className="bg-gray-900">
-                Todos los estados
-              </option>
-              <option value="Confirmada" className="bg-gray-900">
-                Confirmada
-              </option>
-              <option value="Pendiente" className="bg-gray-900">
-                Pendiente
-              </option>
-              <option value="Anulada" className="bg-gray-900">
-                Anulada
-              </option>
-              <option value="En Proceso" className="bg-gray-900">
-                En Proceso
-              </option>
+              <option value="todos" className="bg-gray-900">Todos los estados</option>
+              <option value="Confirmada" className="bg-gray-900">Confirmada</option>
+              <option value="Pendiente" className="bg-gray-900">Pendiente</option>
+              <option value="Anulada" className="bg-gray-900">Anulada</option>
+              <option value="En Proceso" className="bg-gray-900">En Proceso</option>
             </select>
+
+            <select
+              value={filterFirma}
+              onChange={(e) => setFilterFirma(e.target.value)}
+              className="px-4 py-2.5 rounded-xl bg-white/10 border border-white/15 text-white text-sm focus:outline-none focus:border-orange-400/50 transition-all cursor-pointer appearance-none"
+            >
+              <option value="todas" className="bg-gray-900">Con y sin firma</option>
+              <option value="con" className="bg-gray-900">Solo firmadas</option>
+              <option value="sin" className="bg-gray-900">Sin firmar</option>
+            </select>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="month"
+                value={exportMes}
+                disabled={todoElHistorico}
+                onChange={(e) => setExportMes(e.target.value)}
+                className="px-3 py-2.5 rounded-xl bg-white/10 border border-white/15 text-white text-sm focus:outline-none focus:border-orange-400/50 transition-all [color-scheme:dark] disabled:opacity-40"
+              />
+              <label className="flex items-center gap-2 text-sm text-white/70 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={todoElHistorico}
+                  onChange={(e) => setTodoElHistorico(e.target.checked)}
+                  className="w-4 h-4 rounded border-white/30 bg-white/10 accent-orange-400 cursor-pointer"
+                />
+                Todo el histórico
+              </label>
+            </div>
+
+            {hayFiltrosActivos && (
+              <button
+                onClick={limpiarFiltros}
+                className="ml-auto flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/10 border border-white/15 text-white/60 text-xs font-semibold hover:bg-white/20 transition-all cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+                Limpiar filtros
+              </button>
+            )}
+          </div>
+
+          <p className="mt-3 text-xs text-white/45">
+            Mostrando {filtered.length} de {entregas.length} entregas
+            {empleadoSeleccionado ? ` · ${empleadoSeleccionado.nombre}` : ""}
+            {todoElHistorico ? " · todo el histórico" : ` · ${exportMes}`}
+          </p>
+        </div>
+
+        {/* ── Descargas ───────────────────────────────── */}
+        <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/15 p-4 mb-6">
+          <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+            <div className="text-sm text-white/70">
+              <p className="font-semibold text-white/85">Descargar formatos</p>
+              <p className="text-xs text-white/45">
+                {empleadoSeleccionado
+                  ? `Solo ${empleadoSeleccionado.nombre}`
+                  : "Todos los colaboradores"}
+                {todoElHistorico ? " · todas las entregas" : ` · ${exportMes}`}
+                {" · una hoja por trabajador"}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
+              <button
+                onClick={() => handleExportExcel("epp")}
+                disabled={!!exportingTipo || !!exportingPdf || loading}
+                title="Excel de entregas de EPP"
+                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-green-500/15 border border-green-400/25 text-green-300 text-sm font-semibold hover:bg-green-500/25 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {exportingTipo === "epp" ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <FileSpreadsheet className="w-4 h-4" />
+                )}
+                {exportingTipo === "epp" ? "Generando..." : "Excel EPP"}
+              </button>
+
+              <button
+                onClick={() => handleExportExcel("dotacion")}
+                disabled={!!exportingTipo || !!exportingPdf || loading}
+                title="Excel de entregas de dotación"
+                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-purple-500/15 border border-purple-400/25 text-purple-300 text-sm font-semibold hover:bg-purple-500/25 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {exportingTipo === "dotacion" ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <FileSpreadsheet className="w-4 h-4" />
+                )}
+                {exportingTipo === "dotacion" ? "Generando..." : "Excel Dotación"}
+              </button>
+
+              <button
+                onClick={() => handleExportPdf("epp")}
+                disabled={!!exportingPdf || !!exportingTipo || loading}
+                title="PDF de entregas de EPP — una página por trabajador"
+                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-500/15 border border-red-400/25 text-red-300 text-sm font-semibold hover:bg-red-500/25 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {exportingPdf === "epp" ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <FileText className="w-4 h-4" />
+                )}
+                {exportingPdf === "epp" ? "Generando..." : "PDF EPP"}
+              </button>
+
+              <button
+                onClick={() => handleExportPdf("dotacion")}
+                disabled={!!exportingPdf || !!exportingTipo || loading}
+                title="PDF de entregas de dotación — una página por trabajador"
+                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-500/15 border border-red-400/25 text-red-300 text-sm font-semibold hover:bg-red-500/25 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {exportingPdf === "dotacion" ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <FileText className="w-4 h-4" />
+                )}
+                {exportingPdf === "dotacion" ? "Generando..." : "PDF Dotación"}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1152,6 +1297,24 @@ export default function EntregasListPage() {
                         uds
                       </p>
                     </div>
+
+                    {/* Acta en PDF de este evento de entrega */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleActaEntrega(ent);
+                      }}
+                      disabled={actaEnCurso === ent.id}
+                      title="Descargar el acta de esta entrega en PDF"
+                      className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg bg-red-500/15 border border-red-400/25 text-red-300 text-xs font-semibold hover:bg-red-500/25 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                    >
+                      {actaEnCurso === ent.id ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <FileText className="w-3.5 h-3.5" />
+                      )}
+                      <span className="hidden sm:inline">Acta</span>
+                    </button>
 
                     <button className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-white/40">
                       {isExpanded ? (
