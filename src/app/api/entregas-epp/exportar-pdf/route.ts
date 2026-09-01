@@ -269,17 +269,17 @@ async function normalizarFirma(dataUrl: string): Promise<string | null> {
 }
 
 // ══════════════════════════════════════════════════════════
-// Colores Marca Sirius (Manual de Marca 2023) — mismos del Excel
+// Paleta corporativa sobria — la misma del Excel (exportar/route.ts)
 // ══════════════════════════════════════════════════════════
 type RGB = [number, number, number];
 
 const BRAND = {
-  AZUL_BARRANCA: [1, 84, 172] as RGB, // Primario — headers
-  AZUL_CIELO: [0, 163, 255] as RGB, // Secundario
-  SUTILEZA: [188, 215, 234] as RGB, // Fondo claro azul
-  COTILEDON: [236, 241, 244] as RGB, // Fondo muy claro (filas alternas)
-  IMPERIAL: [26, 26, 51] as RGB, // Texto fuerte
-  VERDE_ALEGRIA: [0, 182, 2] as RGB, // Acento
+  AZUL_BARRANCA: [31, 61, 92] as RGB, // #1F3D5C — membrete y encabezado
+  AZUL_CIELO: [74, 122, 150] as RGB, // #4A7A96 — banda de evidencias
+  SUTILEZA: [220, 230, 238] as RGB, // #DCE6EE — franja del acta
+  COTILEDON: [245, 248, 250] as RGB, // #F5F8FA — bandas suaves
+  IMPERIAL: [46, 58, 70] as RGB, // #2E3A46 — texto de cuerpo
+  VERDE_ALEGRIA: [124, 154, 114] as RGB, // #7C9A72 — línea de cierre
   BLANCO: [255, 255, 255] as RGB,
   BORDE: [203, 213, 225] as RGB,
   BORDE_FUERTE: [148, 163, 184] as RGB,
@@ -535,6 +535,7 @@ export async function GET(req: NextRequest) {
     }
 
     const tipoLabel = esDotacion ? "Dotación" : "EPP";
+    const codigoFormato = esDotacion ? "FT-SST-023" : "FT-SST-029";
 
     if (empleadoGroups.size === 0) {
       return NextResponse.json(
@@ -585,19 +586,20 @@ export async function GET(req: NextRequest) {
 
     // ── 7. Generar PDF ──────────────────────────────────
     const doc = new jsPDF({
-      orientation: "landscape",
+      orientation: "portrait",
       unit: "mm",
-      format: "letter",
+      format: "a4",
       compress: true,
     });
     const PAGE_W = doc.internal.pageSize.getWidth();
     const PAGE_H = doc.internal.pageSize.getHeight();
-    const MARGIN = 12;
+    const MARGIN = 10;
     const CONTENT_W = PAGE_W - MARGIN * 2;
-    const LIMITE_Y = PAGE_H - MARGIN;
+    // Se reserva el pie de página (número de hoja + código del formato)
+    const LIMITE_Y = PAGE_H - MARGIN - 8;
 
-    // Anchos proporcionales a las 5 columnas del Excel (34/14/24/18/50)
-    const COL_W = [0.243, 0.1, 0.171, 0.129, 0.357].map((p) =>
+    // Anchos proporcionales a las 5 columnas del Excel (30/11/20/15/38)
+    const COL_W = [0.263, 0.096, 0.175, 0.133, 0.333].map((p) =>
       Number((CONTENT_W * p).toFixed(2))
     );
 
@@ -712,13 +714,13 @@ export async function GET(req: NextRequest) {
         }
       }
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(13);
+      doc.setFontSize(11);
       setText(BRAND.BLANCO);
       doc.text(
         EMPRESA_RAZON_SOCIAL.toUpperCase(),
         MARGIN + LOGO_W + (CONTENT_W - LOGO_W) / 2,
-        y + HEAD_H / 2 + 1.7,
-        { align: "center" }
+        y + HEAD_H / 2 + 1.4,
+        { align: "center", maxWidth: CONTENT_W - LOGO_W - 4 }
       );
       y += HEAD_H;
 
@@ -731,7 +733,7 @@ export async function GET(req: NextRequest) {
         centrado: true,
         ancho: anchoNit,
       });
-      y = barra(y, 7, esDotacion ? "CÓDIGO: FT-SST-023" : "CÓDIGO: FT-SST-029", {
+      y = barra(y, 7, `CÓDIGO: ${codigoFormato}`, {
         fondo: BRAND.BLANCO,
         color: BRAND.AZUL_BARRANCA,
         tamano: 8.5,
@@ -751,7 +753,7 @@ export async function GET(req: NextRequest) {
         {
           fondo: BRAND.AZUL_BARRANCA,
           color: BRAND.BLANCO,
-          tamano: 12,
+          tamano: esDotacion ? 12 : 10,
           negrita: true,
           centrado: true,
         }
@@ -841,7 +843,7 @@ export async function GET(req: NextRequest) {
           fillColor: BRAND.AZUL_BARRANCA,
           textColor: BRAND.BLANCO,
           fontStyle: "bold",
-          fontSize: 9,
+          fontSize: 8, // cabe "CANTIDAD" en una línea con el ancho A4
           halign: "center",
           valign: "middle",
           minCellHeight: 8,
@@ -851,7 +853,7 @@ export async function GET(req: NextRequest) {
           0: { cellWidth: COL_W[0] },
           1: { cellWidth: COL_W[1], halign: "center", fontStyle: "bold", textColor: BRAND.AZUL_BARRANCA },
           2: { cellWidth: COL_W[2], halign: "center", fontSize: 8 },
-          3: { cellWidth: COL_W[3], halign: "center" },
+          3: { cellWidth: COL_W[3], halign: "center", fontSize: 8 },
           4: {
             cellWidth: COL_W[4],
             halign: "center",
@@ -909,7 +911,7 @@ export async function GET(req: NextRequest) {
       // no empujar el motivo de entrega a una segunda página del trabajador.
       const fotos = group.fotoUrls.slice(0, 3).filter((u) => photoCache.has(u));
       const espacioFotos = LIMITE_Y - y - 7 - 12;
-      const FOTO_H = Math.min(60, espacioFotos);
+      const FOTO_H = Math.min(95, espacioFotos);
 
       if (fotos.length > 0 && FOTO_H >= 18) {
         y = barra(y, 7, `Evidencias Fotográficas (${fotos.length})`, {
@@ -964,7 +966,20 @@ export async function GET(req: NextRequest) {
       doc.rect(MARGIN, y, CONTENT_W, 2, "F");
     }
 
-    // ── 8. Retornar PDF ─────────────────────────────────
+    // ── 8. Pie de página en todas las hojas ─────────────
+    const totalPaginas = doc.getNumberOfPages();
+    for (let p = 1; p <= totalPaginas; p++) {
+      doc.setPage(p);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      setText(BRAND.GRIS_TEXTO);
+      doc.text(`Página ${p} de ${totalPaginas}`, PAGE_W / 2, PAGE_H - MARGIN + 1, {
+        align: "center",
+      });
+      doc.text(codigoFormato, PAGE_W - MARGIN, PAGE_H - MARGIN + 1, { align: "right" });
+    }
+
+    // ── 9. Retornar PDF ─────────────────────────────────
     const pdfBuffer = Buffer.from(doc.output("arraybuffer"));
 
     const tipoSuffix = esDotacion ? "Dotacion" : "EPP";

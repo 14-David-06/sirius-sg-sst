@@ -683,7 +683,7 @@ export default function EntregasListPage() {
 
   // Exportar Excel / PDF
   const [exportingTipo, setExportingTipo] = useState<string | null>(null);
-  const [exportingPdf, setExportingPdf] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState<string | null>(null);
   const [exportMes, setExportMes] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -796,7 +796,7 @@ export default function EntregasListPage() {
 
   // ── Exportar PDF (mismo formato del Excel, una página por trabajador) ──
   const handleExportPdf = async (tipo: "epp" | "dotacion") => {
-    setExportingPdf(true);
+    setExportingPdf(tipo);
     setError(null);
     try {
       const params = new URLSearchParams({ tipo });
@@ -832,7 +832,7 @@ export default function EntregasListPage() {
       console.error("Error exporting PDF:", err);
       setError(err instanceof Error ? err.message : "Error al exportar las entregas a PDF");
     } finally {
-      setExportingPdf(false);
+      setExportingPdf(null);
     }
   };
 
@@ -942,18 +942,33 @@ export default function EntregasListPage() {
                 </span>
               </button>
               <button
-                onClick={() => handleExportPdf("dotacion")}
-                disabled={exportingPdf || !!exportingTipo || loading}
-                title="PDF de dotación — una página por trabajador"
+                onClick={() => handleExportPdf("epp")}
+                disabled={!!exportingPdf || !!exportingTipo || loading}
+                title="PDF de EPP — una página por trabajador"
                 className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/15 border border-red-400/25 text-red-300 text-sm font-semibold hover:bg-red-500/25 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                {exportingPdf ? (
+                {exportingPdf === "epp" ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <FileText className="w-4 h-4" />
                 )}
                 <span className="hidden sm:inline">
-                  {exportingPdf ? "Generando..." : "PDF Dotación"}
+                  {exportingPdf === "epp" ? "Generando..." : "PDF EPP"}
+                </span>
+              </button>
+              <button
+                onClick={() => handleExportPdf("dotacion")}
+                disabled={!!exportingPdf || !!exportingTipo || loading}
+                title="PDF de dotación — una página por trabajador"
+                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/15 border border-red-400/25 text-red-300 text-sm font-semibold hover:bg-red-500/25 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {exportingPdf === "dotacion" ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <FileText className="w-4 h-4" />
+                )}
+                <span className="hidden sm:inline">
+                  {exportingPdf === "dotacion" ? "Generando..." : "PDF Dotación"}
                 </span>
               </button>
               <button

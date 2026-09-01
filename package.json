@@ -13,6 +13,7 @@
     "ver:tabla": "tsx scripts/ver-tabla.ts",
     "probar:informe": "tsx scripts/probar-informe.ts",
     "probar:pdf-entregas": "tsx scripts/probar-pdf-entregas.ts",
+    "probar:excel-entregas": "tsx scripts/probar-excel-entregas.ts",
     "gen:env-example": "tsx scripts/generar-env-example.ts",
     "test:inspecciones-areas": "node test-inspecciones-areas.js",
     "get-field-ids:medicina": "tsx scripts/obtener-field-ids-medicina-laboral.ts",

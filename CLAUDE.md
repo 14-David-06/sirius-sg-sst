@@ -266,9 +266,28 @@ src/
 | **Registros Asistencia** | `/api/registros-asistencia` | `registros-asistencia` | ✅ |
 | **Evaluaciones** | `/api/evaluaciones` | `evaluaciones` | ✅ |
 | **Entregas EPP** | `/api/entregas-epp` | `inventario-epp/entrega` | ✅ |
+| **Actas de entrega (EPP y Dotación)** | `/api/entregas-epp/exportar` (Excel) y `exportar-pdf` | `inventario-epp/entregas` | ✅ |
 | **Inventario EPP** | `/api/insumos` | `inventario-epp` | ✅ |
 | **Plan Anual** | `/api/programacion-capacitaciones` | `plan-anual` | ✅ |
 | **Políticas Empresariales** | `/api/politicas` | `politicas` | ✅ |
+
+**Actas de entrega — formato impreso (Sep 2026).** El Excel (`exportar`) y el
+PDF (`exportar-pdf`) comparten diseño: A4 vertical, **un acta por trabajador
+por página**, paleta sobria (azul pizarra `#1F3D5C`, franja `#DCE6EE`, bandas
+`#F5F8FA`, evidencias `#4A7A96`, cierre `#7C9A72`), logo centrado en su celda,
+firma descifrada dentro de la tabla y hasta 3 evidencias fotográficas.
+
+- El filtro EPP/Dotación se hace por la **categoría del insumo**, no por el
+  texto del motivo
+- La galería de fotos toma el alto que quede libre en la hoja: así el acta
+  nunca se parte en dos páginas. En el Excel eso se calcula contra el alto
+  útil de A4 dividido por la escala real de impresión (~0,96, medida
+  imprimiendo con Excel)
+- ExcelJS calcula la fracción de columna con una unidad propia que no son
+  píxeles: las imágenes se anclan con `nativeColOff`/`nativeRowOff` en EMU
+- Los saltos de página van en la última fila de cada acta (`row.addPageBreak()`)
+- `npm run probar:excel-entregas` verifica saltos, área de impresión y que
+  ninguna acta se desborde
 
 ### Módulos de Inspecciones (Completados)
 
@@ -520,6 +539,8 @@ npm run test:validacion-empresa  # Prueba validación de variables de empresa en
 npm run audit:airtable           # Contrasta el código contra el esquema REAL de Airtable
 npm run ver:tabla <q>            # Muestra los campos de una tabla (busca por nombre o ID)
 npm run probar:informe           # Genera el informe mensual contra Airtable real
+npm run probar:excel-entregas [tipo] [YYYY-MM]  # Excel de entregas + chequeo de paginación
+npm run probar:pdf-entregas   [tipo] [YYYY-MM]  # PDF de entregas (una hoja por trabajador)
 npm run gen:env-example          # Regenera .env.example desde .env.local
 
 # Gestión de eventos y evaluaciones

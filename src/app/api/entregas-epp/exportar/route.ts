@@ -3,6 +3,7 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import ExcelJS from "exceljs";
+import sharp from "sharp";
 import {
   airtableSGSSTConfig,
   getSGSSTUrl,
@@ -337,17 +338,19 @@ function convertSignatureToBlackTransparent(base64Data: string): string {
 }
 
 // ══════════════════════════════════════════════════════════
-// Colores Marca Sirius (Manual de Marca 2023)
+// Paleta corporativa sobria — reemplaza el azul intenso del
+// manual de marca por un azul pizarra apto para documentos
+// impresos (formatos legales del SG-SST).
 // ══════════════════════════════════════════════════════════
 const BRAND = {
-  AZUL_BARRANCA: "0154AC",   // Primario — headers, acentos
-  AZUL_CIELO: "00A3FF",      // Secundario — detalles
-  SUTILEZA: "BCD7EA",        // Fondo claro azul
-  COTILEDON: "ECF1F4",       // Fondo muy claro (filas alternas)
-  IMPERIAL: "1A1A33",        // Oscuro — texto fuerte
-  VERDE_ALEGRIA: "00B602",   // Acento verde
+  AZUL_BARRANCA: "1F3D5C",   // Azul pizarra — membrete y encabezado de tabla
+  AZUL_CIELO: "4A7A96",      // Azul medio — banda de evidencias
+  SUTILEZA: "DCE6EE",        // Fondo claro azul — franja del acta
+  COTILEDON: "F5F8FA",       // Banda suave — filas alternas
+  IMPERIAL: "2E3A46",        // Gris grafito — texto de cuerpo
+  VERDE_ALEGRIA: "7C9A72",   // Verde salvia — línea de cierre
   WHITE: "FFFFFF",
-  LIGHT_GRAY: "F8FAFC",
+  LIGHT_GRAY: "FAFBFC",
   BORDER: "E2E8F0",          // Borde gris muy suave
   BORDER_MEDIUM: "CBD5E1",   // Borde gris medio
   BORDER_STRONG: "94A3B8",   // Borde gris fuerte para separación
@@ -385,14 +388,33 @@ const tableBorders: Partial<ExcelJS.Borders> = {
 };
 
 // ══════════════════════════════════════════════════════════
-// Helper: Descarga una imagen como buffer desde URL
+// Helper: Descarga una evidencia y devuelve sus dimensiones
+//
+// sharp.rotate() aplica la orientación EXIF del celular; sin esto las
+// fotos verticales entran acostadas. Las dimensiones se usan para
+// dibujarlas sin deformar.
 // ══════════════════════════════════════════════════════════
-async function fetchImageBuffer(url: string): Promise<Buffer | null> {
+interface Evidencia {
+  base64: string;
+  ancho: number;
+  alto: number;
+}
+
+async function fetchEvidencia(url: string): Promise<Evidencia | null> {
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
     if (!res.ok) return null;
-    const arrayBuffer = await res.arrayBuffer();
-    return Buffer.from(arrayBuffer);
+    const original = Buffer.from(await res.arrayBuffer());
+    const { data, info } = await sharp(original)
+      .rotate()
+      .resize(700, 700, { fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: 82 })
+      .toBuffer({ resolveWithObject: true });
+    return {
+      base64: data.toString("base64"),
+      ancho: info.width,
+      alto: info.height,
+    };
   } catch {
     return null;
   }
@@ -660,37 +682,91 @@ export async function GET(req: NextRequest) {
     workbook.creator = "Sirius SG-SST";
     workbook.created = new Date();
 
+    const codigoFormato = tipo === "dotacion" ? "FT-SST-023" : "FT-SST-029";
     const sheetName = tipo === "dotacion" ? "Entregas Dotación" : "Entregas EPP";
     const ws = workbook.addWorksheet(sheetName, {
       properties: { defaultColWidth: 16 },
+      // A4 vertical, un acta por página. fitToHeight 0 deja que los saltos
+      // de página manuales manden sobre el alto.
       pageSetup: {
-        paperSize: 9,
-        orientation: "landscape",
+        paperSize: 9, // A4
+        orientation: "portrait",
         fitToPage: true,
         fitToWidth: 1,
         fitToHeight: 0,
+        horizontalCentered: true,
         margins: {
-          left: 0.4,
-          right: 0.4,
-          top: 0.6,
-          bottom: 0.6,
-          header: 0.3,
-          footer: 0.3,
+          left: 0.25, // 18 pt
+          right: 0.25, // 18 pt
+          top: 0.28, // 20 pt
+          bottom: 0.33, // 24 pt
+          header: 0.2,
+          footer: 0.2,
         },
       },
+      headerFooter: {
+        oddFooter: `&C&"Segoe UI"&8Página &P de &N&R&"Segoe UI"&8${codigoFormato}`,
+      },
+      views: [{ showGridLines: false }],
     });
 
     // 5 columnas: EPP, CANTIDAD, REFERENCIA, FECHA, FIRMA
     ws.columns = [
-      { width: 34 }, // A - EPP ENTREGADO
-      { width: 14 }, // B - CANTIDAD
-      { width: 24 }, // C - REFERENCIA
-      { width: 18 }, // D - FECHA DE ENTREGA
-      { width: 50 }, // E - FIRMA (muy ancha para imagen profesional)
+      { width: 30 }, // A - EPP ENTREGADO
+      { width: 11 }, // B - CANTIDAD
+      { width: 20 }, // C - REFERENCIA
+      { width: 15 }, // D - FECHA DE ENTREGA
+      { width: 38 }, // E - FIRMA
     ];
 
+    // Ancho en píxeles de cada columna (ExcelJS ancla las imágenes por
+    // fracción de columna, así que se necesita para centrarlas).
+    const anchoPx = (unidades: number) => Math.round(unidades * 7 + 5);
+    const COLS_PX = [30, 11, 20, 15, 38].map(anchoPx);
+    const COL_A_PX = COLS_PX[0];
+    const COL_E_PX = COLS_PX[4];
+    const TOTAL_PX = COLS_PX.reduce((t, w) => t + w, 0);
+
+    // ExcelJS calcula la fracción de columna con una unidad propia que no
+    // corresponde a píxeles reales, así que las imágenes se anclan con
+    // desplazamientos nativos en EMU (1 px = 9525 EMU), que es lo que lee Excel.
+    const EMU_POR_PX = 9525;
+
+    /**
+     * Traduce un desplazamiento absoluto en píxeles (desde el borde izquierdo
+     * de la hoja) al ancla nativa: columna + desplazamiento en EMU.
+     */
+    const anclaNativa = (px: number): { nativeCol: number; nativeColOff: number } => {
+      let restante = Math.max(0, px);
+      for (let i = 0; i < COLS_PX.length; i++) {
+        if (restante < COLS_PX[i]) {
+          return { nativeCol: i, nativeColOff: Math.round(restante * EMU_POR_PX) };
+        }
+        restante -= COLS_PX[i];
+      }
+      return { nativeCol: COLS_PX.length - 1, nativeColOff: 0 };
+    };
+
     let currentRow = 1;
-    const SIGNATURE_ROW_HEIGHT = 90;
+    const SIGNATURE_ROW_HEIGHT = 70;
+    const HEADER_ROW_HEIGHT = 40; // membrete (logo + razón social)
+    const SUBHEADER_ROW_HEIGHT = 22; // NIT + código del formato
+    // Filas donde arranca cada acta — se usan para los saltos de página
+    const iniciosDeActa: number[] = [];
+
+    // Alto útil de una hoja A4 vertical, en puntos y antes de la escala de
+    // "ajustar a 1 página de ancho". La escala se midió imprimiendo el
+    // archivo con Excel: las 5 columnas entran al ~96 %.
+    const ESCALA_IMPRESION = 0.96;
+    const ALTO_UTIL_A4 = Math.floor((842 - 20 - 24) / ESCALA_IMPRESION) - 20;
+    const ALTO_CIERRE_ACTA = 24 + 6 + 8; // motivo + línea de acento + respiro
+    const ALTO_MAX_GALERIA = 240;
+
+    const sumarAltoDeFilas = (desde: number, hasta: number): number => {
+      let total = 0;
+      for (let r = desde; r <= hasta; r++) total += ws.getRow(r).height ?? 15;
+      return total;
+    };
 
     // ── Load Sirius logo ────────────────────────────────
     let logoImageId: number | null = null;
@@ -707,11 +783,14 @@ export async function GET(req: NextRequest) {
     }
 
     for (const [, group] of empleadoGroups) {
+      const inicioActa = currentRow;
+      iniciosDeActa.push(inicioActa);
+
       // ═══════════════════════════════════════════════════
-      // HEADER SECTION — Azul Barranca con logo Sirius
+      // HEADER SECTION — membrete azul pizarra con logo Sirius
       // ═══════════════════════════════════════════════════
 
-      // Row 1: Logo + Company name bar (Azul Barranca)
+      // Row 1: Logo + Company name bar
       ws.mergeCells(currentRow, 1, currentRow + 1, 1); // Logo ocupa 2 filas en col A
       ws.mergeCells(currentRow, 2, currentRow, TOTAL_COLS);
 
@@ -725,21 +804,25 @@ export async function GET(req: NextRequest) {
       logoCell.border = allBorders;
       logoCell.alignment = { horizontal: "center", vertical: "middle" };
 
-      // Add logo image inside the merged cell — centrado con dimensiones exactas
+      // Logo centrado dentro de la celda fusionada A(fila)–A(fila+1).
+      // El ancla de ExcelJS es (columna + fracción de su ancho), así que el
+      // centrado se calcula contra el ancho real de la columna A.
       if (logoImageId !== null) {
-        const LOGO_WIDTH = 120;
-        const LOGO_HEIGHT = 60;
+        const LOGO_WIDTH = 139; // 104 pt
+        const LOGO_HEIGHT = 69; // 52 pt
+        // El bloque del logo son las dos filas del membrete
+        const bloquePx = (HEADER_ROW_HEIGHT + SUBHEADER_ROW_HEIGHT) * (4 / 3);
 
-        // Calcular centrado horizontal en columna A
-        // Columna A: width 34 unidades (relativamente ancha)
-        // Para centrar visualmente, el logo debe comenzar aprox. en el centro
-        // menos la mitad de su ancho: posición ≈ 0.5 - (ancho_logo / ancho_columna_total)
-        // Ajuste visual: 0.35 funciona bien para columnas anchas
-        const colOffset = 0.999; // centrado horizontal ajustado para columna ancha
-        const rowOffset = 0; // alineado al inicio (se centra verticalmente por la altura de 2 filas)
+        const margenX = Math.max(0, (COL_A_PX - LOGO_WIDTH) / 2);
+        const margenY = Math.max(0, (bloquePx - LOGO_HEIGHT) / 2);
 
         ws.addImage(logoImageId, {
-          tl: { col: colOffset, row: currentRow - 1 + rowOffset } as unknown as ExcelJS.Anchor,
+          tl: {
+            nativeCol: 0,
+            nativeColOff: Math.round(margenX * EMU_POR_PX),
+            nativeRow: currentRow - 1,
+            nativeRowOff: Math.round(margenY * EMU_POR_PX),
+          } as unknown as ExcelJS.Anchor,
           ext: { width: LOGO_WIDTH, height: LOGO_HEIGHT },
           editAs: "oneCell", // Mantiene tamaño fijo al redimensionar celda
         });
@@ -770,10 +853,10 @@ export async function GET(req: NextRequest) {
         };
         mc.border = allBorders;
       }
-      ws.getRow(currentRow).height = 36;
+      ws.getRow(currentRow).height = HEADER_ROW_HEIGHT;
       currentRow++;
 
-      // Row 2: NIT + CÓDIGO (Azul Cielo tono suave)
+      // Row 2: NIT + CÓDIGO del formato
       ws.mergeCells(currentRow, 2, currentRow, 3);
       // Logo cell row 2 (already merged with row 1 col A)
       const logoCellR2 = ws.getCell(currentRow, 1);
@@ -799,7 +882,7 @@ export async function GET(req: NextRequest) {
 
       ws.mergeCells(currentRow, 4, currentRow, TOTAL_COLS);
       const codeCell = ws.getCell(currentRow, 4);
-      codeCell.value = tipo === "dotacion" ? "CÓDIGO: FT-SST-023" : "CÓDIGO: FT-SST-029";
+      codeCell.value = `CÓDIGO: ${codigoFormato}`;
       codeCell.font = { name: "Segoe UI", size: 9, bold: true, color: { argb: `FF${BRAND.AZUL_BARRANCA}` } };
       codeCell.alignment = { horizontal: "center", vertical: "middle" };
       codeCell.fill = {
@@ -809,10 +892,10 @@ export async function GET(req: NextRequest) {
       };
       codeCell.border = { top: brandBorder, left: brandBorder, bottom: strongBorder, right: strongBorder };
       ws.getCell(currentRow, 5).border = { top: brandBorder, left: brandBorder, bottom: strongBorder, right: strongBorder };
-      ws.getRow(currentRow).height = 22;
+      ws.getRow(currentRow).height = SUBHEADER_ROW_HEIGHT;
       currentRow++;
 
-      // Row 3: Title bar (Azul Barranca primario con sombra)
+      // Row 3: Title bar
       ws.mergeCells(currentRow, 1, currentRow, TOTAL_COLS);
       const titleCell = ws.getCell(currentRow, 1);
       titleCell.value = tipo === "dotacion"
@@ -831,7 +914,7 @@ export async function GET(req: NextRequest) {
         fgColor: { argb: `FF${BRAND.AZUL_BARRANCA}` },
       };
       titleCell.border = { top: strongBorder, left: strongBorder, bottom: strongBorder, right: strongBorder };
-      ws.getRow(currentRow).height = 32;
+      ws.getRow(currentRow).height = 28;
       currentRow++;
 
       // Row 4: Employee info (diseño mejorado con gradiente visual)
@@ -858,7 +941,7 @@ export async function GET(req: NextRequest) {
         fgColor: { argb: `FF${BRAND.COTILEDON}` },
       };
       docCell.border = tableBorders;
-      ws.getRow(currentRow).height = 28;
+      ws.getRow(currentRow).height = 24;
       currentRow++;
 
       // ═══════════════════════════════════════════════════
@@ -877,7 +960,7 @@ export async function GET(req: NextRequest) {
           fgColor: { argb: `FF${BRAND.SUTILEZA}` },
         };
         actaCell.border = tableBorders;
-        ws.getRow(currentRow).height = 32;
+        ws.getRow(currentRow).height = 28;
         currentRow++;
 
         // Referencia con fecha de corte
@@ -897,7 +980,7 @@ export async function GET(req: NextRequest) {
         refDotCell.font = { name: "Segoe UI", size: 10, bold: true, underline: true, color: { argb: `FF${BRAND.IMPERIAL}` } };
         refDotCell.alignment = { vertical: "middle", indent: 1 };
         refDotCell.border = tableBorders;
-        ws.getRow(currentRow).height = 24;
+        ws.getRow(currentRow).height = 20;
         currentRow++;
 
         // Texto introductorio
@@ -907,7 +990,7 @@ export async function GET(req: NextRequest) {
         introCell.font = { name: "Segoe UI", size: 10, color: { argb: `FF${BRAND.IMPERIAL}` } };
         introCell.alignment = { vertical: "middle", wrapText: true, indent: 1 };
         introCell.border = tableBorders;
-        ws.getRow(currentRow).height = 26;
+        ws.getRow(currentRow).height = 22;
         currentRow++;
       }
 
@@ -1021,11 +1104,17 @@ export async function GET(req: NextRequest) {
                 extension: extension as "png" | "jpeg" | "gif",
               });
 
-              // Imagen que llena la celda FIRMA — tamaño explícito para que se vea grande
-              // Col E (width 50) ≈ 375px, row height 90px → imagen grande y centrada
+              // Firma centrada en la celda FIRMA, con un margen a cada lado
+              const firmaW = COL_E_PX - 20;
+              const firmaH = Math.round((SIGNATURE_ROW_HEIGHT - 12) * (4 / 3));
               ws.addImage(imageId, {
-                tl: { col: 4.02, row: dataRow - 1 + 0.05 } as unknown as ExcelJS.Anchor,
-                ext: { width: 360, height: 80 },
+                tl: {
+                  nativeCol: 4,
+                  nativeColOff: 10 * EMU_POR_PX,
+                  nativeRow: dataRow - 1,
+                  nativeRowOff: 6 * EMU_POR_PX,
+                } as unknown as ExcelJS.Anchor,
+                ext: { width: firmaW, height: firmaH },
                 editAs: "oneCell",
               });
             }
@@ -1051,6 +1140,7 @@ export async function GET(req: NextRequest) {
       // ═══════════════════════════════════════════════════
       if (tipo === "dotacion") {
         // Espacio
+        ws.getRow(currentRow).height = 6;
         currentRow++;
 
         // Texto de certificación con fondo destacado
@@ -1065,7 +1155,7 @@ export async function GET(req: NextRequest) {
           fgColor: { argb: `FF${BRAND.COTILEDON}` },
         };
         certCell.border = tableBorders;
-        ws.getRow(currentRow).height = 54;
+        ws.getRow(currentRow).height = 44;
         currentRow++;
 
         // Compromiso a)
@@ -1089,6 +1179,7 @@ export async function GET(req: NextRequest) {
         currentRow++;
 
         // Espacio antes de nota legal
+        ws.getRow(currentRow).height = 6;
         currentRow++;
 
         // Nota legal — Ley 11/84 Art. 230 con diseño destacado
@@ -1103,25 +1194,29 @@ export async function GET(req: NextRequest) {
           fgColor: { argb: `FF${BRAND.SUTILEZA}` },
         };
         legalCell.border = tableBorders;
-        ws.getRow(currentRow).height = 50;
+        ws.getRow(currentRow).height = 42;
         currentRow++;
       }
 
       // ═══════════════════════════════════════════════════
       // FOTOS DE EVIDENCIA — fila dedicada con imágenes
       // ═══════════════════════════════════════════════════
-      if (group.fotoUrls.length > 0) {
-        const FOTO_ROW_HEIGHT = 200; // Reducido de 300 a 200 para mejor proporción
-        // Ancho total del documento en unidades de columna ExcelJS
-        // Col A=34, B=14, C=24, D=18, E=50 → Total=140 unidades
-        // Se usa más ancho para evitar distorsión vertical
-        const TOTAL_WIDTH_UNITS = 70; // Aumentado de 35 a 70 (mitad del ancho total)
-        const PX_PER_UNIT = 7; // aprox px por unidad de ancho en ExcelJS
+      // La galería toma el alto que quede libre en la hoja: así el acta
+      // completa cabe en su página y las fotos se ven lo más grandes posible.
+      const altoUsado = sumarAltoDeFilas(inicioActa, currentRow - 1);
+      const altoGaleria = Math.min(
+        ALTO_MAX_GALERIA,
+        ALTO_UTIL_A4 - altoUsado - ALTO_CIERRE_ACTA - 22
+      );
+
+      if (group.fotoUrls.length > 0 && altoGaleria >= 70) {
+        const FOTO_ROW_HEIGHT = altoGaleria;
+        const FOTO_ALTO_PX = Math.round((FOTO_ROW_HEIGHT - 20) * (4 / 3));
 
         // Fila de etiqueta (fusionada) con diseño destacado
         ws.mergeCells(currentRow, 1, currentRow, TOTAL_COLS);
         const fotoLabelCell = ws.getCell(currentRow, 1);
-        fotoLabelCell.value = `📷  Evidencias Fotográficas (${group.fotoUrls.length})`;
+        fotoLabelCell.value = `Evidencias Fotográficas (${Math.min(group.fotoUrls.length, 3)})`;
         fotoLabelCell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: `FF${BRAND.WHITE}` } };
         fotoLabelCell.alignment = { vertical: "middle", horizontal: "center" };
         fotoLabelCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.AZUL_CIELO}` } };
@@ -1137,36 +1232,38 @@ export async function GET(req: NextRequest) {
         fotoCellBase.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND.LIGHT_GRAY}` } };
         fotoCellBase.border = { top: mediumBorder, left: strongBorder, bottom: strongBorder, right: strongBorder };
 
-        // Distribuir imágenes equitativamente a lo ancho (máximo 3)
-        const maxFotos = Math.min(group.fotoUrls.length, 3);
-        const imgW = Math.floor((TOTAL_WIDTH_UNITS * PX_PER_UNIT) / maxFotos) - 10;
-        // Altura proporcional al ancho para mantener relación de aspecto cuadrada
-        const imgH = Math.min(imgW, FOTO_ROW_HEIGHT - 10);
+        // Máximo 3 evidencias, a la misma altura y sin deformar
+        const evidencias = (
+          await Promise.all(
+            group.fotoUrls.slice(0, 3).map((url) => fetchEvidencia(url))
+          )
+        ).filter((e): e is Evidencia => e !== null);
 
-        // La celda fusionada va de columna 1 a columna 5 (índices 0-4)
-        // Distribuir las imágenes proporcionalmente dentro de esas 5 columnas
-        const totalCols = TOTAL_COLS; // 5 columnas fusionadas
-        const colWidth = totalCols / maxFotos; // Ancho en columnas por imagen
+        // Reparto horizontal con espacios iguales dentro del ancho de la hoja
+        const anchos = evidencias.map((e) =>
+          Math.round(FOTO_ALTO_PX * (e.ancho / e.alto))
+        );
+        const sumaAnchos = anchos.reduce((t, w) => t + w, 0);
+        const hueco = Math.max(8, (TOTAL_PX - sumaAnchos) / (evidencias.length + 1));
 
-        for (let i = 0; i < maxFotos; i++) {
-          const buffer = await fetchImageBuffer(group.fotoUrls[i]);
-          if (!buffer) continue;
-
-          // Detectar tipo de imagen por magic bytes
-          let ext: "jpeg" | "png" | "gif" = "jpeg";
-          if (buffer[0] === 0x89 && buffer[1] === 0x50) ext = "png";
-          else if (buffer[0] === 0x47 && buffer[1] === 0x49) ext = "gif";
-
-          const imgId = workbook.addImage({ base64: buffer.toString("base64"), extension: ext });
-          // Posición horizontal: distribuir uniformemente en las 5 columnas
-          // Cada imagen empieza en (i * colWidth) + pequeño margen
-          const colStart = i * colWidth + 0.1;
+        let xPx = hueco;
+        for (let i = 0; i < evidencias.length; i++) {
+          const imgId = workbook.addImage({
+            base64: evidencias[i].base64,
+            extension: "jpeg",
+          });
 
           ws.addImage(imgId, {
-            tl: { col: colStart, row: fotoDataRow - 1 + 0.04 } as unknown as ExcelJS.Anchor,
-            ext: { width: imgW, height: imgH },
+            tl: {
+              ...anclaNativa(xPx),
+              nativeRow: fotoDataRow - 1,
+              nativeRowOff: 8 * EMU_POR_PX,
+            } as unknown as ExcelJS.Anchor,
+            ext: { width: anchos[i], height: FOTO_ALTO_PX },
             editAs: "oneCell",
           });
+
+          xPx += anchos[i] + hueco;
         }
 
         currentRow++;
@@ -1202,14 +1299,23 @@ export async function GET(req: NextRequest) {
       ws.getRow(currentRow).height = 6;
       currentRow++;
 
-      // Spacer between employee sections
-      currentRow += 2;
+      // Fila de respiro al pie del acta (dentro de su propia página)
+      ws.getRow(currentRow).height = 8;
+      currentRow++;
     }
 
-    // ── 7. Generate buffer ──────────────────────────────
+    // ── 7. Una página por trabajador ────────────────────
+    // El salto va en la última fila del acta anterior, de modo que la
+    // siguiente arranque en una hoja nueva.
+    for (const inicio of iniciosDeActa.slice(1)) {
+      ws.getRow(inicio - 1).addPageBreak();
+    }
+    ws.pageSetup.printArea = `A1:E${currentRow - 1}`;
+
+    // ── 8. Generate buffer ──────────────────────────────
     const buffer = await workbook.xlsx.writeBuffer();
 
-    // ── 8. Return as downloadable file ──────────────────
+    // ── 9. Return as downloadable file ──────────────────
     const fileSuffix = mes || new Date().toISOString().slice(0, 10);
     const tipoSuffix = tipo === "dotacion" ? "Dotacion" : "EPP";
     const filename = `Entregas_${tipoSuffix}_Sirius_${fileSuffix}.xlsx`;
