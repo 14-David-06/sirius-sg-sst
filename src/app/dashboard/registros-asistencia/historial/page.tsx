@@ -243,6 +243,8 @@ export default function HistorialRegistrosPage() {
   const [signingLinks, setSigningLinks] = useState<SigningLinkItem[]>([]);
   const [generatingLinks, setGeneratingLinks] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [hasEvaluaciones, setHasEvaluaciones] = useState<boolean>(false);
+  const [checkingEvaluaciones, setCheckingEvaluaciones] = useState(false);
 
   // ── Firma conferencista ───────────────────────────────────
   const [firmandoConferencista, setFirmandoConferencista] = useState(false);
@@ -256,21 +258,44 @@ export default function HistorialRegistrosPage() {
   const [currentMonth, setCurrentMonth] = useState(() => new Date().getMonth()); // 0-indexed
   const [selectedDate, setSelectedDate] = useState<string | null>(null); // "YYYY-MM-DD"
 
+  // ── Verificar si hay evaluaciones ────────────────────────
+  const checkEvaluaciones = useCallback(async (registroId: string) => {
+    setCheckingEvaluaciones(true);
+    try {
+      const res = await fetch("/api/evaluaciones/poblaciones", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ registroRecordId: registroId }),
+      });
+      const json = await res.json();
+      setHasEvaluaciones(json.success && (json.poblaciones?.length ?? 0) > 0);
+    } catch {
+      setHasEvaluaciones(false);
+    } finally {
+      setCheckingEvaluaciones(false);
+    }
+  }, []);
+
   // ── Fetch detalle ─────────────────────────────────────────
   const fetchDetalle = useCallback(async (id: string) => {
     setLoadingDetalle(true);
     setSigningLinks([]);
+    setHasEvaluaciones(false);
     try {
       const res = await fetch(`/api/registros-asistencia/${id}`);
       const json = await res.json();
-      if (json.success) setDetalle(json.data as RegistroDetalle);
-      else setError(json.message || "Error cargando detalle");
+      if (json.success) {
+        setDetalle(json.data as RegistroDetalle);
+        checkEvaluaciones(id);
+      } else {
+        setError(json.message || "Error cargando detalle");
+      }
     } catch {
       setError("Error de conexión");
     } finally {
       setLoadingDetalle(false);
     }
-  }, []);
+  }, [checkEvaluaciones]);
 
   const generateSigningLinks = useCallback(async () => {
     if (!detalle) return;
@@ -1129,14 +1154,27 @@ export default function HistorialRegistrosPage() {
                     {exportandoId === detalle.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
                     Exportar Asistencia
                   </button>
-                  <button
-                    onClick={() => exportarEvaluacionesAuto(detalle.id)}
-                    disabled={exportandoEvalAuto}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-violet-500/20 border border-violet-400/30 text-white font-medium hover:bg-violet-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                  >
-                    {exportandoEvalAuto ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-                    {exportandoEvalAuto ? evalAutoProgreso : "Exportar Evaluaciones"}
-                  </button>
+
+                  {checkingEvaluaciones ? (
+                    <div className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white/50">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Verificando evaluaciones...
+                    </div>
+                  ) : hasEvaluaciones ? (
+                    <button
+                      onClick={() => exportarEvaluacionesAuto(detalle.id)}
+                      disabled={exportandoEvalAuto}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-violet-500/20 border border-violet-400/30 text-white font-medium hover:bg-violet-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    >
+                      {exportandoEvalAuto ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                      {exportandoEvalAuto ? evalAutoProgreso : "Exportar Evaluaciones"}
+                    </button>
+                  ) : (
+                    <div className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white/40 text-sm">
+                      <AlertTriangle className="w-4 h-4" />
+                      No hay evaluaciones para este evento
+                    </div>
+                  )}
                 </div>
               </div>
             ) : null}

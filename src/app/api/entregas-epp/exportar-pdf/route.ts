@@ -311,8 +311,10 @@ const NOTA_LEGAL =
 //              En ese modo se incluyen todos sus elementos, sin filtrar por
 //              categoría, y el formato se decide por lo que contenga.
 //
-// Genera el mismo formato del Excel (FT-SST-023 / FT-SST-029)
-// con una página por trabajador.
+// Genera el formato FT-SST-023 / FT-SST-029 como una compilación de actas:
+// una por entrega, con su fecha, su firma y sus propias evidencias. Con
+// `entrega` se emite una sola; sin él, todas las que pasen el filtro,
+// agrupadas por trabajador y de la más reciente a la más antigua.
 // ══════════════════════════════════════════════════════════
 export async function GET(req: NextRequest) {
   const authResult = await requireAuth(req);
@@ -478,7 +480,15 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // ── 5. Agrupar por trabajador (mismo criterio del Excel) ──
+    // ── 5. Un acta por entrega (evento) ──────────────────
+    // El documento general es la compilación de las actas individuales: cada
+    // entrega conserva su fecha, su firma y sus propias evidencias.
+    //
+    // Antes se agrupaba por trabajador, y eso rompía las evidencias: todas las
+    // entregas del colaborador caían en una sola hoja y solo se conservaban las
+    // fotos de la primera entrega que aportara filas, sin forma de saber a qué
+    // entrega correspondían. El acta individual (`entrega=…`) es ahora el mismo
+    // camino de código con una sola acta.
     interface EntregaRow {
       eppNombre: string;
       cantidad: number;
@@ -489,14 +499,17 @@ export async function GET(req: NextRequest) {
       signatureDataUrl?: string;
     }
 
-    interface EmpleadoGroup {
+    interface Acta {
+      idEntrega: string;
       nombre: string;
       documento: string;
+      fechaEntrega: string;
+      responsable: string;
       rows: EntregaRow[];
       fotoUrls: string[];
     }
 
-    const empleadoGroups = new Map<string, EmpleadoGroup>();
+    const actas: Acta[] = [];
 
     for (const ent of allEntregas) {
       const f = ent.fields;
@@ -504,18 +517,9 @@ export async function GET(req: NextRequest) {
       const fechaEntrega = (f[entregasFields.FECHA_ENTREGA] as string) || "";
       const motivo = (f[entregasFields.MOTIVO] as string) || "";
       const estado = (f[entregasFields.ESTADO] as string) || "";
+      const responsable = (f[entregasFields.RESPONSABLE] as string) || "";
 
       const empInfo = personalMap.get(idEmp) || { nombre: idEmp, documento: "" };
-
-      if (!empleadoGroups.has(idEmp)) {
-        empleadoGroups.set(idEmp, {
-          nombre: empInfo.nombre,
-          documento: empInfo.documento,
-          rows: [],
-          fotoUrls: [],
-        });
-      }
-      const group = empleadoGroups.get(idEmp)!;
 
       // Firma descifrada — se repite en todas las filas de la entrega
       let signatureDataUrl: string | undefined;
@@ -532,7 +536,7 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      const rowCountBefore = group.rows.length;
+      const rows: EntregaRow[] = [];
       const dLinks = (f[entregasFields.DETALLE_LINK] as string[]) || [];
       for (const dId of dLinks) {
         const detRec = detalleMap.get(dId);
@@ -544,7 +548,7 @@ export async function GET(req: NextRequest) {
         if (tipoFilterCodes.size > 0 && !tipoFilterCodes.has(codigoInsumo)) continue;
 
         const insumoInfo = insumoMap.get(codigoInsumo);
-        group.rows.push({
+        rows.push({
           eppNombre: insumoInfo?.nombre || codigoInsumo || "—",
           cantidad: (df[detalleFields.CANTIDAD] as number) || 0,
           referencia: insumoInfo?.referencia || "—",
@@ -555,26 +559,39 @@ export async function GET(req: NextRequest) {
         });
       }
 
-      // Fotos: solo de la entrega más reciente que aporte filas al tipo actual
-      if (group.rows.length > rowCountBefore && group.fotoUrls.length === 0) {
-        const fotoField = f[entregasFields.FOTO_EVIDENCIA_URL];
-        if (Array.isArray(fotoField)) {
-          const urls = (fotoField as { url?: string }[])
+      // La entrega no aporta elementos de la categoría exportada
+      if (rows.length === 0) continue;
+
+      const fotoField = f[entregasFields.FOTO_EVIDENCIA_URL];
+      const fotoUrls = Array.isArray(fotoField)
+        ? (fotoField as { url?: string }[])
             .map((a) => a?.url)
-            .filter((u): u is string => Boolean(u));
-          group.fotoUrls.push(...urls);
-        }
-      }
+            .filter((u): u is string => Boolean(u))
+        : [];
+
+      actas.push({
+        idEntrega: (f[entregasFields.ID_ENTREGA] as string) || ent.id,
+        nombre: empInfo.nombre,
+        documento: empInfo.documento,
+        fechaEntrega,
+        responsable,
+        rows,
+        fotoUrls,
+      });
     }
 
-    for (const [key, group] of empleadoGroups) {
-      if (group.rows.length === 0) empleadoGroups.delete(key);
-    }
+    // Las actas de un mismo trabajador quedan juntas, de la más reciente a la
+    // más antigua.
+    actas.sort(
+      (a, b) =>
+        a.nombre.localeCompare(b.nombre) ||
+        (b.fechaEntrega || "").localeCompare(a.fechaEntrega || "")
+    );
 
     const tipoLabel = esDotacion ? "Dotación" : "EPP";
     const codigoFormato = esDotacion ? "FT-SST-023" : "FT-SST-029";
 
-    if (empleadoGroups.size === 0) {
+    if (actas.length === 0) {
       if (entregaFilter) {
         return NextResponse.json(
           {
@@ -595,10 +612,10 @@ export async function GET(req: NextRequest) {
     }
 
     // ── 6. Precargar imágenes ───────────────────────────
+    // Se traen todas las evidencias de cada acta: son la prueba de la entrega y
+    // el motivo por el que el acta existe.
     const photoCache = new Map<string, Evidencia>();
-    const urls = Array.from(
-      new Set(Array.from(empleadoGroups.values()).flatMap((g) => g.fotoUrls.slice(0, 3)))
-    );
+    const urls = Array.from(new Set(actas.flatMap((a) => a.fotoUrls)));
     const BATCH = 10;
     for (let i = 0; i < urls.length; i += BATCH) {
       const batch = urls.slice(i, i + BATCH);
@@ -611,8 +628,8 @@ export async function GET(req: NextRequest) {
     // Firmas normalizadas (una sola vez por data URL)
     const firmaCache = new Map<string, string>();
     const firmasUnicas = new Set<string>();
-    for (const group of empleadoGroups.values()) {
-      for (const row of group.rows) {
+    for (const acta of actas) {
+      for (const row of acta.rows) {
         if (row.signatureDataUrl) firmasUnicas.add(row.signatureDataUrl);
       }
     }
@@ -725,14 +742,10 @@ export async function GET(req: NextRequest) {
       return y + alto;
     };
 
-    const sortedGroups = Array.from(empleadoGroups.values()).sort((a, b) =>
-      a.nombre.localeCompare(b.nombre)
-    );
-
     let primeraPagina = true;
 
-    for (const group of sortedGroups) {
-      // Una página por trabajador
+    for (const acta of actas) {
+      // Cada acta arranca en su propia hoja
       if (!primeraPagina) doc.addPage();
       primeraPagina = false;
 
@@ -807,20 +820,34 @@ export async function GET(req: NextRequest) {
 
       // ── Trabajador + documento ────────────────────────
       const anchoNombre = COL_W[0] + COL_W[1] + COL_W[2];
-      barra(y, 9, `TRABAJADOR:  ${group.nombre}`, {
+      barra(y, 9, `TRABAJADOR:  ${acta.nombre}`, {
         fondo: BRAND.COTILEDON,
         color: BRAND.AZUL_BARRANCA,
         tamano: 10,
         negrita: true,
         ancho: anchoNombre,
       });
-      y = barra(y, 9, `C.C:  ${group.documento || "—"}`, {
+      y = barra(y, 9, `C.C:  ${acta.documento || "—"}`, {
         fondo: BRAND.COTILEDON,
         color: BRAND.AZUL_BARRANCA,
         tamano: 10,
         negrita: true,
         x: MARGIN + anchoNombre,
         ancho: CONTENT_W - anchoNombre,
+      });
+
+      // ── Identificación de la entrega ──────────────────
+      // Es lo que ata las evidencias de esta hoja a un evento concreto.
+      const trazabilidad = [
+        `Entrega: ${acta.idEntrega}`,
+        formatFechaLarga(acta.fechaEntrega),
+        acta.responsable ? `Entregó: ${acta.responsable}` : "",
+      ].filter(Boolean);
+      y = barra(y, 6, trazabilidad.join("   ·   "), {
+        fondo: BRAND.BLANCO,
+        color: BRAND.GRIS_TEXTO,
+        tamano: 8,
+        centrado: true,
       });
 
       // ── Textos normativos previos (solo dotación) ─────
@@ -833,7 +860,7 @@ export async function GET(req: NextRequest) {
           centrado: true,
         });
 
-        const fechaCorte = formatFechaLarga(group.rows[0]?.fechaEntrega || "");
+        const fechaCorte = formatFechaLarga(acta.fechaEntrega);
         y = barra(
           y,
           7,
@@ -852,8 +879,8 @@ export async function GET(req: NextRequest) {
       }
 
       // ── Tabla de elementos entregados ─────────────────
-      const hayFirmas = group.rows.some((r) => r.signatureDataUrl);
-      const filas = group.rows.map((row) => [
+      const hayFirmas = acta.rows.some((r) => r.signatureDataUrl);
+      const filas = acta.rows.map((row) => [
         row.eppNombre,
         String(row.cantidad),
         row.referencia,
@@ -910,7 +937,7 @@ export async function GET(req: NextRequest) {
         },
         didDrawCell: (data) => {
           if (data.section !== "body" || data.column.index !== 4) return;
-          const firmaOriginal = group.rows[data.row.index]?.signatureDataUrl;
+          const firmaOriginal = acta.rows[data.row.index]?.signatureDataUrl;
           if (!firmaOriginal) return;
           const firma = firmaCache.get(firmaOriginal) || firmaOriginal;
           try {
@@ -953,55 +980,81 @@ export async function GET(req: NextRequest) {
       }
 
       // ── Evidencias fotográficas ───────────────────────
-      // Se ajustan al espacio que quede libre reservando el pie (12 mm), para
-      // no empujar el motivo de entrega a una segunda página del trabajador.
-      const fotos = group.fotoUrls.slice(0, 3).filter((u) => photoCache.has(u));
-      const espacioFotos = LIMITE_Y - y - 7 - 12;
-      const FOTO_H = Math.min(95, espacioFotos);
+      // Van todas las de esta entrega, en filas de hasta tres. Si no caben en
+      // lo que resta de la hoja se abre una nueva y se repite la banda: antes
+      // se recortaban a las tres primeras y se descartaban en silencio cuando
+      // el espacio libre no alcanzaba.
+      const fotos = acta.fotoUrls.filter((u) => photoCache.has(u));
 
-      if (fotos.length > 0 && FOTO_H >= 18) {
-        y = barra(y, 7, `Evidencias Fotográficas (${fotos.length})`, {
-          fondo: BRAND.AZUL_CIELO,
-          color: BRAND.BLANCO,
-          tamano: 9,
-          negrita: true,
-          centrado: true,
-        });
-
-        setDraw(BRAND.BORDE);
-        doc.setLineWidth(0.2);
-        doc.rect(MARGIN, y, CONTENT_W, FOTO_H, "S");
-
+      if (fotos.length > 0) {
+        const POR_FILA = 3;
         const GAP = 3;
-        const celdaW = (CONTENT_W - GAP * (fotos.length + 1)) / fotos.length;
-        const celdaH = FOTO_H - 4;
-        let fx = MARGIN + GAP;
-        for (const url of fotos) {
-          const foto = photoCache.get(url)!;
-          try {
-            // Contener sin deformar: se escala al lado que primero topa
-            const escala = Math.min(celdaW / foto.ancho, celdaH / foto.alto);
-            const w = foto.ancho * escala;
-            const h = foto.alto * escala;
-            doc.addImage(
-              foto.dataUrl,
-              "JPEG",
-              fx + (celdaW - w) / 2,
-              y + 2 + (celdaH - h) / 2,
-              w,
-              h
-            );
-          } catch (err) {
-            console.warn("Error al dibujar la evidencia:", err);
-          }
-          fx += celdaW + GAP;
+        const RESERVA_PIE = 12; // el motivo de entrega y la línea de cierre
+        const filasFotos: string[][] = [];
+        for (let i = 0; i < fotos.length; i += POR_FILA) {
+          filasFotos.push(fotos.slice(i, i + POR_FILA));
         }
-        y += FOTO_H;
+
+        let bandaPendiente = true;
+        for (const filaFotos of filasFotos) {
+          const altoDeseado = filaFotos.length === 1 ? 85 : 62;
+          let disponible = LIMITE_Y - y - (bandaPendiente ? 7 : 0) - RESERVA_PIE;
+
+          if (disponible < 30) {
+            doc.addPage();
+            y = MARGIN;
+            bandaPendiente = true;
+            disponible = LIMITE_Y - y - 7 - RESERVA_PIE;
+          }
+
+          const FOTO_H = Math.min(altoDeseado, disponible);
+          if (FOTO_H < 18) break;
+
+          if (bandaPendiente) {
+            y = barra(y, 7, `Evidencias Fotográficas (${fotos.length})`, {
+              fondo: BRAND.AZUL_CIELO,
+              color: BRAND.BLANCO,
+              tamano: 9,
+              negrita: true,
+              centrado: true,
+            });
+            bandaPendiente = false;
+          }
+
+          setDraw(BRAND.BORDE);
+          doc.setLineWidth(0.2);
+          doc.rect(MARGIN, y, CONTENT_W, FOTO_H, "S");
+
+          const celdaW = (CONTENT_W - GAP * (filaFotos.length + 1)) / filaFotos.length;
+          const celdaH = FOTO_H - 4;
+          let fx = MARGIN + GAP;
+          for (const url of filaFotos) {
+            const foto = photoCache.get(url)!;
+            try {
+              // Contener sin deformar: se escala al lado que primero topa
+              const escala = Math.min(celdaW / foto.ancho, celdaH / foto.alto);
+              const w = foto.ancho * escala;
+              const h = foto.alto * escala;
+              doc.addImage(
+                foto.dataUrl,
+                "JPEG",
+                fx + (celdaW - w) / 2,
+                y + 2 + (celdaH - h) / 2,
+                w,
+                h
+              );
+            } catch (err) {
+              console.warn("Error al dibujar la evidencia:", err);
+            }
+            fx += celdaW + GAP;
+          }
+          y += FOTO_H;
+        }
       }
 
       // ── Pie: motivo de entrega + línea de acento ──────
       espacio(12);
-      const motivos = [...new Set(group.rows.map((r) => r.motivo).filter(Boolean))];
+      const motivos = [...new Set(acta.rows.map((r) => r.motivo).filter(Boolean))];
       y = barra(y, 8, `Motivo de entrega: ${motivos.join(", ") || "—"}`, {
         fondo: BRAND.COTILEDON,
         color: BRAND.AZUL_BARRANCA,
@@ -1036,7 +1089,7 @@ export async function GET(req: NextRequest) {
 
     if (entregaFilter) {
       // Acta de un evento puntual
-      const trabajador = sortedGroups[0]?.nombre || "";
+      const trabajador = actas[0]?.nombre || "";
       filename = `Acta_${tipoSuffix}_${limpiar(entregaFilter)}${
         trabajador ? `_${limpiar(trabajador)}` : ""
       }.pdf`;

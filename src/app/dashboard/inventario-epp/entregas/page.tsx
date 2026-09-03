@@ -813,7 +813,7 @@ export default function EntregasListPage() {
     }
   };
 
-  // ── Exportar PDF (mismo formato del Excel, una página por trabajador) ──
+  // ── Exportar PDF (compilación de las actas que pasen el filtro) ──
   const handleExportPdf = async (tipo: "epp" | "dotacion") => {
     setExportingPdf(tipo);
     setError(null);

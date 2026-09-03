@@ -98,15 +98,32 @@ export async function POST(request: NextRequest) {
     ? Math.round((puntajeObtenido / puntajeMaximoClean) * 100 * 100) / 100
     : 0;
 
-  // ── Obtener puntaje mínimo de la plantilla ───────────
-  const plntUrl = `${base(plantillasEvalTableId)}/${plantillaId}?returnFieldsByFieldId=true&fields[]=${pF.PUNTAJE_MINIMO}`;
+  // ── Obtener puntaje mínimo y programaciones de la plantilla ──
+  const plntUrl = `${base(plantillasEvalTableId)}/${plantillaId}?returnFieldsByFieldId=true&fields[]=${pF.PUNTAJE_MINIMO}&fields[]=${pF.PROGRAMACIONES}`;
   const plntRes = await fetch(plntUrl, { headers, cache: "no-store" });
   let puntajeMinimo = 60;
+  let progsDePlantilla: string[] = [];
   if (plntRes.ok) {
     const pd = await plntRes.json();
     puntajeMinimo = Number(pd.fields[pF.PUNTAJE_MINIMO]) || 60;
+    progsDePlantilla = (pd.fields[pF.PROGRAMACIONES] as string[]) || [];
   }
   const estado = porcentaje >= puntajeMinimo ? "Aprobada" : "No Aprobada";
+
+  // Sin PROG_CAP la evaluación queda huérfana: no la ve el historial del evento,
+  // ni el PDF de resultados, ni los indicadores. Si el cliente no mandó la
+  // programación, se toma la que declara la propia plantilla.
+  const progCapFinal = progCapId || progsDePlantilla[0] || null;
+  if (!progCapFinal) {
+    console.warn(
+      `[responder] Evaluación sin programación: plantilla=${plantillaId} empleado=${idEmpleadoCore}. ` +
+      `Quedará fuera del historial del evento y de los indicadores.`
+    );
+  } else if (!progCapId) {
+    console.warn(
+      `[responder] progCapId ausente; se usó la programación de la plantilla (${progCapFinal}).`
+    );
+  }
 
   // ── 1. Crear EvalAplicadas ───────────────────────────
   const evalCode = generateEvalId();
@@ -125,7 +142,7 @@ export async function POST(request: NextRequest) {
     [eF.INTENTO]:     intentoNumero,
   };
   if (tiempoEmpleadoMin !== undefined) evalFields[eF.TIEMPO] = tiempoEmpleadoMin;
-  if (progCapId) evalFields[eF.PROG_CAP] = [progCapId];
+  if (progCapFinal) evalFields[eF.PROG_CAP] = [progCapFinal];
 
   const evalRes = await fetch(`${base(evalAplicadasTableId)}?returnFieldsByFieldId=true`, {
     method: "POST",

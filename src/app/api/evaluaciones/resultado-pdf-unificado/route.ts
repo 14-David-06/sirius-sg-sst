@@ -546,7 +546,8 @@ export async function POST(req: NextRequest) {
       doc.setFontSize(8);
       doc.setTextColor(100, 100, 100);
       doc.setFont("helvetica", "normal");
-      const wrappedNombre = doc.splitTextToSize(eventoNombre, contentWidth - 20);
+      // Use plantilla name instead of event name for the subtitle
+      const wrappedNombre = doc.splitTextToSize(pl.nombre || eventoNombre, contentWidth - 20);
       doc.text(wrappedNombre, pageWidth / 2, y + 4, { align: "center" });
       y += 6 + (wrappedNombre.length - 1) * 4;
 
@@ -840,7 +841,20 @@ export async function POST(req: NextRequest) {
 
     // ── Return PDF ─────────────────────────────────────────
     const pdfBuffer = Buffer.from(doc.output("arraybuffer"));
-    const tipoSuffix = tipo === "copasst" ? "_COPASST" : tipo === "regular" ? "_Regular" : "";
+
+    // `tipo` llega como la población de la plantilla ("COPASST", "Todos los
+    // Colaboradores"). Un evento con varias poblaciones genera un PDF por cada
+    // una: sin el sufijo todas se llamarían igual y el navegador guardaría las
+    // siguientes como "(1)", "(2)".
+    const tipoSuffix = tipo
+      ? "_" + String(tipo)
+          .normalize("NFD")                              // separa las tildes
+          .split("")
+          .filter((ch) => /[a-zA-Z0-9 ]/.test(ch))       // descarta acentos y signos
+          .join("")
+          .trim()
+          .replace(/\s+/g, "-")
+      : "";
     const filename = `Evaluaciones${tipoSuffix}_${eventoFecha || "sin-fecha"}.pdf`;
 
     return new NextResponse(pdfBuffer, {
