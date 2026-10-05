@@ -188,6 +188,82 @@ function formatFechaLarga(iso: string | undefined | null): string {
 }
 
 // ══════════════════════════════════════════════════════════
+// Nombres oficiales del formato para las claves guardadas en el JSON
+// (mismos textos que el formulario de captura en dashboard/inspecciones-equipos)
+// ══════════════════════════════════════════════════════════
+const NOMBRES_ELEMENTOS: Record<string, string> = {
+  // Extintor
+  presion: "Presión",
+  selloGarantia: "Sello de Garantía",
+  manometro: "Manómetro",
+  estadoCilindro: "Estado del Cilindro",
+  manija: "Manija",
+  boquillaManguera: "Boquilla o Manguera",
+  anilloSeguridad: "Anillo de Seguridad",
+  pinSeguridad: "Pin de Seguridad",
+  pintura: "Pintura",
+  tarjetaInspeccion: "Tarjeta de Inspección",
+  // Botiquín
+  gasas: "Gasas",
+  esparadrapo: "Esparadrapo",
+  bajalenguas: "Bajalenguas",
+  guantesLatex: "Guantes de látex",
+  aplicadores: "Aplicadores o copitos",
+  vendaElastica2x5: "Venda elástica 2X5 Yardas",
+  vendaElastica3x5: "Venda elástica 3X5 Yardas",
+  vendaElastica5x5: "Venda elástica 5X5 Yardas",
+  vendaAlgodon3x5: "Venda de algodón 3X5 Yardas",
+  vendaAlgodon5x5: "Venda de algodón 5X5 Yardas",
+  yodopovidona: "Yodopovidona (Jabón quirúrgico)",
+  solucionSalina: "Solución salina 250 cc ó 500 cc",
+  tapabocas: "Tapabocas",
+  alcoholAntiseptico: "Alcohol antiséptico frasco por 275 ml",
+  curas: "Curas",
+  jeringa5ml: "Jeringa de 5 ml",
+  tijerasTrauma: "Tijeras de Trauma",
+  parcheOcular: "Parche Ocular",
+  termometro: "Termómetro",
+  libreta: "Libreta",
+  lapicero: "Lapicero",
+  manualEmergencia: "Manual de emergencia",
+  // Camilla
+  estadoPasta: "Estado de la Pasta",
+  correasSeguridad: "Correas de Seguridad",
+  sujetadoresCargue: "Sujetadores para Cargue",
+  crucetasSeguridad: "Crucetas de Seguridad",
+  inmovilizadorSuperior: "Estado de Inmovilizador Superior",
+  inmovilizadorInferior: "Estado de Inmovilizador Inferior",
+  estadoGeneralCamilla: "Estado General de la Camilla",
+  // Kit de derrames
+  panosAbsorventes: "Paños Absorbentes",
+  barreraAbsorvente: "Barrera Absorbente",
+  trajeDesechable: "Traje Desechable",
+  bolsaRoja: "Bolsa Roja para Recoger Residuos Contaminados",
+  palaPlastica: "Pala Plástica",
+  espatulaPlastica: "Espátula Plástica",
+  guantesNitrilo: "Guantes de Nitrilo",
+  gafasSeguridad: "Gafas Transparentes de Seguridad",
+  cintaPeligro: "Cinta de Peligro",
+  martilloGoma: "Martillo de Goma",
+  recogedorMano: "Recogedor de Mano Plástico",
+  respiradorN95: "Respirador un Cartucho o Tapabocas N-95",
+  linternaRecargable: "Linterna Recargable",
+  bolsaGranulado: "Bolsa Granulado Absorbente",
+  masillaEpoxica: "Masilla Epóxica",
+  desengrasante: "Desengrasante Biodegradable",
+  chalecoReflectivo: "Chaleco Reflectivo",
+  conos: "Conos",
+  // Verificaciones del kit
+  conoceProcedimiento: "¿El responsable del kit control de derrame conoce el procedimiento para usarlo?",
+  lugarAdecuado: "¿El kit se encuentra almacenado en un lugar seco y protegido de agentes contaminantes?",
+  rotulado: "¿La caneca o morral donde se guarda el kit se encuentra rotulado o señalizado?",
+};
+
+function nombreElemento(clave: string): string {
+  return NOMBRES_ELEMENTOS[clave] ?? clave;
+}
+
+// ══════════════════════════════════════════════════════════
 // Parser de datos detallados embebidos en observaciones
 // ══════════════════════════════════════════════════════════
 function parseObservacionesDetalladas(obs: string): {
@@ -655,7 +731,7 @@ function generarPDFInspeccion(
                 const styles: Record<string, unknown> = { halign: "center" as const };
                 if (estado === "Bueno" || estado === "Sí") styles.textColor = [0, 128, 0];
                 if (estado === "Malo" || estado === "No") styles.textColor = [200, 0, 0];
-                return [nombre, { content: estado, styles }];
+                return [nombreElemento(nombre), { content: estado, styles }];
               });
               // Agregar observaciones del equipo como fila final
               if (det.observacionesLimpias) {
@@ -702,7 +778,7 @@ function generarPDFInspeccion(
               if (estado === "Bueno") styles.textColor = [0, 128, 0];
               if (estado === "Malo") styles.textColor = [200, 0, 0];
               return [
-                nombre,
+                nombreElemento(nombre),
                 { content: estado, styles },
                 { content: val?.cantidad || "—", styles: { halign: "center" as const } },
                 { content: formatFechaLarga(val?.fechaVencimiento) || "—", styles: { halign: "center" as const } },
@@ -750,7 +826,7 @@ function generarPDFInspeccion(
               const styles: Record<string, unknown> = { halign: "center" as const };
               if (estado === "Bueno") styles.textColor = [0, 128, 0];
               if (estado === "Malo") styles.textColor = [200, 0, 0];
-              return [nombre, { content: estado, styles }];
+              return [nombreElemento(nombre), { content: estado, styles }];
             });
 
             autoTable(doc, {
@@ -795,7 +871,7 @@ function generarPDFInspeccion(
               if (estado === "Bueno") styles.textColor = [0, 128, 0];
               if (estado === "Malo") styles.textColor = [200, 0, 0];
               return [
-                nombre,
+                nombreElemento(nombre),
                 { content: estado, styles },
                 { content: val?.cantidad || "—", styles: { halign: "center" as const } },
                 { content: formatFechaLarga(val?.fechaVencimiento) || "—", styles: { halign: "center" as const } },
@@ -844,7 +920,7 @@ function generarPDFInspeccion(
               const styles: Record<string, unknown> = { halign: "center" as const };
               if (cumple === "Sí") styles.textColor = [0, 128, 0];
               if (cumple === "No") styles.textColor = [200, 0, 0];
-              return [nombre, { content: cumple, styles }];
+              return [nombreElemento(nombre), { content: cumple, styles }];
             });
 
             autoTable(doc, {

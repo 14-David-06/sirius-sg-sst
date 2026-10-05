@@ -28,6 +28,8 @@ export interface ConstanciaInput {
   horaInicio: string;
   horaFin: string;
   responsableSST: string;
+  // Rol de quien presentó la inducción cuando no es el responsable SST (ej. "Capacitadora")
+  rolPresentador?: string;
   observaciones?: string;
   temas: Record<string, boolean>;
 }
@@ -125,6 +127,23 @@ const NIT = "901.377.064-8";
 const TELEFONO = "320 9568566";
 const CORREO = "adm@siriusregenerative.com";
 const PLANTACION = "Barranca de Upía, km 7 vía Cabuyaro, Meta, Colombia";
+
+function etiquetasPresentador(rol?: string) {
+  if (!rol) {
+    return {
+      campo: "Responsable SST:",
+      firma: "Firma responsable SST:",
+      cargo: "Responsable SG-SST",
+      pendiente: "Pendiente firma responsable SST",
+    };
+  }
+  return {
+    campo: `${rol}:`,
+    firma: `Firma ${rol.toLowerCase()}:`,
+    cargo: rol,
+    pendiente: `Pendiente firma ${rol.toLowerCase()}`,
+  };
+}
 
 function formatearFecha(fecha: string): string {
   try {
@@ -374,7 +393,7 @@ function dibujarConstancia(pdf: jsPDF, registro: RegistroInduccion, constancia: 
       ["Cargo:", registro.cargo, "Tipo:", tipoTexto],
       ["Fecha realización:", formatearFecha(constancia.fechaRealizacion || registro.fechaRealizacion), "Lugar:", constancia.lugarRealizacion || "—"],
       ["Hora inicio:", constancia.horaInicio || "—", "Hora fin:", constancia.horaFin || "—"],
-      ["Responsable SST:", constancia.responsableSST || registro.responsableSST, "ID Inducción:", registro.idInduccion],
+      [etiquetasPresentador(constancia.rolPresentador).campo, constancia.responsableSST || registro.responsableSST, "ID Inducción:", registro.idInduccion],
     ],
   });
 
@@ -520,8 +539,10 @@ function dibujarCertificado(
   registro: RegistroInduccion,
   firmaEmpleadoDataUrl: string | null,
   firmaResponsableDataUrl: string | null,
-  logo64: string | null
+  logo64: string | null,
+  rolPresentador?: string
 ): void {
+  const etiquetas = etiquetasPresentador(rolPresentador);
   pdf.addPage("letter", "portrait");
 
   const PW = pdf.internal.pageSize.getWidth();
@@ -569,7 +590,7 @@ function dibujarCertificado(
     body: [
       ["ID Inducción:", registro.idInduccion, "Tipo:", registro.tipo],
       ["Fecha realización:", formatearFecha(registro.fechaRealizacion), "Fecha vencimiento:", formatearFecha(registro.fechaVencimiento)],
-      ["Responsable SST:", registro.responsableSST, "Evaluación:", `${registro.puntajeEvaluacion ?? 0}% - ${registro.estadoEvaluacion}`],
+      [etiquetas.campo, registro.responsableSST, "Evaluación:", `${registro.puntajeEvaluacion ?? 0}% - ${registro.estadoEvaluacion}`],
     ],
   });
 
@@ -599,11 +620,11 @@ function dibujarCertificado(
     y,
     boxW,
     boxH,
-    "Firma responsable SST:",
+    etiquetas.firma,
     registro.responsableSST,
-    "Responsable SG-SST",
+    etiquetas.cargo,
     firmaResponsableDataUrl,
-    "Pendiente firma responsable SST",
+    etiquetas.pendiente,
     true // ES responsable SST - SOLO la imagen de la firma es más grande
   );
 }
@@ -670,7 +691,7 @@ export async function generarDocumentoUnificado(
     dibujarEvaluacion(pdf, evaluacion, logo64);
   }
 
-  dibujarCertificado(pdf, registro, firmaEmpleadoFinal, firmaResponsableFinal, logo64);
+  dibujarCertificado(pdf, registro, firmaEmpleadoFinal, firmaResponsableFinal, logo64, constancia.rolPresentador);
   aplicarPieCorporativoEnTodasLasPaginas(pdf);
 
   const pdfBuffer = Buffer.from(pdf.output("arraybuffer"));
