@@ -785,7 +785,9 @@ export default function EntregasListPage() {
     try {
       const params = paramsDeExportacion(tipo);
       const fetchUrl = `/api/entregas-epp/exportar?${params.toString()}`;
-      const res = await fetch(fetchUrl);
+      const res = await fetch(fetchUrl, {
+        credentials: 'include', // Enviar cookies de sesión
+      });
       if (!res.ok) {
         const json = await res.json().catch(() => null);
         const errorMsg = json?.message || "Error al generar el archivo";
@@ -819,7 +821,9 @@ export default function EntregasListPage() {
     setError(null);
     try {
       const params = paramsDeExportacion(tipo);
-      const res = await fetch(`/api/entregas-epp/exportar-pdf?${params.toString()}`);
+      const res = await fetch(`/api/entregas-epp/exportar-pdf?${params.toString()}`, {
+        credentials: 'include', // Enviar cookies de sesión
+      });
       if (!res.ok) {
         const json = await res.json().catch(() => null);
         const errorMsg = json?.message || "Error al generar el PDF";
@@ -853,7 +857,9 @@ export default function EntregasListPage() {
     setError(null);
     try {
       const params = new URLSearchParams({ entrega: ent.id });
-      const res = await fetch(`/api/entregas-epp/exportar-pdf?${params.toString()}`);
+      const res = await fetch(`/api/entregas-epp/exportar-pdf?${params.toString()}`, {
+        credentials: 'include', // Enviar cookies de sesión
+      });
       if (!res.ok) {
         const json = await res.json().catch(() => null);
         const errorMsg = json?.message || "Error al generar el acta";
