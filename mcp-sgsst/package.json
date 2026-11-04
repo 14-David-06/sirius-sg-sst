@@ -1,0 +1,34 @@
+{
+  "name": "@sirius/mcp-sgsst",
+  "version": "1.0.0",
+  "description": "MCP Server para Sirius Sistema de Gestión de Seguridad y Salud en el Trabajo",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "mcp-sgsst": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "dev": "tsx src/index.ts",
+    "test": "tsx test/test-tools.ts"
+  },
+  "keywords": [
+    "mcp",
+    "sgsst",
+    "sirius",
+    "seguridad",
+    "salud-trabajo"
+  ],
+  "author": "Sirius Regenerative Solutions",
+  "license": "SEE LICENSE IN LICENSE",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "tsx": "^4.19.2",
+    "typescript": "^5"
+  }
+}

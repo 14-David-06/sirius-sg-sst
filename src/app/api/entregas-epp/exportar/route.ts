@@ -836,6 +836,7 @@ export async function GET(req: NextRequest) {
             nativeRow: currentRow - 1,
             nativeRowOff: Math.round(margenY * EMU_POR_PX),
           } as unknown as ExcelJS.Anchor,
+
           ext: { width: LOGO_WIDTH, height: LOGO_HEIGHT },
           editAs: "oneCell", // Mantiene tamaño fijo al redimensionar celda
         });
