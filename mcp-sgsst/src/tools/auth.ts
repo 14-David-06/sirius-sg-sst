@@ -1,43 +1,48 @@
 /**
  * Herramientas de Autenticación MCP
+ *
+ * La API de login identifica al usuario por número de documento, no por email.
  */
 
 import { z } from "zod";
 import { HttpClient } from "../utils/http-client.js";
-import { ToolContext, AuthResponse, SessionInfo } from "../types.js";
-import { validarEmail, validarNumeroDocumento } from "../utils/validation.js";
+import { ToolContext, AuthResponse } from "../types.js";
+import { validarNumeroDocumento } from "../utils/validation.js";
 
 // ============================================================================
 // Schemas de Validación
 // ============================================================================
 
 const VerificarUsuarioSchema = z.object({
-  email: z.string().optional(),
-  numeroDocumento: z.string().optional(),
-}).refine(
-  (data) => data.email || data.numeroDocumento,
-  { message: "Debe proporcionar email o numeroDocumento" }
-);
+  numeroDocumento: z.string().min(1, "El número de documento es requerido"),
+});
 
-const IniciarSesionSchema = z.object({
-  email: z.string().optional(),
-  numeroDocumento: z.string().optional(),
+const CredencialesSchema = z.object({
+  numeroDocumento: z.string().min(1, "El número de documento es requerido"),
   password: z.string().min(1, "La contraseña es requerida"),
-}).refine(
-  (data) => data.email || data.numeroDocumento,
-  { message: "Debe proporcionar email o numeroDocumento" }
-);
+});
 
 const CrearPasswordSchema = z.object({
-  email: z.string().optional(),
-  numeroDocumento: z.string().optional(),
+  numeroDocumento: z.string().min(1, "El número de documento es requerido"),
   password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres"),
-}).refine(
-  (data) => data.email || data.numeroDocumento,
-  { message: "Debe proporcionar email o numeroDocumento" }
-);
+});
 
-const ObtenerSesionSchema = z.object({});
+interface VerifyResponse {
+  success: boolean;
+  message?: string;
+  needsPassword?: boolean;
+  nombreCompleto?: string;
+}
+
+function textoError(prefijo: string, error: unknown) {
+  return {
+    content: [{
+      type: "text",
+      text: `❌ ${prefijo}: ${error instanceof Error ? error.message : "Error desconocido"}`,
+    }],
+    isError: true,
+  };
+}
 
 // ============================================================================
 // Herramientas
@@ -49,92 +54,59 @@ const ObtenerSesionSchema = z.object({});
  */
 export const verificarUsuarioTool = {
   name: "sgsst_verificar_usuario",
-  description: `Verifica si un usuario existe en el sistema SGSST. Este es el primer paso del proceso de autenticación de 3 pasos.
+  description: `Verifica si un usuario existe y está activo en el sistema SGSST. Es el primer paso del login de 3 pasos.
 
-Devuelve información sobre si el usuario existe y si tiene contraseña configurada.
+Indica si el usuario ya tiene contraseña (puede iniciar sesión) o si debe crearla primero.
 
 Parámetros:
-- email: (opcional) Email del usuario
-- numeroDocumento: (opcional) Número de documento del usuario
+- numeroDocumento: (requerido) Número de documento del usuario
 
-Debe proporcionar email O numeroDocumento (al menos uno).
-
-Ejemplo de uso:
-{
-  "email": "empleado@empresa.com"
-}
-
-O:
+Ejemplo:
 {
   "numeroDocumento": "1234567890"
 }`,
   inputSchema: {
     type: "object",
     properties: {
-      email: {
-        type: "string",
-        description: "Email del usuario a verificar",
-      },
       numeroDocumento: {
         type: "string",
         description: "Número de documento del usuario a verificar",
       },
     },
+    required: ["numeroDocumento"],
   },
   handler: async (args: unknown, context: ToolContext) => {
     try {
       const params = VerificarUsuarioSchema.parse(args);
 
-      // Validar formato si se proporciona
-      if (params.email && !validarEmail(params.email)) {
-        throw new Error("Formato de email inválido");
-      }
-
-      if (params.numeroDocumento && !validarNumeroDocumento(params.numeroDocumento)) {
+      if (!validarNumeroDocumento(params.numeroDocumento)) {
         throw new Error("Formato de número de documento inválido");
       }
 
       const client = new HttpClient(context.config, context.session);
-      const response = await client.post("/api/auth/verify", params);
+      const response = (await client.post("/api/auth/verify", params)) as VerifyResponse & { error?: string };
 
       if (!response.success) {
         return {
           content: [{
             type: "text",
-            text: `❌ Error: ${response.error || "No se pudo verificar el usuario"}`,
+            text: `❌ ${response.error || response.message || "No se pudo verificar el usuario"}`,
           }],
         };
       }
 
-      const data = response.data as { exists: boolean; hasPassword: boolean; user?: { nombre: string; cargo: string } };
-
-      if (!data.exists) {
-        return {
-          content: [{
-            type: "text",
-            text: "❌ Usuario no encontrado en el sistema",
-          }],
-        };
-      }
-
-      const statusMsg = data.hasPassword
-        ? "✅ Usuario encontrado. Tiene contraseña configurada - puede iniciar sesión."
-        : "⚠️ Usuario encontrado pero NO tiene contraseña - debe crear una primero.";
+      const statusMsg = response.needsPassword
+        ? "⚠️ Usuario encontrado pero NO tiene contraseña - debe crearla con sgsst_crear_password."
+        : "✅ Usuario encontrado. Tiene contraseña configurada - puede iniciar sesión.";
 
       return {
         content: [{
           type: "text",
-          text: `${statusMsg}\n\n👤 Usuario: ${data.user?.nombre || "N/A"}\n💼 Cargo: ${data.user?.cargo || "N/A"}`,
+          text: `${statusMsg}\n\n👤 Usuario: ${response.nombreCompleto || "N/A"}`,
         }],
       };
     } catch (error) {
-      return {
-        content: [{
-          type: "text",
-          text: `❌ Error al verificar usuario: ${error instanceof Error ? error.message : "Error desconocido"}`,
-        }],
-        isError: true,
-      };
+      return textoError("Error al verificar usuario", error);
     }
   },
 };
@@ -145,17 +117,13 @@ O:
  */
 export const crearPasswordTool = {
   name: "sgsst_crear_password",
-  description: `Crea una contraseña para un usuario que aún no tiene una configurada.
-Este es un paso alternativo en el proceso de autenticación cuando el usuario no tiene contraseña.
+  description: `Crea la contraseña de un usuario que aún no tiene una configurada.
 
 Parámetros:
-- email: (opcional) Email del usuario
-- numeroDocumento: (opcional) Número de documento del usuario
+- numeroDocumento: (requerido) Número de documento del usuario
 - password: (requerido) Contraseña a crear (mínimo 8 caracteres)
 
-Debe proporcionar email O numeroDocumento.
-
-Ejemplo de uso:
+Ejemplo:
 {
   "numeroDocumento": "1234567890",
   "password": "MiPassword123!"
@@ -163,10 +131,6 @@ Ejemplo de uso:
   inputSchema: {
     type: "object",
     properties: {
-      email: {
-        type: "string",
-        description: "Email del usuario",
-      },
       numeroDocumento: {
         type: "string",
         description: "Número de documento del usuario",
@@ -176,7 +140,7 @@ Ejemplo de uso:
         description: "Contraseña a crear (mínimo 8 caracteres)",
       },
     },
-    required: ["password"],
+    required: ["numeroDocumento", "password"],
   },
   handler: async (args: unknown, context: ToolContext) => {
     try {
@@ -189,7 +153,7 @@ Ejemplo de uso:
         return {
           content: [{
             type: "text",
-            text: `❌ Error: ${response.error || "No se pudo crear la contraseña"}`,
+            text: `❌ ${response.error || response.message || "No se pudo crear la contraseña"}`,
           }],
         };
       }
@@ -201,13 +165,7 @@ Ejemplo de uso:
         }],
       };
     } catch (error) {
-      return {
-        content: [{
-          type: "text",
-          text: `❌ Error al crear contraseña: ${error instanceof Error ? error.message : "Error desconocido"}`,
-        }],
-        isError: true,
-      };
+      return textoError("Error al crear contraseña", error);
     }
   },
 };
@@ -218,30 +176,22 @@ Ejemplo de uso:
  */
 export const iniciarSesionTool = {
   name: "sgsst_iniciar_sesion",
-  description: `Inicia sesión en el sistema SGSST con email/documento y contraseña.
-Este es el paso final del proceso de autenticación.
+  description: `Inicia sesión en el sistema SGSST con número de documento y contraseña.
 
-Una vez autenticado exitosamente, el token de sesión se guarda automáticamente y todas las demás herramientas del MCP lo utilizarán.
+El token de sesión queda guardado y las demás herramientas del MCP lo usan automáticamente.
 
 Parámetros:
-- email: (opcional) Email del usuario
-- numeroDocumento: (opcional) Número de documento del usuario
+- numeroDocumento: (requerido) Número de documento del usuario
 - password: (requerido) Contraseña del usuario
 
-Debe proporcionar email O numeroDocumento.
-
-Ejemplo de uso:
+Ejemplo:
 {
-  "email": "empleado@empresa.com",
+  "numeroDocumento": "1234567890",
   "password": "MiPassword123!"
 }`,
   inputSchema: {
     type: "object",
     properties: {
-      email: {
-        type: "string",
-        description: "Email del usuario",
-      },
       numeroDocumento: {
         type: "string",
         description: "Número de documento del usuario",
@@ -251,31 +201,30 @@ Ejemplo de uso:
         description: "Contraseña del usuario",
       },
     },
-    required: ["password"],
+    required: ["numeroDocumento", "password"],
   },
   handler: async (args: unknown, context: ToolContext) => {
     try {
-      const params = IniciarSesionSchema.parse(args);
+      const params = CredencialesSchema.parse(args);
 
       const client = new HttpClient(context.config, context.session);
-      const response = await client.post<AuthResponse>("/api/auth/login", params);
+      const response = (await client.post("/api/auth/login", params)) as AuthResponse & { error?: string };
 
-      if (!response.success || !response.data) {
+      if (!response.success || !response.token || !response.user) {
         return {
           content: [{
             type: "text",
-            text: `❌ Error: ${response.error || "Credenciales inválidas"}`,
+            text: `❌ ${response.error || response.message || "Credenciales inválidas"}`,
           }],
         };
       }
 
-      const authData = response.data;
+      const user = response.user;
 
-      // Actualizar el contexto de sesión
       if (context.session) {
         context.session.isAuthenticated = true;
-        context.session.token = authData.token;
-        context.session.user = authData.user;
+        context.session.token = response.token;
+        context.session.user = user;
       }
 
       return {
@@ -283,22 +232,16 @@ Ejemplo de uso:
           type: "text",
           text: `✅ Sesión iniciada exitosamente
 
-👤 Usuario: ${authData.user.nombre}
-💼 Cargo: ${authData.user.cargo}
-📧 Email: ${authData.user.email}
-🔐 Nivel de acceso: ${authData.user.nivel}
+👤 Usuario: ${user.nombreCompleto}
+💼 Rol: ${user.rol || "N/A"}
+📧 Email: ${user.correoElectronico || "N/A"}
+🔐 Nivel de acceso: ${user.nivelAcceso || "N/A"}
 
-El token de sesión ha sido guardado y se usará automáticamente en todas las demás operaciones.`,
+El token de sesión se usará automáticamente en las demás operaciones.`,
         }],
       };
     } catch (error) {
-      return {
-        content: [{
-          type: "text",
-          text: `❌ Error al iniciar sesión: ${error instanceof Error ? error.message : "Error desconocido"}`,
-        }],
-        isError: true,
-      };
+      return textoError("Error al iniciar sesión", error);
     }
   },
 };
@@ -311,50 +254,35 @@ export const obtenerSesionTool = {
   name: "sgsst_obtener_sesion",
   description: `Obtiene información sobre la sesión actual del usuario.
 
-Muestra si hay una sesión activa y los datos del usuario autenticado.
-
-No requiere parámetros.
-
-Ejemplo de uso:
-{}`,
+No requiere parámetros.`,
   inputSchema: {
     type: "object",
     properties: {},
   },
-  handler: async (args: unknown, context: ToolContext) => {
-    try {
-      if (!context.session?.isAuthenticated || !context.session?.user) {
-        return {
-          content: [{
-            type: "text",
-            text: "⚠️ No hay sesión activa. Use sgsst_iniciar_sesion para autenticarse.",
-          }],
-        };
-      }
-
-      const user = context.session.user;
-
+  handler: async (_args: unknown, context: ToolContext) => {
+    if (!context.session?.isAuthenticated || !context.session?.user) {
       return {
         content: [{
           type: "text",
-          text: `✅ Sesión activa
-
-👤 Usuario: ${user.nombre}
-🆔 ID: ${user.id}
-💼 Cargo: ${user.cargo}
-📧 Email: ${user.email}
-🔐 Nivel de acceso: ${user.nivel}`,
+          text: "⚠️ No hay sesión activa. Use sgsst_iniciar_sesion para autenticarse.",
         }],
-      };
-    } catch (error) {
-      return {
-        content: [{
-          type: "text",
-          text: `❌ Error al obtener sesión: ${error instanceof Error ? error.message : "Error desconocido"}`,
-        }],
-        isError: true,
       };
     }
+
+    const user = context.session.user;
+
+    return {
+      content: [{
+        type: "text",
+        text: `✅ Sesión activa
+
+👤 Usuario: ${user.nombreCompleto}
+🆔 ID empleado: ${user.idEmpleado}
+💼 Rol: ${user.rol || "N/A"}
+📧 Email: ${user.correoElectronico || "N/A"}
+🔐 Nivel de acceso: ${user.nivelAcceso || "N/A"}`,
+      }],
+    };
   },
 };
 
@@ -364,41 +292,26 @@ Ejemplo de uso:
  */
 export const cerrarSesionTool = {
   name: "sgsst_cerrar_sesion",
-  description: `Cierra la sesión actual del usuario.
+  description: `Cierra la sesión actual. Las operaciones siguientes exigirán autenticarse de nuevo.
 
-Elimina el token de sesión y requiere autenticarse nuevamente para futuras operaciones.
-
-No requiere parámetros.
-
-Ejemplo de uso:
-{}`,
+No requiere parámetros.`,
   inputSchema: {
     type: "object",
     properties: {},
   },
-  handler: async (args: unknown, context: ToolContext) => {
-    try {
-      if (context.session) {
-        context.session.isAuthenticated = false;
-        context.session.token = undefined;
-        context.session.user = undefined;
-      }
-
-      return {
-        content: [{
-          type: "text",
-          text: "✅ Sesión cerrada exitosamente. Debe autenticarse nuevamente para continuar.",
-        }],
-      };
-    } catch (error) {
-      return {
-        content: [{
-          type: "text",
-          text: `❌ Error al cerrar sesión: ${error instanceof Error ? error.message : "Error desconocido"}`,
-        }],
-        isError: true,
-      };
+  handler: async (_args: unknown, context: ToolContext) => {
+    if (context.session) {
+      context.session.isAuthenticated = false;
+      context.session.token = undefined;
+      context.session.user = undefined;
     }
+
+    return {
+      content: [{
+        type: "text",
+        text: "✅ Sesión cerrada exitosamente. Debe autenticarse nuevamente para continuar.",
+      }],
+    };
   },
 };
 

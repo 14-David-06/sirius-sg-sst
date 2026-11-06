@@ -100,11 +100,16 @@ Para usar este MCP con Claude Desktop, agregar a `claude_desktop_config.json`:
 Para usar este MCP con Claude Code CLI:
 
 ```bash
-# Agregar el servidor MCP
-claude mcp add sirius-sgsst node dist/index.js
+# Disponible en todos tus proyectos (usar ruta absoluta)
+claude mcp add sirius-sgsst --scope user \
+  -e SGSST_API_URL=http://localhost:3000 \
+  -- node C:/ruta/completa/a/mcp-sgsst/dist/index.js
 
-# O editando ~/.claude/mcp.json directamente
+# Verificar
+claude mcp list
 ```
+
+Dentro de una sesión, `/mcp` muestra el estado del servidor y sus herramientas.
 
 ## 🛠️ Herramientas Disponibles
 
@@ -201,7 +206,7 @@ claude mcp add sirius-sgsst node dist/index.js
 {
   "tool": "sgsst_verificar_usuario",
   "args": {
-    "email": "admin@empresa.com"
+    "numeroDocumento": "1234567890"
   }
 }
 
@@ -209,7 +214,7 @@ claude mcp add sirius-sgsst node dist/index.js
 {
   "tool": "sgsst_iniciar_sesion",
   "args": {
-    "email": "admin@empresa.com",
+    "numeroDocumento": "1234567890",
     "password": "mi_password"
   }
 }

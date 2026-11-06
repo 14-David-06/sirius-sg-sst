@@ -35,19 +35,23 @@ export interface AuthCredentials {
 }
 
 export interface AuthResponse {
-  token: string;
-  user: {
-    id: string;
-    nombre: string;
-    email: string;
-    cargo: string;
-    nivel: number;
+  success: boolean;
+  message?: string;
+  token?: string;
+  user?: {
+    idEmpleado: string;
+    nombreCompleto: string;
+    correoElectronico: string;
+    numeroDocumento: string;
+    rol: string;
+    nivelAcceso: string;
+    ordenNivel: number;
   };
 }
 
 export interface SessionInfo {
   isAuthenticated: boolean;
-  user?: AuthResponse["user"];
+  user?: NonNullable<AuthResponse["user"]>;
   token?: string;
 }
 

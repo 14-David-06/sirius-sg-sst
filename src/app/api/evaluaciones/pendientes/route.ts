@@ -133,10 +133,16 @@ export async function GET(request: NextRequest) {
 
   // ── 3. Filtrar por programación y Población Objetivo ─
   const plantillasElegibles = (plntData.records || []).filter((r: { fields: Record<string, unknown> }) => {
-    if (progsFiltro.length > 0) {
-      const progsPlantilla = (r.fields[pF.PROGRAMACIONES] as string[]) || [];
-      if (!progsPlantilla.some((id) => progsFiltro.includes(id))) return false;
+    const progsPlantilla = (r.fields[pF.PROGRAMACIONES] as string[]) || [];
+    // `responder` rechaza las plantillas sin programación: si se ofrecieran,
+    // el colaborador respondería todo para recibir un error al final.
+    if (progsPlantilla.length === 0) {
+      console.warn(
+        `[pendientes] Plantilla ${r.fields[pF.CODIGO] ?? "(sin código)"} activa pero sin programaciones; no se ofrece.`
+      );
+      return false;
     }
+    if (progsFiltro.length > 0 && !progsPlantilla.some((id) => progsFiltro.includes(id))) return false;
     const poblacion = (r.fields[pF.POBLACION] as string) || "";
     return !poblacion || poblacion === "Todos los Colaboradores"
       || comites.some((c) => poblacion.includes(c));

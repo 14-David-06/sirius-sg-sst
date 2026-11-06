@@ -760,9 +760,22 @@ export async function regenerarDocumentoConFirmaResponsable(
     );
   }
 
+  // Airtable manda sobre el snapshot: una corrección hecha en la constancia después de la firma debe llegar al PDF
+  const constanciaAirtable = await induccionesRepository.obtenerConstanciaPorInduccion(idInduccion);
+  const constancia: ConstanciaInput = constanciaAirtable
+    ? {
+        ...snapshot.constancia,
+        fechaRealizacion: constanciaAirtable.fechaRealizacion || snapshot.constancia.fechaRealizacion,
+        lugarRealizacion: constanciaAirtable.lugarRealizacion || snapshot.constancia.lugarRealizacion,
+        horaInicio: constanciaAirtable.horaInicio || snapshot.constancia.horaInicio,
+        horaFin: constanciaAirtable.horaFin || snapshot.constancia.horaFin,
+        responsableSST: constanciaAirtable.responsableSST || snapshot.constancia.responsableSST,
+      }
+    : snapshot.constancia;
+
   return generarDocumentoUnificado(
     idInduccion,
-    snapshot.constancia,
+    constancia,
     snapshot.evaluacion,
     snapshot.firmaEmpleadoDataUrl,
     firmaResponsableSSTDataUrl,

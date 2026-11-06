@@ -25,8 +25,8 @@ export class HttpClient {
   /**
    * Obtiene los headers por defecto
    */
-  private getHeaders(): HeadersInit {
-    const headers: HeadersInit = {
+  private getHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
 
@@ -59,12 +59,12 @@ export class HttpClient {
 
       clearTimeout(timeoutId);
 
-      const data = await response.json();
+      const data = (await response.json()) as ApiResponse<T>;
 
       if (!response.ok) {
         return {
           success: false,
-          error: data.error || `Error ${response.status}: ${response.statusText}`,
+          error: data.error || data.message || `Error ${response.status}: ${response.statusText}`,
         };
       }
 

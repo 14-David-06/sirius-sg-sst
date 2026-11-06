@@ -36,7 +36,7 @@ export async function validarEmpleadoNominaCore(
       };
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as { success?: boolean; empleado?: unknown; mensaje?: string };
 
     if (data.success && data.empleado) {
       return {

@@ -208,12 +208,7 @@ async function main() {
   await server.start();
 }
 
-// Ejecutar si es el módulo principal
-if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch((error) => {
-    console.error("Error fatal al iniciar servidor MCP:", error);
-    process.exit(1);
-  });
-}
-
-export { SGSSTServer };
+main().catch((error) => {
+  console.error("Error fatal al iniciar servidor MCP:", error);
+  process.exit(1);
+});

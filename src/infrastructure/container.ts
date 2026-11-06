@@ -9,6 +9,7 @@ import { ConsoleLogger } from "@/infrastructure/services/ConsoleLogger";
 import { createVerifyUser } from "@/core/use-cases/verifyUser";
 import { createAuthenticateUser } from "@/core/use-cases/authenticateUser";
 import { createRegisterPassword } from "@/core/use-cases/registerPassword";
+import { createResolverUsuarioActivo } from "@/core/use-cases/resolverUsuarioActivo";
 
 // ── Infraestructura (instancias singleton) ──────────────────────────────
 const logger = new ConsoleLogger("[SG-SST]");
@@ -27,3 +28,4 @@ export const registerPassword = createRegisterPassword({
   passwordHasher,
   logger,
 });
+export const resolverUsuarioActivo = createResolverUsuarioActivo({ personRepository });

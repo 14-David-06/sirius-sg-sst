@@ -257,7 +257,7 @@ Requiere autenticación.`,
         return { content: [{ type: "text", text: "❌ Debe autenticarse primero" }], isError: true };
       }
 
-      const params = args as { tipo: string; fecha: string; datos: unknown; responsable?: string; observaciones?: string };
+      const params = args as { tipo: string; fecha: string; datos: Record<string, unknown>; responsable?: string; observaciones?: string };
       const endpoints: Record<string, string> = {
         EPP: "/api/inspecciones-epp",
         AREAS: "/api/inspecciones-areas",

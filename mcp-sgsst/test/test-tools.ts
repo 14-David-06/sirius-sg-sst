@@ -113,7 +113,7 @@ class TestRunner {
           token: (loginResponse.data as any).token,
           user: (loginResponse.data as any).user,
         };
-        log(`  Usuario: ${this.session.user?.nombre}`, "blue");
+        log(`  Usuario: ${this.session.user?.nombreCompleto}`, "blue");
       } else {
         this.testsFailed++;
       }

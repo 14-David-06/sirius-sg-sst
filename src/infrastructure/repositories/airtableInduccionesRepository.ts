@@ -791,8 +791,9 @@ export class AirtableInduccionesRepository {
 
     console.log('[obtenerConstanciaPorInduccion] Record ID:', registro.id);
 
-    // 2. Buscar la constancia vinculada
-    const filterFormula = `FIND("${registro.id}", {ID_Induccion}) > 0`;
+    // 2. Buscar la constancia vinculada. En una fórmula, el campo de enlace devuelve el
+    //    ID_Induccion del registro (IND-XXXX), no su recID; las comas evitan que IND-0008 coincida con IND-00080
+    const filterFormula = `FIND(",${registro.idInduccion},", "," & ARRAYJOIN({${CF.ID_INDUCCION}}, ",") & ",") > 0`;
     const url = `${this.client.baseUrl}/${constanciasTableId}`;
     const params = new URLSearchParams({
       filterByFormula: filterFormula,

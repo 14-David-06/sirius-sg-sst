@@ -491,6 +491,45 @@ src/lib/pdf/corporativo.ts   Encabezado y pie Sirius (compartido)
 - `npm run probar:informe [mes] [anio]` lo ejecuta contra Airtable real
 - Ver `docs/modulos/informes/README.md`
 
+### Autenticación de la API — `src/proxy.ts` (Nov 2026)
+
+Hasta noviembre de 2026, ~114 de las 155 rutas de `/api` respondían sin sesión.
+Ahora `src/proxy.ts` (el middleware de Next 16) exige un JWT válido —cookie
+`auth_token` o `Authorization: Bearer`— en todo `/api/*` y `/dashboard/*`:
+
+- `/api/*` sin sesión → 401 `{ success:false, message, error, code }`
+- `/dashboard/*` sin cookie válida → redirige a `/login` (la sesión de la UI
+  vive en `localStorage` y no vence; la cookie dura 7 días)
+- Las excepciones están en `src/lib/rutasPublicas.ts`, **por ruta y método**:
+  login, OAuth/MCP y lo que llaman las pantallas públicas (`/firmar/*`,
+  `/evaluar/*`, `/inducciones/firma/*`, `/encuesta/socio/*`)
+- **Una pantalla pública nueva que llame a `/api` necesita su entrada ahí**,
+  o responde 401
+- El proxy es el piso: los permisos por nivel siguen en cada ruta con `requireNivel`
+
+### Conector MCP (Nov 2026)
+
+Claude (claude.ai, Desktop, celular) consulta y registra en SG-SST a nombre de
+quien se conecta. Mismo diseño que el conector de Sirius CRM. Ver `mcp/README.md`.
+
+| Pieza | Dónde |
+|---|---|
+| Endpoint remoto | `src/app/api/mcp/route.ts` (sin estado, `maxDuration = 60`) |
+| OAuth 2.1 sin BD | `src/lib/mcp/oauth.ts` + `src/app/api/oauth/*` + pantalla `src/app/(auth)/autorizar/` |
+| Metadatos `.well-known` | rewrites en `next.config.ts` |
+| Identidad por llamada | `resolverUsuarioActivo` (container) — activo + acceso a SG-SST |
+| Herramientas (31) | `mcp/modulos/*.mjs`, servidas por `mcp/servidor-comun.mjs` |
+| Servidor local stdio | `mcp/servidor.mjs` (`SGSST_MCP_*` en `.env.local`) |
+
+- Tokens firmados con claves HKDF derivadas de `JWT_SECRET`; el token solo
+  lleva el documento y la persona se relee de Airtable en cada llamada
+- Scopes `sgsst.leer` (siempre) y `sgsst.escribir` (casilla en `/autorizar`);
+  sin escritura, las herramientas que registran no se anuncian
+- Las herramientas llaman a `/api/*` por HTTP con un JWT de sesión: heredan
+  validaciones y permisos, nunca tocan Airtable
+- `mcp/catalogos.mjs` copia los enums de accidentes y medicina: `npm run check:mcp`
+- `mcp-sgsst/` es el paquete anterior (solo stdio, sin OAuth); quedó reemplazado
+
 ### Módulos en Desarrollo
 
 | Módulo | API | Dashboard | Estado |
@@ -552,6 +591,9 @@ npm run probar:excel-entregas [tipo] [YYYY-MM]  # Excel de entregas + chequeo de
 npm run probar:filtros-entregas                 # Acta por evento y descargas por colaborador
 npm run probar:pdf-entregas   [tipo] [YYYY-MM]  # PDF de entregas (una hoja por trabajador)
 npm run gen:env-example          # Regenera .env.example desde .env.local
+npm run mcp:diagnostico [-- --red]  # Lista las herramientas MCP (y las prueba contra SGSST_MCP_URL)
+npm run mcp:probar-oauth [url]      # Flujo OAuth del conector de punta a punta
+npm run check:mcp                   # Catálogos del conector vs. los de la app
 
 # Gestión de eventos y evaluaciones
 npm run eventos:listar             # Lista los últimos 20 eventos con información detallada
@@ -701,24 +743,36 @@ JWT_SECRET                   # Secreto para tokens JWT
    - **Estado: 0 problemas.** La auditoría del 2026-08-21 encontró 31 y todos
      se corrigieron (ver "Mejoras Recientes").
 
-3. Logging insuficiente
+3. Inspecciones específicas: la API escribe valores que no están en los selects
+   de Airtable (detectado en Nov 2026, al revisar el conector MCP)
+   - `typecast:false` → Airtable rechaza el POST y la API responde 500
+   - Verificado en camilla: `Tipo Responsable` solo admite `Responsable Área`,
+     `Responsable Inspección` y `Responsable COPASST`, y el código envía
+     `Inspector`/`Responsable SG-SST`/`COPASST`. El estado `Firmada` tampoco existe
+   - Según el esquema en vivo, kit falla igual, el extintor recibe
+     `Cumple/No cumple` en campos que son `Bueno/Regular/Malo` y `Faltante` no
+     existe en botiquín ni camilla. `?catalogo=equipos` de extintor y camilla
+     filtra `Estado='Activo'`, que esas tablas no tienen
+   - Si un POST falla a mitad, los detalles y responsables quedan huérfanos
+
+4. Logging insuficiente
    - Errores de queries secundarias se ignoran silenciosamente
    - Dificulta debugging en producción
 
 **Prioridad MEDIA:**
-4. Falta ordenamiento explícito en queries Airtable
+5. Falta ordenamiento explícito en queries Airtable
    - Los resultados no tienen orden predecible
    - Puede confundir a usuarios
 
-5. Tests automatizados
+6. Tests automatizados
    - No hay suite de tests
    - Todas las pruebas son manuales
 
-6. Documentación de API endpoints
+7. Documentación de API endpoints
    - No hay documentación formal de endpoints
    - Solo código fuente como referencia
 
-7. `typescript.ignoreBuildErrors: true` en `next.config.ts`
+8. `typescript.ignoreBuildErrors: true` en `next.config.ts`
    - Workaround del bug de Next.js 16.2.4 al generar `.next/dev/types/routes.d.ts`
      (el archivo sale malformado cuando hay muchos endpoints)
    - **Revertir cuando se actualice Next.js**, o los errores de tipos reales
@@ -726,19 +780,20 @@ JWT_SECRET                   # Secreto para tokens JWT
    - Mientras tanto, verificar a mano:
      `npx tsc --noEmit | grep -v "^\.next/"`
 
-8. Sin rate limiting ni `middleware.ts`
-   - Los endpoints públicos de firma (`/api/*/firmar-publico`, `/firmar/*`)
-     no tienen throttling
+9. Rate limiting parcial
+   - `src/proxy.ts` ya exige sesión en `/api/*` (Nov 2026)
+   - Solo `/api/oauth/authorize` limita intentos (`src/lib/limiteIntentos.ts`);
+     `/api/auth/login` y los endpoints públicos de firma siguen sin throttling
 
 **Prioridad BAJA:**
-9. ~~UI de inspecciones específicas~~ — **resuelto (Ago 2026)**
+10. ~~UI de inspecciones específicas~~ — **resuelto (Ago 2026)**
    - `/dashboard/inspecciones-emergencia` cubre los 4 tipos y el hub
      `/dashboard/inspecciones` ya enlaza a la sección
    - Falta el flujo de firma: las inspecciones se crean como `Completada`
      o `Borrador`; el estado `Firmada` existe en el catálogo pero ninguna
      pantalla lo produce
 
-10. Migraciones de datos
+11. Migraciones de datos
     - Existe `/api/equipos-emergencia/migrar` pero no documentado
     - Proceso manual, no automatizado
 

@@ -37,7 +37,7 @@ export function validateConfig(config: MCPConfig): void {
 
   // Validar URL de Nómina Core si está configurada
   if (config.nominaCoreUrl && !config.nominaCoreApiKey) {
-    console.warn("NOMINA_CORE_API_URL configurada pero falta NOMINA_CORE_API_KEY");
+    console.error("NOMINA_CORE_API_URL configurada pero falta NOMINA_CORE_API_KEY");
   }
 }
 
@@ -58,21 +58,22 @@ export class Logger {
     return requestedIndex >= currentIndex;
   }
 
+  // Todo a stderr: stdout es el canal JSON-RPC del transporte stdio.
   debug(message: string, ...args: unknown[]): void {
     if (this.shouldLog("debug")) {
-      console.debug(`[DEBUG] ${message}`, ...args);
+      console.error(`[DEBUG] ${message}`, ...args);
     }
   }
 
   info(message: string, ...args: unknown[]): void {
     if (this.shouldLog("info")) {
-      console.info(`[INFO] ${message}`, ...args);
+      console.error(`[INFO] ${message}`, ...args);
     }
   }
 
   warn(message: string, ...args: unknown[]): void {
     if (this.shouldLog("warn")) {
-      console.warn(`[WARN] ${message}`, ...args);
+      console.error(`[WARN] ${message}`, ...args);
     }
   }
 
